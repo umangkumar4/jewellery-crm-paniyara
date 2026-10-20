@@ -39,7 +39,7 @@ export function Sidebar({ collapsed }: { collapsed: boolean }) {
   return (
     <aside
       className={cn(
-        "flex h-screen flex-col bg-sidebar text-sidebar-foreground transition-[width] duration-200",
+        "flex h-screen flex-col bg-sidebar text-sidebar-foreground transition-[width] duration-200 print:hidden",
         collapsed ? "w-20" : "w-64",
       )}
     >

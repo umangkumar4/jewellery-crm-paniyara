@@ -39,7 +39,7 @@ export function Header({ onToggleSidebar }: { onToggleSidebar: () => void }) {
   }
 
   return (
-    <header className="flex h-16 shrink-0 items-center justify-between border-b border-border bg-background px-6">
+    <header className="flex h-16 shrink-0 items-center justify-between border-b border-border bg-background px-6 print:hidden">
       <div className="flex items-center gap-3">
         <Button
           type="button"
