@@ -143,7 +143,7 @@ src/
 │   ├── auth/
 │   │   ├── jwt.ts                                ✅ done — signToken(), verifyToken()
 │   │   ├── password.ts                           ✅ done — bcrypt hash/compare wrappers
-│   │   └── session.ts                             not started — requireAuth(request): reads the `Authorization: Bearer <token>` header, calls verifyToken(), returns null on success or a 401 Response on failure
+│   │   └── session.ts                             ✅ done — requireAuth(request): reads the `Authorization: Bearer <token>` header, calls verifyToken(), returns null on success or a 401 Response on failure
 │   └── services/                                 one file per module — business logic the route handler calls, keeps route.ts files thin
 │       ├── authService.ts                        ✅ done — registerUser(), loginUser()
 │       ├── dashboardService.ts

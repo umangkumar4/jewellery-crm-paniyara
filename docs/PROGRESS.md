@@ -39,7 +39,8 @@ Decision made with the project owner: **start a brand-new Next.js project here, 
 - `src/models/User.model.ts` — Mongoose model matching `DATABASE_DESIGN.md §2.1`.
 - `src/schemas/auth.schema.ts` — `registerSchema` (Zod v4).
 - `src/server/auth/password.ts` — `hashPassword()`/`comparePassword()` (bcryptjs, 10 salt rounds).
-- `src/server/auth/jwt.ts` — `signToken()`, `verifyToken()`. `verifyToken` is unused until `requireAuth()`/logout exists. (A `getTokenMaxAgeSeconds()` helper existed briefly for the cookie's `maxAge` and was removed as dead code once the cookie was dropped — see decision #8.)
+- `src/server/auth/jwt.ts` — `signToken()`, `verifyToken()`. (A `getTokenMaxAgeSeconds()` helper existed briefly for the cookie's `maxAge` and was removed as dead code once the cookie was dropped — see decision #8.)
+- `src/server/auth/session.ts` — `requireAuth(request)`: reads the `Authorization: Bearer <token>` header, calls `verifyToken()`, returns `null` on success or a pre-built `401` `Response` on failure (no/malformed header → `{"error":"Unauthorized"}`, invalid/expired token → `{"error":"Invalid or expired session"}`). Not called from any route yet — no 🔒 route exists until the first business module (tags) is built — but it's the only server-side enforcement point this app has (see `bckend_setup.md §6`), so it had to land before anything protected can.
 - `src/server/services/authService.ts` — `registerUser()`, `loginUser()`, `UserAlreadyExistsError`, `InvalidCredentialsError` (same message/error for "no such user" and "wrong password", by design — prevents email enumeration).
 - `src/app/api/auth/register/route.ts` — `POST /api/auth/register`, manually verified all 4 cases (403 no/wrong secret, 422 bad body, 201 create, 409 on repeat) against a local MongoDB; confirmed the stored `passwordHash` is an actual bcrypt hash, not plaintext.
 - `src/app/api/auth/login/route.ts` — `POST /api/auth/login`, manually verified: 422 on bad body, 401 (identical message) for both unknown email and wrong password, 200 with `{ user, token }` in the body and **no `Set-Cookie` header at all** (see decision #8) on success. Decoded the issued JWT — `{ userId }` matches the real user's `_id`, expiry is exactly 7 days out. Test user deleted after each session.
@@ -66,7 +67,7 @@ Auth has to come first since almost everything else is 🔒:
 
 - [x] `src/server/auth/password.ts` (bcrypt wrappers)
 - [x] `src/server/auth/jwt.ts` (sign/verify/maxAge)
-- [ ] `src/server/auth/session.ts` (`requireAuth()` — needed before any 🔒 route can be built)
+- [x] `src/server/auth/session.ts` (`requireAuth()` — needed before any 🔒 route can be built)
 - [x] `src/models/User.model.ts`
 - [ ] `src/models/PasswordResetToken.model.ts`
 - [x] `POST /api/auth/register` (🔑 setup-secret gated)
