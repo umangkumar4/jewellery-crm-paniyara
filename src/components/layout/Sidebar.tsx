@@ -25,12 +25,12 @@ const modules: NavItem[] = [
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { label: "Billing", href: "/billing", icon: Receipt },
   { label: "Tags", href: "/tagging", icon: Tag },
+  { label: "Settings", href: "/settings", icon: Settings },
 ];
 
 const comingSoon: NavItem[] = [
   { label: "Inventory", href: "#", icon: Boxes },
   { label: "Customers", href: "#", icon: Users },
-  { label: "Settings", href: "#", icon: Settings },
 ];
 
 export function Sidebar({ collapsed }: { collapsed: boolean }) {

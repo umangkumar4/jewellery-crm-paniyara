@@ -1,4 +1,5 @@
 import { dbConnect } from "@/lib/db/mongoose";
+import { logger } from "@/lib/logger";
 import { requireAuth } from "@/server/auth/session";
 import { findTagByCode, serializeTag } from "@/server/services/tagsService";
 
@@ -19,5 +20,10 @@ export async function GET(request: Request, { params }: { params: Promise<{ code
     return Response.json({ error: "This tag is already sold" }, { status: 409 });
   }
 
-  return Response.json(serializeTag(tag));
+  try {
+    return Response.json(serializeTag(tag));
+  } catch (error) {
+    logger.error({ error }, "Failed to serialize tag");
+    return Response.json({ error: "Internal server error" }, { status: 500 });
+  }
 }

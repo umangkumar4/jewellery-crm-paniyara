@@ -40,10 +40,20 @@ Decision made with the project owner: **start a brand-new Next.js project here, 
 - `src/schemas/auth.schema.ts` — `registerSchema` (Zod v4).
 - `src/server/auth/password.ts` — `hashPassword()`/`comparePassword()` (bcryptjs, 10 salt rounds).
 - `src/server/auth/jwt.ts` — `signToken()`, `verifyToken()`. (A `getTokenMaxAgeSeconds()` helper existed briefly for the cookie's `maxAge` and was removed as dead code once the cookie was dropped — see decision #8.)
-- `src/server/auth/session.ts` — `requireAuth(request)`: reads the `Authorization: Bearer <token>` header, calls `verifyToken()`, returns `null` on success or a pre-built `401` `Response` on failure (no/malformed header → `{"error":"Unauthorized"}`, invalid/expired token → `{"error":"Invalid or expired session"}`). Not called from any route yet — no 🔒 route exists until the first business module (tags) is built — but it's the only server-side enforcement point this app has (see `bckend_setup.md §6`), so it had to land before anything protected can.
+- `src/server/auth/session.ts` — `requireAuth(request)`: reads the `Authorization: Bearer <token>` header, calls `verifyToken()`, returns `null` on success or a pre-built `401` `Response` on failure (no/malformed header → `{"error":"Unauthorized"}`, invalid/expired token → `{"error":"Invalid or expired session"}`). Now called from every tags route (the first 🔒 business module, see below) — it's the only server-side enforcement point this app has (see `bckend_setup.md §6`).
 - `src/server/services/authService.ts` — `registerUser()`, `loginUser()`, `UserAlreadyExistsError`, `InvalidCredentialsError` (same message/error for "no such user" and "wrong password", by design — prevents email enumeration).
 - `src/app/api/auth/register/route.ts` — `POST /api/auth/register`, manually verified all 4 cases (403 no/wrong secret, 422 bad body, 201 create, 409 on repeat) against a local MongoDB; confirmed the stored `passwordHash` is an actual bcrypt hash, not plaintext.
 - `src/app/api/auth/login/route.ts` — `POST /api/auth/login`, manually verified: 422 on bad body, 401 (identical message) for both unknown email and wrong password, 200 with `{ user, token }` in the body and **no `Set-Cookie` header at all** (see decision #8) on success. Decoded the issued JWT — `{ userId }` matches the real user's `_id`, expiry is exactly 7 days out. Test user deleted after each session.
+- **Tagging module (first 🔒 business module) — backend and frontend both done:**
+  - `src/models/Tag.model.ts` — matches `DATABASE_DESIGN.md §2.4`.
+  - `src/schemas/tag.schema.ts` — `createTagSchema` (snake_case request body).
+  - `src/server/services/tagsService.ts` — `createTag()` (collision-checked `TAG-XXXXXXXX` via `nanoid`, 5 retry attempts), `findTagByCode()`, `listTags()` (pagination + regex search on `productName`/`code`, user input escaped before building the `RegExp` + status filter), `serializeTag()`.
+  - `src/app/api/tags/route.ts` — `POST` (create) and `GET` (list — **not in the original `REQUIREMENTS.md` spec**, added for the reprint-from-table UI; `page`/`limit`/`q`/`status` query params, `{data, total, page}` response, same envelope shape as the documented invoices list endpoint).
+  - `src/app/api/tags/[code]/route.ts` — `GET` scan lookup, 404/409 per the double-sale-prevention rule. All manually verified against a local MongoDB with short-lived signed JWTs (no real user credentials needed); test tags deleted after each verification pass.
+  - `src/app/api/tags/[code]/label/route.ts` — `GET` label/print payload, deliberately no sold-status check (reprinting a sold item's label is a legitimate audit use, and `REQUIREMENTS.md` only lists 404/409 as errors for the scan-lookup endpoint, not this one).
+  - Frontend: `src/features/tagging/{hooks,components}` — `useCreateTag()` (invalidates the tags list cache on success), `useTags()` (paginated/searchable list query), `TagForm.tsx` (net weight auto-computed from gross − stone, still editable), `Barcode.tsx` (`jsbarcode` CODE128, confirmed scannable with a real phone), `TagLabelPreview.tsx` (print button, uses the `tag-bw*` print-safe classes from `globals.css`), `TagsTable.tsx` (search/status filter/pagination/reprint — not in the original plan).
+  - Also added `print:hidden` to `Sidebar.tsx`/`Header.tsx` so printing a label only prints the label, not the app shell — reusable for invoice printing later.
+  - **Not yet done:** exact `@page` mm sizing for real thermal label printers (current output is print-safe, not millimeter-calibrated); the `409` already-sold path on the scan-lookup endpoint is implemented but unexercised against live data since nothing sets `status: 'sold'` until Invoices exists.
 - `src/app/layout.tsx` / `src/app/providers.tsx` — root layout wired to `QueryClientProvider` + `<Toaster />`.
 - `src/app/page.tsx` — temporary landing page that calls `/api/health` and shows DB status. **Not a real product page** — replace once there's something real to land on (dashboard or /login redirect).
 - `.env` (local, gitignored) + `.env.example` with `MONGODB_URI`, `JWT_SECRET`, `JWT_EXPIRES_IN`, `SETUP_SECRET`, `NODE_ENV`.
@@ -52,7 +62,7 @@ Decision made with the project owner: **start a brand-new Next.js project here, 
 A local MongoDB is running on `localhost:27017` as of this session (confirmed via `nc -z localhost 27017` and the health check) — if it's not running next time, `brew services start mongodb-community` or start the `mongod` binary found at `/opt/homebrew/bin/mongod`.
 
 **Feature-wise folder structure pre-created** (empty except for a `.gitkeep` until a real file lands — delete the `.gitkeep` at that point, already done for `models/`, `schemas/`, `server/auth/`, `server/services/`):
-- Frontend: `src/features/{auth,dashboard,billing,tagging}/{hooks,components}` (+ `billing/lib` for `calculations.ts`) — still empty, `store/`, `components/{ui,layout}` — still empty
+- Frontend: `src/features/{auth,tagging}/{hooks,components}` now have real files (see "What's built" above); `features/{dashboard,billing}`, `billing/lib` (`calculations.ts`), `store/`, `components/{ui,layout}` have since been partly filled in too by the login/app-shell and tagging work — this note is stale as a whole, kept for history
 - Backend: `src/models/` (has `User.model.ts`), `src/schemas/` (has `auth.schema.ts`), `src/server/auth/` (has `password.ts`, `jwt.ts`), `src/server/services/` (has `authService.ts`)
 
 No `app/(auth)|(app)/**` page folders exist yet — those get created together with the actual page, not pre-scaffolded, since an empty `page.tsx` with no export breaks the Next.js build. `app/api/auth/{register,login}/` are the first real route folders.
@@ -75,11 +85,12 @@ Auth has to come first since almost everything else is 🔒:
 - [ ] `POST /api/auth/logout` (now just an acknowledge-only endpoint — the real logout is the frontend calling `clearStoredToken()`)
 - [ ] `POST /api/auth/forgot-password`, `POST /api/auth/reset-password`
 - [ ] ~~`proxy.ts` auth redirect~~ — not happening, see decision #8. If `proxy.ts` is ever added for something else (not auth), that's a separate, unplanned task.
-- [ ] `src/models/Tag.model.ts` → `POST /api/tags`, `GET /api/tags/:code`, `GET /api/tags/:code/label`
+- [x] `src/models/Tag.model.ts` → `POST /api/tags`, `GET /api/tags/:code`, `GET /api/tags/:code/label`, plus `GET /api/tags` (list — added beyond the original spec for the reprint UI; see "What's built" below)
 - [ ] `src/models/Customer.model.ts` → `GET /api/customers`
 - [ ] `src/models/Invoice.model.ts`, `src/models/InvoiceCounter.model.ts` → `POST /api/invoices` (the atomic, transactional one — build this carefully, see `DATABASE_DESIGN.md §3`), `GET /api/invoices`, `GET /api/invoices/:id`, `GET /api/invoices/:id/print`, `DELETE /api/invoices/:id`, `POST /api/invoices/:id/payments`
 - [ ] `GET /api/dashboard/summary`, `GET /api/dashboard/sales-trend` (these are just aggregations over `invoices`, do them last)
-- [ ] Pages: `(auth)/login`, `(app)/layout` (AppShell + **client-side** session redirect — no server-side check is possible, see decision #8), `(app)/dashboard`, `(app)/billing`, `(app)/tagging`, `(app)/invoices`
+- [ ] Pages: `(auth)/login`, `(app)/layout` (AppShell + **client-side** session redirect — no server-side check is possible, see decision #8), `(app)/dashboard`, `(app)/billing`, `(app)/invoices` — note: these are now further along than "not started" (login/layout/dashboard-chrome/billing-chrome all exist), this checkbox just hasn't been split up to reflect that yet
+- [x] Page: `(app)/tagging` — create form, label preview/print, searchable/paginated tags table with reprint
 - [ ] Swap `src/app/page.tsx`'s placeholder for a real redirect once `/login` and `/dashboard` exist.
 
 Update the checkboxes above as work lands, so this file stays an accurate "what's done" snapshot rather than going stale like the old repo's docs did.

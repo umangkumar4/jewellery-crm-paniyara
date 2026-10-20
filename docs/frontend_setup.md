@@ -88,9 +88,9 @@ src/
 │   │   ├── hooks/useCustomerLookup.ts, useCreateInvoice.ts, useAddPayment.ts
 │   │   ├── lib/calculations.ts           pure functions, see §4 — copy verbatim from the original design, framework-independent
 │   │   └── components/CustomerFields.tsx, ScanInput.tsx, ItemTable.tsx, TotalsPanel.tsx, PaymentPanel.tsx
-│   └── tagging/
-│       ├── hooks/useCreateTag.ts
-│       └── components/TagPrintingForm.tsx, TagLabelPreview.tsx
+│   └── tagging/                        ✅ done
+│       ├── hooks/useCreateTag.ts (mutation, invalidates the tags list on success), useTags.ts (paginated/searchable list query)
+│       └── components/TagForm.tsx (named TagPrintingForm.tsx in the original plan), TagLabelPreview.tsx, Barcode.tsx (jsbarcode wrapper), TagsTable.tsx (not in the original plan — search/status filter/pagination/reprint)
 │
 ├── store/                              Zustand stores
 │   ├── useAuthStore.ts                   client-known auth state (current user name/email for the topbar, isAuthenticated flag). Initialized from src/lib/auth-token.ts on mount, not derived from a cookie - there isn't one.
@@ -190,13 +190,13 @@ Unchanged behavior from the original design:
 
 ## 6. Physical Label & Invoice Printing
 
-### 6.1 Tag Barcode Printing (`TagLabelPreview.tsx`)
-Unchanged — `jsbarcode` on canvas/SVG:
+### 6.1 Tag Barcode Printing (`TagLabelPreview.tsx`) — ✅ done
+`jsbarcode` on an SVG, exactly as planned (`src/features/tagging/components/Barcode.tsx`), ref-based instead of the ID-selector shown here so multiple labels on a page can't collide:
 ```tsx
 import JsBarcode from 'jsbarcode';
-// JsBarcode("#barcode", tag.code, { format: "CODE128", width: 1.5, height: 40 });
+// JsBarcode(svgRef.current, tag.code, { format: "CODE128", width: 1.5, height: 40 });
 ```
-Styled with `@media print` rules in `globals.css`, matched to standard thermal jewellery labels (e.g., 50mm × 12mm butterfly dumbbell tags).
+Confirmed scannable with a real phone barcode scanner. Printing is scoped with Tailwind's `print:hidden` on `Sidebar.tsx`/`Header.tsx` (so only the label prints, not the app shell) and the existing `tag-bw*` classes in `globals.css` (force black/white regardless of theme). **Not yet done:** exact `@page` mm sizing for real thermal label printers (e.g. "50mm × 12mm") — current output is print-safe but not millimeter-calibrated; needs a real printer to tune.
 
 ### 6.2 Invoice Printing (`app/(app)/invoices/[id]/print/page.tsx`)
 Pulls data via `GET /api/invoices/:id/print`. Since this is a Server Component page by default, fetch the data server-side (`await dbConnect()` isn't available to a page directly — call the route's service function, or `fetch` the route itself) and render a clean tabular receipt (Shop Header, Customer details, itemized breakdown, Paid vs. Pending, Payment Mode). Trigger `window.print()` from a small client component once the content is mounted.

@@ -1,6 +1,8 @@
 import { customAlphabet } from "nanoid";
 import type { QueryFilter } from "mongoose";
 import { TagModel, type TagDocument, type TagStatus } from "@/models/Tag.model";
+import { MetalPurityModel, type MetalPurityDocument } from "@/models/MetalPurity.model";
+import { PurityNotFoundError } from "@/server/services/metalPuritiesService";
 import type { CreateTagInput } from "@/schemas/tag.schema";
 
 const generateCodeSuffix = customAlphabet("ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789", 8);
@@ -22,23 +24,31 @@ async function generateUniqueTagCode(): Promise<string> {
 }
 
 export async function createTag(input: CreateTagInput) {
+  // Tagging only ever picks an existing, active purity (the dropdown never
+  // offers anything else) - re-checked here server-side rather than trusted
+  // from the client, same as every other validated input in this app.
+  const purity = await MetalPurityModel.findById(input.purity_id);
+  if (!purity || !purity.active) {
+    throw new PurityNotFoundError();
+  }
+
   const code = await generateUniqueTagCode();
 
   const tag = await TagModel.create({
     code,
     productName: input.product_name,
-    metal: input.metal,
-    purity: input.purity,
+    purityId: purity._id,
     grossWtG: input.gross_wt_g,
     stoneWtG: input.stone_wt_g,
     netWtG: input.net_wt_g,
   });
 
+  tag.purityId = purity;
   return tag;
 }
 
 export async function findTagByCode(code: string) {
-  return TagModel.findOne({ code: code.toUpperCase() });
+  return TagModel.findOne({ code: code.toUpperCase() }).populate("purityId");
 }
 
 export interface ListTagsParams {
@@ -61,7 +71,8 @@ export async function listTags({ page, limit, q, status }: ListTagsParams) {
     TagModel.find(filter)
       .sort({ createdAt: -1 })
       .skip((page - 1) * limit)
-      .limit(limit),
+      .limit(limit)
+      .populate("purityId"),
     TagModel.countDocuments(filter),
   ]);
 
@@ -69,12 +80,18 @@ export async function listTags({ page, limit, q, status }: ListTagsParams) {
 }
 
 export function serializeTag(tag: TagDocument) {
+  const purity = tag.purityId;
+  if (!purity || !(purity instanceof Object) || !("metal" in purity)) {
+    throw new Error("serializeTag() called on a tag whose purityId wasn't populated");
+  }
+  const populatedPurity = purity as MetalPurityDocument;
+
   return {
     id: tag._id.toString(),
     code: tag.code,
     product_name: tag.productName,
-    metal: tag.metal,
-    purity: tag.purity,
+    metal: populatedPurity.metal,
+    purity: populatedPurity.purity,
     gross_wt_g: tag.grossWtG,
     stone_wt_g: tag.stoneWtG,
     net_wt_g: tag.netWtG,

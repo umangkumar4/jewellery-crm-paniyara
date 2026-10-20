@@ -9,15 +9,17 @@ import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
 import { Select } from "@/components/ui/Select";
 import { ApiError } from "@/lib/api-client";
+import { METALS } from "@/lib/metals";
 import { createTagSchema, type CreateTagFormValues, type CreateTagInput } from "@/schemas/tag.schema";
 import { useCreateTag, type Tag } from "@/features/tagging/hooks/useCreateTag";
-
-const METALS = ["Gold", "Silver", "Platinum"];
-const PURITIES = ["24K", "22K", "18K", "14K", "999", "925"];
+import { useMetalPurities } from "@/features/settings/hooks/useMetalPurities";
 
 export function TagForm({ onCreated }: { onCreated: (tag: Tag) => void }) {
   const createTag = useCreateTag();
   const [formError, setFormError] = useState<string | null>(null);
+  const [metal, setMetal] = useState<string>(METALS[0]);
+
+  const { data: purities } = useMetalPurities({ metal });
 
   const {
     register,
@@ -31,8 +33,7 @@ export function TagForm({ onCreated }: { onCreated: (tag: Tag) => void }) {
     resolver: zodResolver(createTagSchema),
     defaultValues: {
       product_name: "",
-      metal: METALS[0],
-      purity: PURITIES[0],
+      purity_id: "",
       gross_wt_g: 0,
       stone_wt_g: 0,
       net_wt_g: 0,
@@ -42,6 +43,23 @@ export function TagForm({ onCreated }: { onCreated: (tag: Tag) => void }) {
   // react-hook-form's watch() isn't memoizable, so the compiler skips
   // auto-memoizing this component - expected, not a correctness issue.
   // eslint-disable-next-line react-hooks/incompatible-library
+  const currentPurityId = watch("purity_id");
+
+  // Purity options depend on the selected metal (a purely client-side
+  // filter, not part of the submitted form - metal isn't a field on
+  // createTagSchema anymore, purity_id already identifies it). Only reset
+  // the selection when it's no longer valid for the current options -
+  // otherwise an unrelated background refetch of `purities` (e.g. someone
+  // editing a different purity in Settings) would silently discard
+  // whatever the user already picked (mirrors MetalRateForm.tsx's pattern).
+  useEffect(() => {
+    if (!purities) return;
+    const stillValid = purities.some((p) => p.id === currentPurityId);
+    if (!stillValid) {
+      setValue("purity_id", purities[0]?.id ?? "");
+    }
+  }, [purities, currentPurityId, setValue]);
+
   const grossWtG = watch("gross_wt_g");
   const stoneWtG = watch("stone_wt_g");
 
@@ -56,6 +74,7 @@ export function TagForm({ onCreated }: { onCreated: (tag: Tag) => void }) {
       onSuccess: (tag) => {
         toast.success(`Tag ${tag.code} created`);
         reset();
+        setMetal(METALS[0]);
         onCreated(tag);
       },
       onError: (error) => {
@@ -74,6 +93,8 @@ export function TagForm({ onCreated }: { onCreated: (tag: Tag) => void }) {
     });
   });
 
+  const hasPurities = !!purities && purities.length > 0;
+
   return (
     <form onSubmit={onSubmit} className="space-y-5" noValidate>
       <div>
@@ -87,26 +108,36 @@ export function TagForm({ onCreated }: { onCreated: (tag: Tag) => void }) {
       <div className="grid grid-cols-2 gap-4">
         <div>
           <Label htmlFor="metal">Metal</Label>
-          <Select id="metal" {...register("metal")}>
-            {METALS.map((metal) => (
-              <option key={metal} value={metal}>
-                {metal}
+          <Select id="metal" value={metal} onChange={(e) => setMetal(e.target.value)}>
+            {METALS.map((m) => (
+              <option key={m} value={m}>
+                {m}
               </option>
             ))}
           </Select>
-          {errors.metal ? <p className="mt-1.5 text-xs text-destructive">{errors.metal.message}</p> : null}
         </div>
 
         <div>
-          <Label htmlFor="purity">Purity</Label>
-          <Select id="purity" {...register("purity")}>
-            {PURITIES.map((purity) => (
-              <option key={purity} value={purity}>
-                {purity}
-              </option>
-            ))}
+          <Label htmlFor="purity_id">Purity</Label>
+          <Select id="purity_id" disabled={!hasPurities} {...register("purity_id")}>
+            {hasPurities ? (
+              purities!.map((purity) => (
+                <option key={purity.id} value={purity.id}>
+                  {purity.purity}
+                </option>
+              ))
+            ) : (
+              <option value="">No purities yet</option>
+            )}
           </Select>
-          {errors.purity ? <p className="mt-1.5 text-xs text-destructive">{errors.purity.message}</p> : null}
+          {!hasPurities ? (
+            <p className="mt-1.5 text-xs text-muted-foreground">
+              No active purities for {metal} yet - add one in Settings.
+            </p>
+          ) : null}
+          {errors.purity_id ? (
+            <p className="mt-1.5 text-xs text-destructive">{errors.purity_id.message}</p>
+          ) : null}
         </div>
       </div>
 
@@ -156,7 +187,7 @@ export function TagForm({ onCreated }: { onCreated: (tag: Tag) => void }) {
 
       {formError ? <p className="text-sm text-destructive">{formError}</p> : null}
 
-      <Button type="submit" disabled={createTag.isPending} className="w-full uppercase">
+      <Button type="submit" disabled={createTag.isPending || !hasPurities} className="w-full uppercase">
         {createTag.isPending ? "Creating…" : "Create Tag & Print Label"}
       </Button>
     </form>

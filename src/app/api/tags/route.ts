@@ -1,4 +1,3 @@
-import { z } from "zod";
 import { dbConnect } from "@/lib/db/mongoose";
 import { logger } from "@/lib/logger";
 import { requireAuth } from "@/server/auth/session";
@@ -10,6 +9,8 @@ import {
   serializeTag,
   TagCodeGenerationError,
 } from "@/server/services/tagsService";
+import { PurityNotFoundError } from "@/server/services/metalPuritiesService";
+import { validationErrorResponse } from "@/server/validation";
 
 export const dynamic = "force-dynamic";
 
@@ -35,9 +36,13 @@ export async function GET(request: Request) {
 
   await dbConnect();
 
-  const { items, total } = await listTags({ page, limit, q, status });
-
-  return Response.json({ data: items.map(serializeTag), total, page });
+  try {
+    const { items, total } = await listTags({ page, limit, q, status });
+    return Response.json({ data: items.map(serializeTag), total, page });
+  } catch (error) {
+    logger.error({ error }, "Failed to list tags");
+    return Response.json({ error: "Internal server error" }, { status: 500 });
+  }
 }
 
 export async function POST(request: Request) {
@@ -47,14 +52,7 @@ export async function POST(request: Request) {
   const body = await request.json().catch(() => null);
   const parsed = createTagSchema.safeParse(body);
   if (!parsed.success) {
-    const flattened = z.flattenError(parsed.error);
-    const fields = Object.fromEntries(
-      Object.entries(flattened.fieldErrors).map(([key, messages]) => [
-        key,
-        messages?.[0] ?? "Invalid value",
-      ]),
-    );
-    return Response.json({ error: "Validation failed", fields }, { status: 422 });
+    return validationErrorResponse(parsed.error);
   }
 
   await dbConnect();
@@ -63,6 +61,9 @@ export async function POST(request: Request) {
     const tag = await createTag(parsed.data);
     return Response.json(serializeTag(tag), { status: 201 });
   } catch (error) {
+    if (error instanceof PurityNotFoundError) {
+      return Response.json({ error: error.message }, { status: 404 });
+    }
     if (error instanceof TagCodeGenerationError) {
       return Response.json({ error: error.message }, { status: 500 });
     }

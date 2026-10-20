@@ -1,9 +1,9 @@
-import { z } from "zod";
 import { dbConnect } from "@/lib/db/mongoose";
 import { logger } from "@/lib/logger";
 import { loginSchema } from "@/schemas/auth.schema";
 import { InvalidCredentialsError, loginUser } from "@/server/services/authService";
 import { signToken } from "@/server/auth/jwt";
+import { validationErrorResponse } from "@/server/validation";
 
 export const dynamic = "force-dynamic";
 
@@ -11,14 +11,7 @@ export async function POST(request: Request) {
   const body = await request.json().catch(() => null);
   const parsed = loginSchema.safeParse(body);
   if (!parsed.success) {
-    const flattened = z.flattenError(parsed.error);
-    const fields = Object.fromEntries(
-      Object.entries(flattened.fieldErrors).map(([key, messages]) => [
-        key,
-        messages?.[0] ?? "Invalid value",
-      ]),
-    );
-    return Response.json({ error: "Validation failed", fields }, { status: 422 });
+    return validationErrorResponse(parsed.error);
   }
 
   await dbConnect();

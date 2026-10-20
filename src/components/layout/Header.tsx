@@ -11,6 +11,7 @@ const pageTitles: Record<string, string> = {
   "/dashboard": "Dashboard",
   "/billing": "Billing",
   "/tagging": "Tags",
+  "/settings": "Settings",
 };
 
 export function Header({ onToggleSidebar }: { onToggleSidebar: () => void }) {
