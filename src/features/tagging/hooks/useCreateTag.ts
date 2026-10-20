@@ -1,4 +1,4 @@
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api-client";
 import type { CreateTagInput } from "@/schemas/tag.schema";
 
@@ -16,7 +16,12 @@ export interface Tag {
 }
 
 export function useCreateTag() {
+  const queryClient = useQueryClient();
+
   return useMutation({
     mutationFn: (input: CreateTagInput) => apiClient.post<Tag>("/tags", input),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["tags"] });
+    },
   });
 }

@@ -1,5 +1,6 @@
 import { customAlphabet } from "nanoid";
-import { TagModel, type TagDocument } from "@/models/Tag.model";
+import type { QueryFilter } from "mongoose";
+import { TagModel, type TagDocument, type TagStatus } from "@/models/Tag.model";
 import type { CreateTagInput } from "@/schemas/tag.schema";
 
 const generateCodeSuffix = customAlphabet("ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789", 8);
@@ -38,6 +39,33 @@ export async function createTag(input: CreateTagInput) {
 
 export async function findTagByCode(code: string) {
   return TagModel.findOne({ code: code.toUpperCase() });
+}
+
+export interface ListTagsParams {
+  page: number;
+  limit: number;
+  q?: string;
+  status?: TagStatus;
+}
+
+export async function listTags({ page, limit, q, status }: ListTagsParams) {
+  const filter: QueryFilter<TagDocument> = {};
+  if (status) filter.status = status;
+  if (q) {
+    // q is user input - escape regex metacharacters before using it in a RegExp.
+    const regex = new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
+    filter.$or = [{ productName: regex }, { code: regex }];
+  }
+
+  const [items, total] = await Promise.all([
+    TagModel.find(filter)
+      .sort({ createdAt: -1 })
+      .skip((page - 1) * limit)
+      .limit(limit),
+    TagModel.countDocuments(filter),
+  ]);
+
+  return { items, total };
 }
 
 export function serializeTag(tag: TagDocument) {

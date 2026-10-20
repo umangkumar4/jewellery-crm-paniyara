@@ -112,10 +112,10 @@ src/
 │   │   │   └── sales-trend/route.ts             not started
 │   │   ├── customers/route.ts                   not started
 │   │   ├── tags/
-│   │   │   ├── route.ts                         not started       (POST)
+│   │   │   ├── route.ts                         ✅ done           (POST create, GET list — list is beyond REQUIREMENTS.md's original 3 tagging endpoints: added for the reprint-from-table UI, with page/limit/q/status query params, {data, total, page} response)
 │   │   │   └── [code]/
-│   │   │       ├── route.ts                     not started       (GET scan lookup)
-│   │   │       └── label/route.ts               not started       (GET label payload)
+│   │   │       ├── route.ts                     ✅ done           (GET scan lookup — 404/409 both verified; 409 not yet exercised against a real sold tag since nothing sets that status until Invoices exists)
+│   │   │       └── label/route.ts               ✅ done           (GET label payload — no sold-status check, by design, see tagsService.ts)
 │   │   └── invoices/
 │   │       ├── route.ts                         not started       (GET list, POST create)
 │   │       └── [id]/
@@ -126,17 +126,17 @@ src/
 │   └── (app)/...                                not started — see docs/frontend_setup.md
 │
 ├── models/                                      not started — one Mongoose model file per collection, created alongside the first route that needs it
-│   ├── User.model.ts
+│   ├── User.model.ts                             ✅ done
 │   ├── PasswordResetToken.model.ts
 │   ├── Customer.model.ts
-│   ├── Tag.model.ts
+│   ├── Tag.model.ts                              ✅ done
 │   ├── Invoice.model.ts
 │   └── InvoiceCounter.model.ts
 │
 ├── schemas/                                     not started — Zod schemas, one file per module, imported by both route handlers and client forms
-│   ├── auth.schema.ts
+│   ├── auth.schema.ts                            ✅ done
 │   ├── customer.schema.ts
-│   ├── tag.schema.ts
+│   ├── tag.schema.ts                             ✅ done — createTagSchema
 │   └── invoice.schema.ts
 │
 ├── server/
@@ -148,7 +148,7 @@ src/
 │       ├── authService.ts                        ✅ done — registerUser(), loginUser()
 │       ├── dashboardService.ts
 │       ├── customersService.ts
-│       ├── tagsService.ts
+│       ├── tagsService.ts                        ✅ done — createTag() (collision-checked TAG-XXXXXXXX via nanoid), findTagByCode(), listTags() (paginated, search, status filter), serializeTag()
 │       └── invoicesService.ts
 │
 └── lib/                                          ✅ generic infra

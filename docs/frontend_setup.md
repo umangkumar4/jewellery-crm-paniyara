@@ -68,7 +68,7 @@ src/
 │   │   ├── layout.tsx                   AppShell (nav/topbar). Session check CANNOT happen server-side here (no cookie, nothing in sessionStorage is visible to the server) - needs a client-side guard component that checks sessionStorage after mount and redirects if empty. Not designed in detail yet; revisit when this page is actually built.
 │   │   ├── dashboard/page.tsx
 │   │   ├── billing/page.tsx
-│   │   ├── tagging/page.tsx
+│   │   ├── tagging/page.tsx             ✅ done — create-tag form + label preview/print, plus a searchable/paginated tags table with a reprint action
 │   │   └── invoices/
 │   │       ├── page.tsx                  ledger table
 │   │       └── [id]/
