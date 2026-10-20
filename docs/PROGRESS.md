@@ -30,6 +30,11 @@ Decision made with the project owner: **start a brand-new Next.js project here, 
 - `src/lib/utils.ts` — `cn()`.
 - `src/lib/api-client.ts` — fetch wrapper for client components, `ApiError` class, 401 → redirect to `/login`.
 - `src/app/api/health/route.ts` — `GET /api/health`, confirmed working against a local MongoDB (`{"status":"ok","db":"connected"}`).
+- `src/models/User.model.ts` — Mongoose model matching `DATABASE_DESIGN.md §2.1`.
+- `src/schemas/auth.schema.ts` — `registerSchema` (Zod v4).
+- `src/server/auth/password.ts` — `hashPassword()`/`comparePassword()` (bcryptjs, 10 salt rounds). `comparePassword` is unused until login is built.
+- `src/server/services/authService.ts` — `registerUser()`, `UserAlreadyExistsError`.
+- `src/app/api/auth/register/route.ts` — `POST /api/auth/register`, manually verified all 4 cases (403 no/wrong secret, 422 bad body, 201 create, 409 on repeat) against a local MongoDB; confirmed the stored `passwordHash` is an actual bcrypt hash, not plaintext. Test user deleted afterward.
 - `src/app/layout.tsx` / `src/app/providers.tsx` — root layout wired to `QueryClientProvider` + `<Toaster />`.
 - `src/app/page.tsx` — temporary landing page that calls `/api/health` and shows DB status. **Not a real product page** — replace once there's something real to land on (dashboard or /login redirect).
 - `.env` (local, gitignored) + `.env.example` with `MONGODB_URI`, `JWT_SECRET`, `JWT_EXPIRES_IN`, `SETUP_SECRET`, `NODE_ENV`.
@@ -37,23 +42,25 @@ Decision made with the project owner: **start a brand-new Next.js project here, 
 
 A local MongoDB is running on `localhost:27017` as of this session (confirmed via `nc -z localhost 27017` and the health check) — if it's not running next time, `brew services start mongodb-community` or start the `mongod` binary found at `/opt/homebrew/bin/mongod`.
 
-**Feature-wise folder structure pre-created** (empty, each holds only a `.gitkeep` placeholder — delete the `.gitkeep` the moment a real file lands in that folder):
-- Frontend: `src/features/{auth,dashboard,billing,tagging}/{hooks,components}` (+ `billing/lib` for `calculations.ts`), `src/store/`, `src/components/{ui,layout}`
-- Backend: `src/models/`, `src/schemas/`, `src/server/{auth,services}`
+**Feature-wise folder structure pre-created** (empty except for a `.gitkeep` until a real file lands — delete the `.gitkeep` at that point, already done for `models/`, `schemas/`, `server/auth/`, `server/services/`):
+- Frontend: `src/features/{auth,dashboard,billing,tagging}/{hooks,components}` (+ `billing/lib` for `calculations.ts`) — still empty, `store/`, `components/{ui,layout}` — still empty
+- Backend: `src/models/` (has `User.model.ts`), `src/schemas/` (has `auth.schema.ts`), `src/server/auth/` (has `password.ts`), `src/server/services/` (has `authService.ts`)
 
-No `app/api/**` route folders or `app/(auth)|(app)/**` page folders exist yet — those get created together with the actual route handler / page, not pre-scaffolded, since an empty `route.ts`/`page.tsx` with no export breaks the Next.js build.
+No `app/(auth)|(app)/**` page folders exist yet — those get created together with the actual page, not pre-scaffolded, since an empty `page.tsx` with no export breaks the Next.js build. `app/api/auth/register/` is the first real route folder.
 
-## What's NOT built yet (everything else)
+## What's NOT built yet
 
-No Mongoose models, no Zod schemas, no auth, no business routes, no feature pages, no `proxy.ts`. This was a deliberate scope decision — see `bckend_setup.md §0` and `frontend_setup.md §3` for the planned directory structure and endpoint list.
+Login, logout, forgot/reset-password, `proxy.ts`, every business module (tags/customers/invoices/dashboard), and every page. This was a deliberate scope decision — see `bckend_setup.md §0` and `frontend_setup.md §3` for the planned directory structure and endpoint list.
 
 ### Suggested build order (one endpoint/module at a time, per the project owner's stated plan)
 
 Auth has to come first since almost everything else is 🔒:
 
-- [ ] `src/server/auth/password.ts` (bcrypt wrappers), `src/server/auth/jwt.ts` (sign/verify), `src/server/auth/session.ts` (`requireAuth()`)
-- [ ] `src/models/User.model.ts`, `src/models/PasswordResetToken.model.ts`
-- [ ] `POST /api/auth/register` (🔑 setup-secret gated)
+- [x] `src/server/auth/password.ts` (bcrypt wrappers)
+- [ ] `src/server/auth/jwt.ts` (sign/verify), `src/server/auth/session.ts` (`requireAuth()`)
+- [x] `src/models/User.model.ts`
+- [ ] `src/models/PasswordResetToken.model.ts`
+- [x] `POST /api/auth/register` (🔑 setup-secret gated)
 - [ ] `POST /api/auth/login` (sets the cookie)
 - [ ] `POST /api/auth/logout`
 - [ ] `POST /api/auth/forgot-password`, `POST /api/auth/reset-password`
