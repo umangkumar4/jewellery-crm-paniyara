@@ -1,0 +1,93 @@
+import { z } from "zod";
+
+const paymentModeSchema = z.enum(["cash", "upi", "card", "bank_transfer"]);
+const paymentStatusSchema = z.enum(["unpaid", "partial", "paid"]);
+
+const invoiceCustomerInputSchema = z.object({
+  name: z.string().trim().min(1, "Customer name is required"),
+  phone: z.string().trim().min(1, "Customer phone is required"),
+  email: z.string().trim().toLowerCase().email("Invalid email address").optional(),
+  address: z.string().trim().optional(),
+});
+
+const invoiceItemInputSchema = z.object({
+  description: z.string().trim().min(1, "Description is required"),
+  hsn_code: z.string().trim().min(1, "HSN code is required"),
+  metal: z.string().trim().min(1, "Metal is required"),
+  purity: z.string().trim().min(1, "Purity is required"),
+  pieces: z.number().int().min(1, "Pieces must be at least 1").default(1),
+  gross_wt_g: z.number().min(0, "Gross weight must be 0 or more"),
+  stone_wt_g: z.number().min(0, "Stone weight must be 0 or more").default(0),
+  net_wt_g: z.number().min(0, "Net weight must be 0 or more"),
+  rate_per_gram: z.number().min(0, "Rate per gram must be 0 or more"),
+  making_charge: z.number().min(0, "Making charge must be 0 or more").default(0),
+  stone_charge: z.number().min(0, "Stone charge must be 0 or more").default(0),
+  // Optional - a manually-added line (no scanned/browsed tag behind it) has none.
+  tag_code: z.string().trim().toUpperCase().optional(),
+  total: z.number().min(0, "Total must be 0 or more"),
+});
+
+const invoicePaymentInputSchema = z.object({
+  amount: z.number().positive("Payment amount must be greater than 0"),
+  mode: paymentModeSchema,
+});
+
+// Cross-field checks here are structural guards, not a recomputation of the
+// client's GST/pricing math (that's an explicit project rule - see
+// docs/billing-plan.md decision 7). Each .refine() carries a top-level field
+// `path` on purpose: src/server/validation.ts's error response only reads
+// z.flattenError()'s fieldErrors, which only surfaces messages grouped under
+// a top-level key - a refine with no path (or a deeply nested one) would be
+// silently dropped from the 422 response instead of shown to the caller.
+export const createInvoiceSchema = z
+  .object({
+    customer: invoiceCustomerInputSchema,
+    items: z.array(invoiceItemInputSchema).min(1, "At least one item is required"),
+    discount_amount: z.number().min(0, "Discount cannot be negative").default(0),
+    gst_percent: z.number().min(0, "GST percent cannot be negative").max(100, "GST percent cannot exceed 100"),
+    gst_amount: z.number().min(0, "GST amount cannot be negative"),
+    subtotal: z.number().min(0, "Subtotal cannot be negative"),
+    grand_total: z.number().min(0, "Grand total cannot be negative"),
+    // Optional - a fully-on-credit sale has no payment yet.
+    payment: invoicePaymentInputSchema.optional(),
+    paid_amount: z.number().min(0, "Paid amount cannot be negative"),
+    pending_amount: z.number().min(0, "Pending amount cannot be negative"),
+    payment_status: paymentStatusSchema,
+  })
+  .refine((data) => data.paid_amount <= data.grand_total, {
+    message: "Paid amount cannot exceed the grand total",
+    path: ["paid_amount"],
+  })
+  .refine(
+    (data) =>
+      Math.abs(data.grand_total - (data.subtotal - data.discount_amount + data.gst_amount)) <= 1,
+    {
+      message: "Grand total does not match subtotal, discount, and GST",
+      path: ["grand_total"],
+    },
+  )
+  .refine(
+    (data) => {
+      const tagCodes = data.items.map((item) => item.tag_code).filter((code): code is string => !!code);
+      return new Set(tagCodes).size === tagCodes.length;
+    },
+    { message: "The same tag cannot appear twice on one invoice", path: ["items"] },
+  );
+
+export type CreateInvoiceInput = z.output<typeof createInvoiceSchema>;
+export type CreateInvoiceFormValues = z.input<typeof createInvoiceSchema>;
+
+// paid_amount here can't be cross-checked against the invoice's grandTotal in
+// this schema - that total lives on the existing invoice document, not in
+// this request body. That check happens in invoicesService.addPayment()
+// once the invoice has been loaded. This schema only validates the shape of
+// what was actually sent.
+export const addInvoicePaymentSchema = z.object({
+  amount: z.number().positive("Payment amount must be greater than 0"),
+  mode: paymentModeSchema,
+  paid_amount: z.number().min(0, "Paid amount cannot be negative"),
+  pending_amount: z.number().min(0, "Pending amount cannot be negative"),
+  payment_status: paymentStatusSchema,
+});
+
+export type AddInvoicePaymentInput = z.infer<typeof addInvoicePaymentSchema>;
