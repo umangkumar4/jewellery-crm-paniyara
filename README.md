@@ -1,36 +1,39 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Jewellery CRM & POS
 
-## Getting Started
+Article-level barcode tagging, fast POS barcode billing, customer lookup, partial payments, and daily sales analytics for a jewellery retail shop — built as a single Next.js (App Router) app with MongoDB/Mongoose.
 
-First, run the development server:
+**Start here:** `docs/PROGRESS.md` — current state, decisions made, and the endpoint-by-endpoint build checklist.
+
+Full specs:
+- `docs/REQUIREMENTS.md` — system overview, tech stack, API contract (17 endpoints), business rules
+- `docs/DATABASE_DESIGN.md` — MongoDB collections, Mongoose schemas, transaction/rollback logic
+- `docs/bckend_setup.md` — Route Handler conventions, auth pattern, Next.js 16-specific gotchas
+- `docs/frontend_setup.md` — App Router page structure, client state, billing calculations, printing
+
+## Getting started
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+pnpm install
+cp .env.example .env   # fill in real secrets before anything but local dev
+pnpm dev                # http://localhost:3000 - serves pages and /api/* together
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Requires a reachable MongoDB (`MONGODB_URI` in `.env`; defaults to `mongodb://localhost:27017/jewellery_crm`).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Scripts
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+pnpm dev         # dev server
+pnpm build       # type-checks + production build
+pnpm start       # run the production build
+pnpm typecheck   # tsc --noEmit
+pnpm lint        # eslint
+```
 
-## Learn More
+No test runner is installed — no testing libraries, by project requirement.
 
-To learn more about Next.js, take a look at the following resources:
+## Stack
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Next.js 16 · TypeScript · Tailwind CSS v4 · MongoDB + Mongoose · Zod · React Query · Zustand · React Hook Form · Pino
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+No Express, no separate API origin, no axios — Route Handlers under `src/app/api/**` are the backend; the browser talks to them same-origin via `src/lib/api-client.ts`.
