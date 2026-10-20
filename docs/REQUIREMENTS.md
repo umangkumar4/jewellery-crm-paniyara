@@ -32,7 +32,7 @@ The frontend and backend are **one Next.js application** — pages and API route
 | **Client State** | Zustand | Local draft session, scanner inputs, filter persistence |
 | **Forms & Validation** | Zod v4 (shared between Route Handlers and client forms, same file) + React Hook Form | Strict schema validation, single source of truth — no separate frontend/backend schema copies |
 | **Database** | **MongoDB (v7.0+) with Mongoose (v9.x)** | Primary transactional document database |
-| **Authentication** | JWT in an `httpOnly, Secure, SameSite=Strict` cookie, read via `next/headers` `cookies()` | Single-user shopkeeper session with bcrypt hashing |
+| **Authentication** | JWT returned in the login response body, stored client-side in `sessionStorage`, sent back as an `Authorization: Bearer <token>` header | Single-user shopkeeper session with bcrypt hashing |
 | **HTTP client (browser → own API)** | Native `fetch` via `src/lib/api-client.ts` | Same-origin requests to `/api/*` — no axios, no CORS config needed |
 | **Logging & Utilities** | Pino + Zod | Structured request logs and input sanitation |
 | **Printing & Barcodes** | `jsbarcode` / `qrcode.react` / HTML Print Views | In-browser client-rendered labels and invoices |
@@ -179,7 +179,7 @@ interface InvoiceCounterDocument {
 
 All routes are mounted at `/api` — **unchanged paths**, now implemented as Next.js Route Handlers (`src/app/api/**/route.ts`) instead of Express controllers. See `docs/bckend_setup.md` for the Route Handler implementation convention.
 
-- 🔒 = Protected. The JWT cookie check happens **inside the route handler** itself (a `requireAuth()` call), not only in `proxy.ts` — see the Auth note in `bckend_setup.md`.
+- 🔒 = Protected. The client sends `Authorization: Bearer <token>`; the check happens **inside the route handler** itself (a `requireAuth()` call) — see the Auth note in `bckend_setup.md`.
 - 🔓 = Public endpoint.
 - 🔑 = Protected by `X-Setup-Secret` header matching `SETUP_SECRET` environment variable.
 
@@ -191,14 +191,15 @@ All routes are mounted at `/api` — **unchanged paths**, now implemented as Nex
   ```json
   { "email": "owner@shop.com", "password": "password123" }
   ```
-- **Response (200):** Sets `token` HTTP-only cookie.
+- **Response (200):** Returns the JWT in the body — no cookie is set.
   ```json
-  { "user": { "id": "...", "name": "Ramesh Shah", "email": "owner@shop.com" } }
+  { "user": { "id": "...", "name": "Ramesh Shah", "email": "owner@shop.com" }, "token": "<jwt>" }
   ```
+  The frontend stores `token` in `sessionStorage` and attaches it as `Authorization: Bearer <token>` on every subsequent request (see `docs/frontend_setup.md`).
 - **Errors:** `401 Unauthorized` (`{ "error": "Invalid email or password" }`).
 
 #### `2. POST /api/auth/logout` 🔒
-- **Purpose:** Clears the HTTP-only session cookie.
+- **Purpose:** Symmetry endpoint for the client's logout flow. Since the JWT is stateless and lives only in the browser's `sessionStorage` (never a cookie), there is no server-side session to clear — "logging out" is really just the frontend calling `clearStoredToken()`. This endpoint exists for consistency with the REST contract and as a hook for future token revocation (e.g. a blacklist) if that's ever needed; until then it can just acknowledge the request.
 - **Response (200):** `{ "message": "Logged out" }`.
 
 #### `3. POST /api/auth/forgot-password` 🔓
@@ -415,5 +416,5 @@ All routes are mounted at `/api` — **unchanged paths**, now implemented as Nex
    Deleting an invoice frees up all associated tags back to `tagged` status so physical pieces can be re-inventoried if an invoice was made in error.
 5. **No Negative Pending Balances:**
    Payments are validated to ensure total paid cannot exceed the invoice grand total.
-6. **Auth is enforced per-route, not just at the edge:**
-   Next.js's own docs warn that `proxy.ts` (the renamed `middleware.ts`) is an optimistic check, not a security boundary. Every 🔒 Route Handler must independently verify the session cookie — see `docs/bckend_setup.md §Key Middleware`.
+6. **Auth is enforced per-route, via an `Authorization` header, not a cookie:**
+   The JWT lives only in the browser's `sessionStorage` and is attached as `Authorization: Bearer <token>` by `src/lib/api-client.ts`. The server never sees it on a plain page navigation — only on an explicit `fetch` call. Every 🔒 Route Handler independently verifies that header via `requireAuth()`. This also means `proxy.ts`'s originally-planned "redirect to /login if no session cookie" trick doesn't work here — there's no cookie for the server to see — so protected **pages** need a client-side auth gate instead (check `sessionStorage` after mount, redirect if empty). See `docs/bckend_setup.md §6`.

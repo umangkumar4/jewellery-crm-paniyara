@@ -11,7 +11,7 @@ Hand this file (together with `REQUIREMENTS.md` and `DATABASE_DESIGN.md`) to any
 
 This project was scaffolded on **Next.js 16.4.2**, which has two breaking changes from what most training data assumes:
 
-1. **`middleware.ts` is renamed `proxy.ts`.** Same capabilities, different file/export name. Not created yet in this repo — add it once login exists (see §6).
+1. **`middleware.ts` is renamed `proxy.ts`.** Same capabilities, different file/export name. **Not planned for auth anymore** in this repo — see §6, the token lives in `sessionStorage`, not a cookie, so the server can't see it on a page navigation for `proxy.ts` to check.
 2. **Dynamic route `params` are a `Promise`, not an object.** `{ params }: { params: Promise<{ id: string }> }`, then `const { id } = await params;`. This has been true since v15 but is easy to get wrong from memory.
 3. **Cache Components (the new default caching model) is turned OFF in `next.config.ts`.** The create-next-app default (`cacheComponents: true`) makes every page static-by-default and requires `<Suspense>` boundaries around anything that reads cookies, the database, or request data. For an always-dynamic, always-authenticated internal tool like this one, that model fights the app's actual shape — every page needs live data. We disabled it, which reverts to the classic model: Route Handlers are **not cached by default** (matches the old Express mental model exactly) and pages reading `cookies()` just become dynamic, no Suspense gymnastics required. If a genuinely static/public page is ever added, re-read `node_modules/next/dist/docs/01-app/01-getting-started/08-caching.md` before re-enabling it.
 4. Run `grep -r "cacheComponents" next.config.ts` to confirm this is still `false`/absent before assuming the classic model applies — a future `next upgrade` could reset it.
@@ -23,7 +23,7 @@ Next.js ships its own current docs in this repo at `node_modules/next/dist/docs/
 ## Conventions
 
 - **Base URL:** `/api` (e.g. `http://localhost:3000/api` in dev — one server, one port, no separate API origin).
-- **Auth:** 🔒 = requires a valid `token` cookie (httpOnly, Secure, SameSite=Strict), set by login and cleared by logout. **Every** 🔒 route handler calls `requireAuth()` itself — see §6, this is not optional even though `proxy.ts` also checks. 🔓 = public, no cookie required.
+- **Auth:** 🔒 = requires a valid `Authorization: Bearer <token>` header. There is **no cookie** — the JWT is returned in the login response body and stored client-side (`sessionStorage`, `src/lib/auth-token.ts`), attached to every request by `src/lib/api-client.ts`. **Every** 🔒 route handler calls `requireAuth()` itself to verify that header — see §6. 🔓 = public, no `Authorization` header required.
 - **Content type:** `application/json` for all request and response bodies.
 - **Dates:** ISO 8601 with timezone, e.g. `2026-09-15T11:42:00Z`. Date-only filters use `YYYY-MM-DD`.
 - **Money & weight:** JSON numbers — treat as fixed-precision decimals end to end. Never let JS float round a ₹ amount or gram weight.
@@ -37,8 +37,8 @@ Next.js ships its own current docs in this repo at `node_modules/next/dist/docs/
 | # | Method | Path | Auth | Module | Summary |
 |---|---|---|---|---|---|
 | 1 | POST | `/api/auth/register` | 🔓 (setup secret) | Auth | One-time account creation |
-| 2 | POST | `/api/auth/login` | 🔓 | Auth | Verify credentials, set JWT cookie |
-| 3 | POST | `/api/auth/logout` | 🔒 | Auth | Clear the session cookie |
+| 2 | POST | `/api/auth/login` | 🔓 | Auth | Verify credentials, return JWT in the response body |
+| 3 | POST | `/api/auth/logout` | 🔒 | Auth | Acknowledge only — client clears its own `sessionStorage` token |
 | 4 | POST | `/api/auth/forgot-password` | 🔓 | Auth | Issue a reset token |
 | 5 | POST | `/api/auth/reset-password` | 🔓 | Auth | Consume token, set new password |
 | 6 | GET | `/api/dashboard/summary` | 🔒 | Dashboard | KPI tiles (today vs. yesterday) |
@@ -67,12 +67,12 @@ Not in this table but already implemented: `GET /api/health` — infra-only DB c
 | Mongoose 9.x | MongoDB ODM | ✅ installed, connection helper ready (`src/lib/db/mongoose.ts`) |
 | Zod 4.x | Input validation, shared with client forms | ✅ installed, no schemas written yet |
 | bcryptjs | Password hashing (pure JS — no native build step, serverless-friendly) | ✅ installed |
-| jsonwebtoken | JWT generation & verification | ✅ installed |
-| `next/headers` `cookies()` | Reading/setting the httpOnly JWT cookie (replaces `cookie-parser`) | built into Next.js |
+| jsonwebtoken | JWT generation (`signToken`) & verification (`verifyToken`) | ✅ installed, `src/server/auth/jwt.ts` |
+| `request.headers.get("authorization")` | Reading the bearer token — no cookie, so no `cookies()`/`cookie-parser` needed for auth | built into the Fetch API `Request` object |
 | Pino + pino-pretty | Structured logging | ✅ installed, instance ready (`src/lib/logger.ts`) |
 | nanoid | Cryptographically secure tag codes (`TAG-XXXXXXXX`) | ✅ installed |
 
-**Not installed, and not needed:** `express`, `cors`, `cookie-parser`, `helmet`, `express-rate-limit`. Same-origin requests have no CORS problem; cookies are read natively; a reverse proxy or `next.config.ts` `headers()` covers security headers if ever needed.
+**Not installed, and not needed:** `express`, `cors`, `cookie-parser`, `helmet`, `express-rate-limit`. Same-origin requests have no CORS problem; the session token is read from a plain header, not a cookie; a reverse proxy or `next.config.ts` `headers()` covers security headers if ever needed.
 
 ---
 
@@ -139,24 +139,25 @@ src/
 │   ├── tag.schema.ts
 │   └── invoice.schema.ts
 │
-├── server/                                      not started — server-only logic, never imported from a 'use client' file
+├── server/
 │   ├── auth/
-│   │   ├── jwt.ts                                sign/verify the JWT
-│   │   ├── password.ts                           bcrypt hash/compare wrappers
-│   │   └── session.ts                             requireAuth(request) — reads + verifies the `token` cookie, throws a typed error the route handler turns into a 401
+│   │   ├── jwt.ts                                ✅ done — signToken(), verifyToken()
+│   │   ├── password.ts                           ✅ done — bcrypt hash/compare wrappers
+│   │   └── session.ts                             not started — requireAuth(request): reads the `Authorization: Bearer <token>` header, calls verifyToken(), returns null on success or a 401 Response on failure
 │   └── services/                                 one file per module — business logic the route handler calls, keeps route.ts files thin
-│       ├── authService.ts
+│       ├── authService.ts                        ✅ done — registerUser(), loginUser()
 │       ├── dashboardService.ts
 │       ├── customersService.ts
 │       ├── tagsService.ts
 │       └── invoicesService.ts
 │
-└── lib/                                          ✅ generic infra, already built this session
+└── lib/                                          ✅ generic infra
     ├── env.ts                                     zod-validated process.env
     ├── db/mongoose.ts                              cached Mongoose connection
     ├── logger.ts                                   pino instance
     ├── utils.ts                                    cn() class merge helper (frontend-facing, listed here for completeness)
-    └── api-client.ts                                browser fetch wrapper (frontend-facing, see docs/frontend_setup.md)
+    ├── auth-token.ts                                frontend-facing — get/set/clearStoredToken() over sessionStorage, see docs/frontend_setup.md
+    └── api-client.ts                                frontend-facing browser fetch wrapper, attaches the Authorization header, see docs/frontend_setup.md
 ```
 
 ---
@@ -200,7 +201,7 @@ export async function GET(
 ```
 
 Key points baked into this pattern:
-- `requireAuth()` is called first, inside the handler — not delegated to `proxy.ts` alone (Next's own docs warn proxy is an optimistic check, not a security boundary; see §6).
+- `requireAuth()` is called first, inside the handler. There's no `proxy.ts` layer backing it up here — the token lives in `sessionStorage`, which the server never sees on anything but an explicit `fetch` call, so this check is the *only* enforcement point (see §6).
 - `dbConnect()` is called every time — it's a no-op after the first call per process thanks to the cache in `src/lib/db/mongoose.ts`.
 - `params` is awaited, never destructured directly from the second argument.
 - Validation errors use Zod's `safeParse`, not `parse` + try/catch, so the 422 shape is explicit:
@@ -228,29 +229,35 @@ Key points baked into this pattern:
 
 ---
 
-## §6. Auth: `requireAuth()` + `proxy.ts`
+## §6. Auth: `requireAuth()` — the only server-side check there is
 
-Two layers, both needed, neither sufficient alone:
+**Decision (overriding the original cookie-based design):** the JWT is returned in the login response body and stored client-side in `sessionStorage` (`src/lib/auth-token.ts`), not in a cookie. This was an explicit choice by the project owner, with a real trade-off worth keeping in mind: an httpOnly cookie can't be read by JavaScript at all, so it's immune to a token being stolen via XSS; a `sessionStorage` token can be read by any script running on the page, so it's only as safe as the app's XSS surface. There is currently no CSP or other XSS hardening in this project beyond "don't introduce injectable HTML."
 
-1. **`src/server/auth/session.ts` → `requireAuth(request)`** — the real security boundary. Called at the top of every 🔒 route handler. Reads the `token` cookie via `request.cookies.get('token')` (or `(await cookies()).get('token')` in a page/layout), verifies it with `jsonwebtoken`, and returns `null` on success or a `401 Response` on failure. **Build this first** — nearly every other endpoint depends on it.
-2. **`proxy.ts`** (project root or `src/`, replaces `middleware.ts`) — add once login exists, to redirect an unauthenticated browser hitting `/dashboard`, `/billing`, etc. straight to `/login` *before* the page even renders, as a UX nicety. It must **not** be the only auth check on the API routes themselves — Next's own `proxy.ts` docs say explicitly: "Always verify authentication and authorization inside each Server Function rather than relying on Proxy alone," because a matcher typo can silently remove coverage. Example shape when it's added:
-   ```typescript
-   // proxy.ts
-   import { NextResponse } from "next/server";
-   import type { NextRequest } from "next/server";
+**Consequence for `proxy.ts`:** a cookie is sent automatically on every request, including a plain page navigation, so a server-side `proxy.ts` could inspect it before the page even rendered. `sessionStorage` is **only visible to client-side JavaScript** — the server gets nothing on navigation, only on an explicit `fetch`/`apiClient` call that attaches the header. So `proxy.ts` **cannot** do the originally-planned "redirect to `/login` if no session" check anymore; there is nothing in the request for it to look at. Don't build that version of `proxy.ts`. If protected pages need a pre-render redirect later, it would have to come from somewhere else (e.g. a short-lived auxiliary cookie set alongside the token, or accepting a client-side-only redirect flash) — not decided yet, revisit when the first protected page is actually built.
 
-   export function proxy(request: NextRequest) {
-     const hasSession = request.cookies.has("token");
-     if (!hasSession && request.nextUrl.pathname.startsWith("/dashboard")) {
-       return NextResponse.redirect(new URL("/login", request.url));
-     }
-   }
+**What this leaves as the real (and only) security boundary:**
 
-   export const config = {
-     matcher: ["/dashboard/:path*", "/billing/:path*", "/tagging/:path*", "/invoices/:path*"],
-   };
-   ```
-   This only checks *presence* of the cookie, not validity — `requireAuth()` inside each API route still does the real JWT verification.
+**`src/server/auth/session.ts` → `requireAuth(request)`** (not built yet) — called at the top of every 🔒 route handler:
+```typescript
+import { verifyToken } from "@/server/auth/jwt";
+
+export async function requireAuth(request: Request): Promise<Response | null> {
+  const authHeader = request.headers.get("authorization");
+  const token = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null;
+
+  if (!token) {
+    return Response.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const payload = verifyToken(token);
+  if (!payload) {
+    return Response.json({ error: "Invalid or expired session" }, { status: 401 });
+  }
+
+  return null; // caller can also want the payload (userId) - consider returning it alongside, see note below
+}
+```
+Returns `null` on success or a pre-built `401 Response` on failure, matching the pattern already shown in the Route Handler Pattern section above. Note: as written this throws away `payload.userId`; by the time a route actually needs "who is the logged-in user" (not yet, since there's only one user total), change the return type to carry the payload through instead of just `null`/`Response`.
 
 ---
 

@@ -2,7 +2,9 @@
 
 This document is the authoritative specification for the UI half of this Next.js app — the `src/app/**/page.tsx` tree, client components, client-side state, POS barcode scanning, billing calculations, and printable views. The API half lives in the same `src/app/api/**/route.ts` tree — see `docs/bckend_setup.md`.
 
-> **No separate frontend origin:** there is no `VITE_API_BASE_URL` or cross-origin fetch. Client components call `/api/*` on the same origin via `src/lib/api-client.ts` (a thin `fetch` wrapper), and the httpOnly session cookie travels automatically.
+> **No separate frontend origin:** there is no `VITE_API_BASE_URL` or cross-origin fetch. Client components call `/api/*` on the same origin via `src/lib/api-client.ts` (a thin `fetch` wrapper).
+>
+> **Auth token lives in `sessionStorage`, not a cookie** (`src/lib/auth-token.ts`) — an explicit project decision, not the Next.js default. `api-client.ts` attaches it as `Authorization: Bearer <token>` on every request. This means the server has no idea who's logged in during a plain page load/navigation — only `fetch` calls carry the token. See `docs/bckend_setup.md §6` for the security trade-off (XSS exposure vs. an httpOnly cookie) and why this rules out a server-side `proxy.ts` redirect for protected pages.
 >
 > **No testing libraries** — no React Testing Library, no Vitest, per project requirement (unchanged from the original spec, which already excluded it).
 
@@ -63,7 +65,7 @@ src/
 │   │   └── reset-password/page.tsx
 │   │
 │   ├── (app)/                          Route group — authenticated, shares one layout
-│   │   ├── layout.tsx                   AppShell (nav/topbar) + session check; redirect('/login') if no valid cookie
+│   │   ├── layout.tsx                   AppShell (nav/topbar). Session check CANNOT happen server-side here (no cookie, nothing in sessionStorage is visible to the server) - needs a client-side guard component that checks sessionStorage after mount and redirects if empty. Not designed in detail yet; revisit when this page is actually built.
 │   │   ├── dashboard/page.tsx
 │   │   ├── billing/page.tsx
 │   │   ├── tagging/page.tsx
@@ -91,7 +93,7 @@ src/
 │       └── components/TagPrintingForm.tsx, TagLabelPreview.tsx
 │
 ├── store/                              Zustand stores
-│   ├── useAuthStore.ts                   client-known auth state (e.g. current user name for the topbar) — the actual session lives in the httpOnly cookie, this is just UI convenience state
+│   ├── useAuthStore.ts                   client-known auth state (current user name/email for the topbar, isAuthenticated flag). Initialized from src/lib/auth-token.ts on mount, not derived from a cookie - there isn't one.
 │   └── useBillingStore.ts                in-progress POS draft: scanned items, customer fields, before submit
 │
 ├── components/
@@ -201,8 +203,17 @@ Pulls data via `GET /api/invoices/:id/print`. Since this is a Server Component p
 
 ---
 
-## 7. Fetch Client (`src/lib/api-client.ts`) — ✅ already built
+## 7. Token Storage (`src/lib/auth-token.ts`) and Fetch Client (`src/lib/api-client.ts`) — ✅ already built
 
+`src/lib/auth-token.ts` wraps `sessionStorage` (SSR-safe — guards for `window` being undefined and for storage access throwing):
+```typescript
+export function getStoredToken(): string | null { ... }
+export function setStoredToken(token: string): void { ... }
+export function clearStoredToken(): void { ... }
+```
+The login hook (`features/auth/hooks/useAuth.ts`, not built yet) calls `setStoredToken(response.token)` on a successful login. Logout calls `clearStoredToken()`.
+
+`src/lib/api-client.ts`:
 ```typescript
 export class ApiError extends Error {
   status: number;
@@ -217,7 +228,9 @@ export const apiClient = {
 };
 ```
 
-Replaces the old axios instance + response interceptor. Same behavior: `credentials: "same-origin"` sends the httpOnly cookie, and a `401` redirects to `/login` (except when already on `/login`, to avoid a loop). Use `ApiError` (has `.status` and optional `.fields`) to branch UI error handling instead of checking `error.response?.status` like the old axios code did.
+Replaces the old axios instance + response interceptor. On every request, `request()` reads `getStoredToken()` and — if present — attaches `Authorization: Bearer <token>`. On a `401`, it calls `clearStoredToken()` (the stored token is bad/expired, don't keep sending it) and redirects to `/login` (except when already on `/login`, to avoid a loop). Use `ApiError` (has `.status` and optional `.fields`) to branch UI error handling instead of checking `error.response?.status` like the old axios code did.
+
+**Not using a cookie is a deliberate project decision**, not a Next.js default — see `docs/bckend_setup.md §6` for the XSS trade-off and why it rules out a server-side auth redirect in `proxy.ts`.
 
 ---
 

@@ -1,9 +1,11 @@
 /**
  * Thin fetch wrapper for client components calling this app's own
  * `/api/*` Route Handlers (paths match docs/REQUIREMENTS.md exactly).
- * Same-origin, so the httpOnly session cookie is sent automatically
- * without any CORS configuration - no axios needed.
+ * The session token lives in sessionStorage (src/lib/auth-token.ts), not a
+ * cookie, so it's attached explicitly as an Authorization header here.
  */
+import { clearStoredToken, getStoredToken } from "@/lib/auth-token";
+
 export class ApiError extends Error {
   status: number;
   fields?: Record<string, string>;
@@ -19,19 +21,24 @@ export class ApiError extends Error {
 const API_BASE = "/api";
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const token = getStoredToken();
+
   const res = await fetch(`${API_BASE}${path}`, {
     ...init,
     headers: {
       "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...init?.headers,
     },
-    credentials: "same-origin",
   });
 
-  if (res.status === 401 && typeof window !== "undefined" && window.location.pathname !== "/login") {
-    // Plain lib module, not a component - no router instance available here.
-    // eslint-disable-next-line @next/next/no-location-assign-relative-destination
-    window.location.href = "/login";
+  if (res.status === 401) {
+    clearStoredToken();
+    if (typeof window !== "undefined" && window.location.pathname !== "/login") {
+      // Plain lib module, not a component - no router instance available here.
+      // eslint-disable-next-line @next/next/no-location-assign-relative-destination
+      window.location.href = "/login";
+    }
   }
 
   if (!res.ok) {
