@@ -91,13 +91,17 @@ export default function InvoiceDetailPage() {
 
           <h3 className="mt-6 font-display text-lg text-foreground">Items</h3>
           <div className="mt-3 overflow-x-auto">
-            <table className="w-full min-w-[560px] text-left text-sm">
+            <table className="w-full min-w-[820px] text-left text-sm">
               <thead>
                 <tr className="border-b border-border text-xs tracking-wide text-muted-foreground uppercase">
                   <th className="py-2 pr-3 font-medium">#</th>
                   <th className="py-2 pr-3 font-medium">Description</th>
+                  <th className="py-2 pr-3 font-medium">HSN</th>
+                  <th className="py-2 pr-3 font-medium">Gross Wt (g)</th>
+                  <th className="py-2 pr-3 font-medium">Stone Wt (g)</th>
                   <th className="py-2 pr-3 font-medium">Net Wt (g)</th>
                   <th className="py-2 pr-3 font-medium">Rate/g</th>
+                  <th className="py-2 pr-3 font-medium">Making</th>
                   <th className="py-2 pr-3 font-medium">Total</th>
                 </tr>
               </thead>
@@ -111,8 +115,12 @@ export default function InvoiceDetailPage() {
                         <span className="ml-2 text-xs text-muted-foreground">{item.tag_code}</span>
                       ) : null}
                     </td>
+                    <td className="py-2 pr-3 text-muted-foreground">{item.hsn_code}</td>
+                    <td className="py-2 pr-3 text-muted-foreground">{item.gross_wt_g}</td>
+                    <td className="py-2 pr-3 text-muted-foreground">{item.stone_wt_g}</td>
                     <td className="py-2 pr-3 text-muted-foreground">{item.net_wt_g}</td>
                     <td className="py-2 pr-3 text-muted-foreground">{formatInr(item.rate_per_gram)}</td>
+                    <td className="py-2 pr-3 text-muted-foreground">{formatInr(item.making_charge)}</td>
                     <td className="py-2 pr-3 font-medium text-foreground">{formatInr(item.total)}</td>
                   </tr>
                 ))}

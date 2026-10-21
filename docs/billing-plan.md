@@ -101,7 +101,7 @@ Each phase should be fully typechecked, linted, and manually smoke-tested agains
   - `GET /api/invoices/:id/print`: `401`, `404`, `200` — same shape as detail, confirmed separately rather than assumed.
   - `POST /api/invoices/:id/payments`: `401`, `422` (bad body), `404` (nonexistent invoice), `422` (`paid_amount > grand_total`), `200` happy path — confirmed via a follow-up `GET` detail that both payments landed in `payments[]` and the invoice correctly flipped to `paymentStatus: "paid"`, `pendingAmount: 0`.
   - All test data (tag, purity, customer, invoice) deleted after; dev server stopped afterward.
-- [ ] Concurrency sanity check (two simultaneous create-invoice requests racing for the same tag) — **not yet run**, left for a dedicated pass since it needs two truly concurrent requests, not sequential curl calls.
+- [x] ~~Concurrency sanity check (two simultaneous create-invoice requests racing for the same tag)~~ — **explicitly deprioritized by the user**: not a realistic scenario for their actual usage, won't happen in practice. Not run, intentionally not pursued further (not a gap to come back to).
 
 ### Phase 6 — Frontend calculation module ✅ done
 - [x] `src/features/billing/lib/calculations.ts` — ported verbatim from `frontend_setup.md §4` (`calculateItemTotal`, `calculateInvoiceTotals`, `calculateNewPending`). This is the same module used for both the live POS display and producing the exact numbers sent in the `POST` body — no second implementation to drift out of sync.
