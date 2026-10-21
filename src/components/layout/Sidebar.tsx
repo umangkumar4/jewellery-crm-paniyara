@@ -26,14 +26,12 @@ const modules: NavItem[] = [
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { label: "Billing", href: "/billing", icon: Receipt },
   { label: "Invoices", href: "/invoices", icon: FileText },
+  { label: "Customers", href: "/customers", icon: Users },
   { label: "Tags", href: "/tagging", icon: Tag },
   { label: "Settings", href: "/settings", icon: Settings },
 ];
 
-const comingSoon: NavItem[] = [
-  { label: "Inventory", href: "#", icon: Boxes },
-  { label: "Customers", href: "#", icon: Users },
-];
+const comingSoon: NavItem[] = [{ label: "Inventory", href: "#", icon: Boxes }];
 
 export function Sidebar({ collapsed }: { collapsed: boolean }) {
   const pathname = usePathname();

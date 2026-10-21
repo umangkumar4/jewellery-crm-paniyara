@@ -18,6 +18,7 @@ export interface InvoicesListParams {
   page: number;
   limit: number;
   date?: string;
+  customerId?: string;
 }
 
 export interface InvoicesListResponse {
@@ -29,6 +30,7 @@ export interface InvoicesListResponse {
 export function useInvoicesList(params: InvoicesListParams) {
   const searchParams = new URLSearchParams({ page: String(params.page), limit: String(params.limit) });
   if (params.date) searchParams.set("date", params.date);
+  if (params.customerId) searchParams.set("customerId", params.customerId);
 
   return useQuery({
     queryKey: ["invoices", params],

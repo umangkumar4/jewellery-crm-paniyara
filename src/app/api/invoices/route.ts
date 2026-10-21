@@ -31,10 +31,12 @@ export async function GET(request: Request) {
   const dateParam = searchParams.get("date");
   const date = dateParam && DATE_PARAM_PATTERN.test(dateParam) ? dateParam : undefined;
 
+  const customerId = searchParams.get("customerId") ?? undefined;
+
   await dbConnect();
 
   try {
-    const { items, total } = await listInvoices({ page, limit, date });
+    const { items, total } = await listInvoices({ page, limit, date, customerId });
     return Response.json({ data: items.map(serializeInvoiceListItem), total, page });
   } catch (error) {
     logger.error({ error }, "Failed to list invoices");

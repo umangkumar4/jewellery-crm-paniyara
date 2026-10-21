@@ -1,6 +1,6 @@
 # Customers Module (List + Detail) — Implementation Plan
 
-> **Status: planned, not yet built.** New feature, not part of the original `REQUIREMENTS.md` spec (which only ever specified the phone-lookup endpoint for POS autofill) — same situation as the tags list, metal rates, and dashboard additions. This doc exists so the design is captured before implementation, same role as `docs/dashboard-plan.md`/`docs/billing-plan.md`/`docs/metal-rates-plan.md` played for their modules.
+> **Status: built and verified, both backend and frontend** (see `docs/PROGRESS.md`). New feature, not part of the original `REQUIREMENTS.md` spec (which only ever specified the phone-lookup endpoint for POS autofill) — same situation as the tags list, metal rates, and dashboard additions. This doc captures the design, same role as `docs/dashboard-plan.md`/`docs/billing-plan.md`/`docs/metal-rates-plan.md` played for their modules.
 
 ## Why
 

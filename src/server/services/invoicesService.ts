@@ -163,9 +163,10 @@ export interface ListInvoicesParams {
   page: number;
   limit: number;
   date?: string;
+  customerId?: string;
 }
 
-export async function listInvoices({ page, limit, date }: ListInvoicesParams) {
+export async function listInvoices({ page, limit, date, customerId }: ListInvoicesParams) {
   const filter: QueryFilter<InvoiceDocument> = {};
   if (date) {
     // NOTE: day boundaries are UTC, not IST. A sale made late at night IST
@@ -177,6 +178,13 @@ export async function listInvoices({ page, limit, date }: ListInvoicesParams) {
       $gte: new Date(`${date}T00:00:00.000Z`),
       $lte: new Date(`${date}T23:59:59.999Z`),
     };
+  }
+  // Same leniency as `date` above: a malformed id is silently ignored
+  // (falls back to the unfiltered list) rather than a 500 - this route
+  // doesn't validate its GET query params with Zod at all, so this
+  // doesn't introduce a new validation style for just one param.
+  if (customerId && Types.ObjectId.isValid(customerId)) {
+    filter.customerId = new Types.ObjectId(customerId);
   }
 
   const [items, total] = await Promise.all([
