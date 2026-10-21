@@ -74,14 +74,30 @@ export function PaymentPanel({ payment, onChange, grandTotal, bare = false, erro
           {/* max isn't enforced by the input itself (NumberField is a plain
               text field, not type="number" - see numericInput.ts) - shown as
               a hint instead; the real enforcement is the backend schema plus
-              the fieldErrors `error` message above, if it's ever exceeded. */}
-          {error ? (
-            <p className="mt-1.5 text-xs text-destructive">{error}</p>
-          ) : (
-            <p className="mt-1.5 text-xs text-muted-foreground">
-              Up to ₹{grandTotal.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-            </p>
-          )}
+              the fieldErrors `error` message above, if it's ever exceeded.
+              The button stays visible even with an error showing - it sets
+              a known-valid amount (grandTotal), so it doubles as the fix
+              for "you typed too much", not just a shortcut for the first try. */}
+          <div className="mt-1.5 flex items-center justify-between gap-2">
+            {error ? (
+              <p className="text-xs text-destructive">{error}</p>
+            ) : (
+              <p className="text-xs text-muted-foreground">
+                Up to ₹{grandTotal.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </p>
+            )}
+            <button
+              type="button"
+              // Goes through amountField.onValueChange, the same path
+              // manual typing uses - keeps the display buffer, lastPushed,
+              // and the store update all in sync via one code path instead
+              // of a second one that could drift from it.
+              onClick={() => amountField.onValueChange(String(grandTotal))}
+              className="shrink-0 text-xs font-medium text-gold hover:underline"
+            >
+              {bare ? "Pay remaining" : "Pay in full"}
+            </button>
+          </div>
         </div>
         <div>
           <Label htmlFor="payment-mode">Mode</Label>

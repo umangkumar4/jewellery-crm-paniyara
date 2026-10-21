@@ -65,11 +65,11 @@ Each phase should be fully typechecked, linted, and manually smoke-tested agains
 - [x] `src/models/InvoiceCounter.model.ts`
 - [x] `src/models/Invoice.model.ts`
 
-### Phase 2 — Backend validation schema
-- [ ] `src/schemas/invoice.schema.ts`:
+### Phase 2 — Backend validation schema ✅ done
+- [x] `src/schemas/invoice.schema.ts`:
   - `createInvoiceSchema` — full `POST /api/invoices` body (see Validation checklist below for every rule it must encode).
-  - A schema (or reused `invoicePaymentInputSchema`) for `POST /api/invoices/:id/payments`'s body.
-- [ ] Reuse `src/schemas/customer.schema.ts` where the embedded `customer` object overlaps, if it doesn't force an awkward shape — otherwise a dedicated inline object is fine, same as `DATABASE_DESIGN.md`'s own embedded customer shape.
+  - `addInvoicePaymentSchema` for `POST /api/invoices/:id/payments`'s body.
+- [x] Embedded `customer` object given its own inline schema rather than reusing `customer.schema.ts` directly (that file's schema is shaped for the phone-lookup query param, not a full name/phone/email/address object) - matches `DATABASE_DESIGN.md`'s own embedded customer shape.
 
 ### Phase 3 — Backend service ✅ done
 - [x] `src/server/services/invoicesService.ts`:
@@ -117,13 +117,14 @@ Each phase should be fully typechecked, linted, and manually smoke-tested agains
 - [x] `src/features/dashboard/hooks/useInvoicesList.ts` (per `frontend_setup.md`'s existing plan) — list query for the ledger table.
 - [x] `src/lib/api-client.ts` extended: `ApiError` now also carries an optional `codes?: string[]`, populated from the response body. Needed because `POST /api/invoices`'s `404`/`409` tag-conflict responses return exactly which tag code(s) failed (`{error, codes}`) — the generic error handler only read `error`/`fields` before, which would have silently dropped that array.
 
-### Phase 9 — Frontend components
-- [ ] `src/features/billing/components/CustomerFields.tsx` — phone input, autofill-on-lookup, all fields stay editable.
-- [ ] `src/features/billing/components/ScanInput.tsx` — the "Enter Code" path (manual typing works identically to a scanner gun).
-- [ ] `src/features/billing/components/TagBrowseDialog.tsx` — new, the "Browse Tags" path (decision 11).
-- [ ] `src/features/billing/components/ItemTable.tsx` — editable rows from any of the three entry paths, plus the "Add Manually" inline form.
-- [ ] `src/features/billing/components/TotalsPanel.tsx` — subtotal/discount/GST/grand total, via `calculations.ts`.
-- [ ] `src/features/billing/components/PaymentPanel.tsx` — initial payment (optional — credit sales are valid) at creation; reused as a dialog for `useAddPayment` on the invoice detail page.
+### Phase 9 — Frontend components ✅ done (and substantially hardened since, see "Round 2" below)
+- [x] `src/features/billing/components/CustomerFields.tsx` — phone input, explicit-confirmation lookup (redesigned in Round 2, see §3 below), all fields stay editable.
+- [x] `src/features/billing/components/ScanInput.tsx` — the "Enter Code" path (manual typing works identically to a scanner gun).
+- [x] `src/features/billing/components/TagBrowseDialog.tsx` — the "Browse Tags" path (decision 11).
+- [x] `src/features/billing/components/ItemTable.tsx` — editable rows from any of the three entry paths, plus "Add Item" as a modal (Round 2 §4), live mandatory-field validation, decimal-safe numeric cells (Round 2 §7), auto-recomputed Net Wt (Round 2 §8).
+- [x] `src/features/billing/components/TotalsPanel.tsx` — subtotal/discount/GST/grand total, via `calculations.ts`.
+- [x] `src/features/billing/components/PaymentPanel.tsx` — initial payment (optional — credit sales are valid) at creation; reused as a dialog for `useAddPayment` on the invoice detail page; "Pay Remaining"/"Pay in full" shortcut added (Round 2 §10).
+- [x] `src/features/billing/components/NumberField.tsx` — not in the original plan, added in Round 2 to fix a real leading-zero display bug (§1) across every numeric field.
 - [x] ~~`src/components/ui/{Table,Badge,Card}.tsx`~~ — **revised**: the existing codebase deliberately doesn't abstract these. `TagsTable.tsx`/`MetalRatesTable.tsx` write raw `<table>` markup inline per component, and a "card" is just the `panel` utility class applied directly — no `Table.tsx`/`Card.tsx` exists anywhere. Following that same convention for the ledger/item tables and status badges rather than introducing a new abstraction this codebase doesn't otherwise use.
 - [x] `src/components/ui/Dialog.tsx` — the one genuine new primitive, since no modal exists anywhere in the app yet (needed by `TagBrowseDialog` and the invoice detail page's "Collect Payment" dialog). Hand-rolled (`createPortal`, Escape-to-close, click-outside-to-close), following the existing design-token system (no shadcn CLI installed, matching `Button.tsx`/`Input.tsx`'s own hand-rolled pattern).
 
@@ -153,10 +154,13 @@ Each phase should be fully typechecked, linted, and manually smoke-tested agains
   - **Not yet done**: the invoice **detail** page's item table (`invoices/[id]/page.tsx`) still shows less than print (no HSN, no gross/stone weight, no charges) - flagged to the user, answer still pending.
   - Verified the tightened schema directly: `gross_wt_g`/`net_wt_g`/`rate_per_gram` at `0` each correctly rejected with their specific message; `stone_wt_g` at `0` still correctly passes.
 
-### Phase 11 — End-to-end verification
-- [ ] **Blocked on Phase 10's browser verification gap above.** Full manual walkthrough in the browser: look up an existing customer, edit their email, finalize a sale with one scanned tag + one manually-added item + a partial payment, confirm the tag count on `/tagging` drops, confirm the customer's record reflects the edit, print the receipt, collect the remaining payment from the detail page, confirm the ledger row updates to `paid`.
-- [ ] Re-confirm none of this broke the already-shipped Tagging or Settings modules (shared `Tag`/`MetalPurity` collections).
-- [ ] Update `docs/PROGRESS.md` — move this module from "not built" to "What's built," following the same level of detail as the Tagging/Metal-Rates/Customers entries already there.
+### Phase 11 — End-to-end verification ✅ done (Chrome extension finally connected)
+- [x] Full manual walkthrough, live in the browser, logged in as the real user (session token injected directly - no real password available): customer lookup (exact-match card → "Use this customer" → autofill confirmed), Add Item modal (decimal Gross/Stone/Rate typed correctly, Net Wt auto-computed, no background dimming), Browse Tags (searched and selected a seeded test tag - this is the exact flow the `purities.find is not a function` bug broke, confirmed fixed, rate auto-filled correctly from the real purity catalog), duplicate-tag rejection via Enter Code (clean toast, no crash), editing a grid cell's Gross Wt with a decimal live (Net Wt correctly recomputed, totals recalculated correctly - verified by hand), "Pay in full" / "Finalize Sale" (invoice created successfully, confirmation screen correct), the invoices ledger (correct data, no delete button), an existing partial invoice's "Collect Payment" dialog with "Pay remaining" (payment recorded, status flipped to `paid`), and confirmed the sold tag's status update on `/tagging`. **Zero console errors across the entire walkthrough.**
+- [x] Re-confirmed Tagging unaffected (`TAG-WALKTEST1` correctly showed `Sold` after the sale).
+- **Real, new finding from this pass**: duplicate customer records exist in the actual database for the same person under phone numbers `7379972427` and `07379972427` (leading-zero variant) - confirms a genuine data-quality gap: the lookup only does an exact match on exactly 10 digits, so a customer whose phone was ever typed with an extra leading digit (a common habit from STD-code conventions) can never be found by a later lookup, silently creating a second profile instead. Not a crash. **Deferred — the user has explicitly said this will be fixed later**, not addressed in this pass. Candidate approaches when it's picked up: normalize phone input (strip a leading zero before lookup/storage), or treat a leading `0` specially in the match.
+- **Testing limitation worth recording**: `window.print()` firing on the print/receipt pages opens a native OS-level dialog that blocks the Chrome extension's scripting entirely (confirmed twice, on both `/invoices/:id/print` and the per-payment receipt page) - this is correct, intended behavior (that's the whole point of those pages), but it meant I could confirm both pages resolve to the right URL with the right data and don't error, without being able to screenshot their actual rendered layout. Recommend a manual look at the print layout specifically.
+- [x] All test data (`TAG-WALKTEST1`, the test invoice `INV-2026-0009` created during this walkthrough) deleted afterward. The one real, intentional write kept: collecting the ₹591 pending balance on the real `INV-2026-0007` - a legitimate action, not test pollution, confirmed correct (now `paymentStatus: "paid"`, `pendingAmount: 0`).
+- [x] Updated `docs/PROGRESS.md` to reflect all of this.
 
 ---
 
@@ -258,3 +262,19 @@ User reported this as something broken by the decimal-input fix above. Checked p
 Fixed by extending `handleFieldChange`: when the edited `field` is `grossWtG` or `stoneWtG`, it now also computes `netWtG = Math.max(0, gross - stone)` (rounded to 3dp, same formula and precision as `ManualAddForm` and the Tagging module's `TagForm.tsx`) using the item's current other weight field, and bundles both the edited field and the recomputed `netWtG` into one `updateItem` call. Editing Net Wt directly still works and isn't immediately overwritten - only touching gross or stone re-triggers the recompute, matching the modal's exact established philosophy ("auto-computed, still fully editable, recalculated again any time gross/stone change").
 
 Traced end-to-end through the decimal-buffer system from fix #7 to confirm the two fixes compose correctly: editing Gross Wt pushes `{grossWtG, netWtG}` in one combined store update - the Gross cell's own `useNumericStoreField` buffer isn't disturbed (its own `lastPushed` already matches, so it keeps showing exactly what was typed), while the Net Wt cell's buffer detects its stored value changed from something other than its own last push and correctly resyncs its display to the new computed value.
+
+### 9. Per-payment receipts (user-requested feature, design previewed via Artifact before building)
+User wanted a way to give a customer a receipt for one specific partial payment on an invoice with multiple payments - "this amount is paid, this is still pending, here's the invoice to follow up on." Two design questions resolved before building: (1) payment-only slip vs. one that also lists the purchased items - previewed both as an Artifact mockup side by side, user picked payment-only; (2) entry point - invoice detail page's payment history only, not also offered from the post-sale Billing page screen.
+
+**No new backend endpoint** - `GET /api/invoices/:id/print` already returns the full `payments[]` array; the new page just picks out one payment by its position in that array (payments have no stable id of their own, and are append-only with no edit/delete-payment feature, so the array index is a reasonably stable address for now) and derives the slip's numbers from it.
+
+- `src/app/(app)/invoices/[id]/payments/[index]/receipt/page.tsx` - new route, Client Component (same reasoning as the main print page - session token lives only in `sessionStorage`), reuses `useInvoicePrintData`. Validates the index is an integer within `payments.length`, else shows "No payment found at this position."
+- **"Paid to date" is a snapshot as of that specific payment**, not the invoice's current `paid_amount` - computed as `payments.slice(0, index + 1).reduce((sum, p) => sum + p.amount, 0)`, so a receipt reprinted later keeps showing what was true at the moment that payment was made, not silently picking up payments collected afterward. Verified directly against a two-payment example (₹10,000 then ₹15,000 against a ₹50,830.50 invoice): payment 0's receipt correctly shows paid-to-date ₹10,000/pending ₹40,830.50; payment 1's receipt shows ₹25,000/₹25,830.50 - each a true historical snapshot.
+- `src/app/(app)/invoices/[id]/page.tsx` - added a small `Receipt` icon button next to each row in the Payments list, opening the new route in a new tab (same pattern as the main invoice's Print button).
+- Visual design matches the existing print page's conventions exactly (shop header, `gold-rule`, `font-display`) rather than the Artifact mockup's bespoke CSS - the mockup was only ever for picking a layout, not something to ship as-is.
+- **Follow-up (user feedback): the "Paid to date" line was removed from the slip as unnecessary noise.** The calculation is kept (`paidToDate` is still what `pendingAtThatPoint`/"Balance pending" is derived from internally), only the standalone displayed row was dropped - the slip now shows Received today / Invoice total / Balance pending.
+
+### 10. "Pay Remaining"/"Pay in full" one-click button (user-requested)
+Added a small text-button in `PaymentPanel.tsx` that fills the amount field with `grandTotal` in one click - labeled "Pay remaining" on the invoice detail page's Collect Payment dialog (`bare=true`, `grandTotal={invoice.pending_amount}`) and "Pay in full" on the billing page's initial-sale panel (`bare=false`, `grandTotal={totals.grandTotal}`), since the same prop already means different things in each context and the component didn't need any new prop to support this. Routes through `amountField.onValueChange(String(grandTotal))` - the exact same path manual typing already uses - rather than a second, parallel way of setting the payment, so the display buffer/`lastPushed`/store update all stay in sync through one mechanism. Verified the resulting `{amount, mode}` object directly with a small script mirroring the hook's logic.
+
+Repositioned per follow-up feedback: moved from next to the "Amount Paid Now" label down to sit beside the "Up to ₹X" hint below the input, in the same row. Along the way, fixed a mistake from the first placement - the button had been put inside the `error ? ... : ...` branch that only renders when there's no validation error, which would have hidden it exactly when it's most useful (the button sets a known-valid amount, so it doubles as the fix for "you typed too much"). Now both the hint/error text and the button live in the same always-rendered row, swapping only which text shows on the left.

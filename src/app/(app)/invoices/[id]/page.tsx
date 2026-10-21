@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useParams } from "next/navigation";
+import { Receipt } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/Button";
 import { Dialog } from "@/components/ui/Dialog";
@@ -125,11 +126,22 @@ export default function InvoiceDetailPage() {
           ) : (
             <ul className="mt-2 space-y-1 text-sm">
               {invoice.payments.map((payment, index) => (
-                <li key={index} className="flex justify-between text-muted-foreground">
+                <li key={index} className="flex items-center justify-between text-muted-foreground">
                   <span>
                     {payment.mode} · {new Date(payment.paid_at).toLocaleString("en-IN")}
                   </span>
-                  <span className="text-foreground">{formatInr(payment.amount)}</span>
+                  <span className="flex items-center gap-2">
+                    <span className="text-foreground">{formatInr(payment.amount)}</span>
+                    <button
+                      type="button"
+                      onClick={() => window.open(`/invoices/${id}/payments/${index}/receipt`, "_blank")}
+                      aria-label="Print receipt for this payment"
+                      title="Print receipt for this payment"
+                      className="rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+                    >
+                      <Receipt className="h-3.5 w-3.5" />
+                    </button>
+                  </span>
                 </li>
               ))}
             </ul>
