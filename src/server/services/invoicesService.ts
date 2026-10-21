@@ -4,6 +4,7 @@ import { InvoiceCounterModel } from "@/models/InvoiceCounter.model";
 import { TagModel } from "@/models/Tag.model";
 import { CustomerModel } from "@/models/Customer.model";
 import type { CreateInvoiceInput, AddInvoicePaymentInput } from "@/schemas/invoice.schema";
+import { businessDayStart, businessDayEnd } from "@/lib/business-time";
 
 export class TagNotFoundError extends Error {
   constructor(public readonly codes: string[]) {
@@ -169,14 +170,9 @@ export interface ListInvoicesParams {
 export async function listInvoices({ page, limit, date, customerId }: ListInvoicesParams) {
   const filter: QueryFilter<InvoiceDocument> = {};
   if (date) {
-    // NOTE: day boundaries are UTC, not IST. A sale made late at night IST
-    // can land in the UTC-previous day's bucket. Fine for a single-shop
-    // deployment on a server whose clock nobody has reasoned about yet;
-    // revisit if this ever needs to be exact (pin a server TZ or use an
-    // explicit +05:30 offset here).
     filter.createdAt = {
-      $gte: new Date(`${date}T00:00:00.000Z`),
-      $lte: new Date(`${date}T23:59:59.999Z`),
+      $gte: businessDayStart(date),
+      $lte: businessDayEnd(date),
     };
   }
   // Same leniency as `date` above: a malformed id is silently ignored

@@ -2,6 +2,7 @@ import { InvoiceModel } from "@/models/Invoice.model";
 import { CustomerModel } from "@/models/Customer.model";
 import { TagModel } from "@/models/Tag.model";
 import { daysBetween } from "@/schemas/dashboard.schema";
+import { businessDayStart, businessDayEnd } from "@/lib/business-time";
 
 export interface DashboardRangeParams {
   from: string;
@@ -60,8 +61,8 @@ interface PreviousPeriodFacetRow {
 
 export async function getDashboardSummary({ from, to }: DashboardRangeParams): Promise<DashboardSummary> {
   const rangeDays = daysBetween(from, to);
-  const currentFrom = new Date(`${from}T00:00:00.000Z`);
-  const currentTo = new Date(`${to}T23:59:59.999Z`);
+  const currentFrom = businessDayStart(from);
+  const currentTo = businessDayEnd(to);
   // Previous period = the same number of days immediately before `from`,
   // so a 7-day selection compares against the 7 days before it, not a
   // hardcoded "yesterday."
@@ -113,7 +114,6 @@ export async function getDashboardSummary({ from, to }: DashboardRangeParams): P
     ]),
     CustomerModel.countDocuments({ createdAt: { $gte: currentFrom, $lte: currentTo } }),
   ]);
-  console.log("Dashboard summary raw results:", { facetResult, pendingResult, stockResult, newCustomers });
   const current = facetResult[0]?.current[0] ?? {
     total_sales: 0,
     invoice_count: 0,
@@ -123,7 +123,6 @@ export async function getDashboardSummary({ from, to }: DashboardRangeParams): P
   const previous = facetResult[0]?.previous[0] ?? { total_sales: 0, invoice_count: 0 };
   const pendingAmount = pendingResult[0]?.pending_amount ?? 0;
   const stock = stockResult[0] ?? { count: 0, net_weight_g: 0 };
-  // console.log("Dashboard summary:", { current, previous, pendingAmount, stock, newCustomers });
 
   return {
     from,
@@ -147,14 +146,14 @@ export async function getDashboardSummary({ from, to }: DashboardRangeParams): P
 }
 
 export async function getSalesTrend({ from, to }: DashboardRangeParams): Promise<SalesTrendPoint[]> {
-  const rangeFrom = new Date(`${from}T00:00:00.000Z`);
-  const rangeTo = new Date(`${to}T23:59:59.999Z`);
+  const matchFrom = businessDayStart(from);
+  const matchTo = businessDayEnd(to);
 
   const results = await InvoiceModel.aggregate<{ _id: string; total_sales: number }>([
-    { $match: { createdAt: { $gte: rangeFrom, $lte: rangeTo } } },
+    { $match: { createdAt: { $gte: matchFrom, $lte: matchTo } } },
     {
       $group: {
-        _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt", timezone: "UTC" } },
+        _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt", timezone: "Asia/Kolkata" } },
         total_sales: { $sum: "$grandTotal" },
       },
     },
@@ -162,9 +161,14 @@ export async function getSalesTrend({ from, to }: DashboardRangeParams): Promise
 
   const byDate = new Map(results.map((row) => [row._id, row.total_sales]));
 
+  // Calendar-date enumeration only, deliberately independent of the IST
+  // offset above - `from`/`to` are already the calendar dates we want to
+  // list, so a plain UTC-midnight counter is enough to walk from one to the
+  // other day by day.
   const points: SalesTrendPoint[] = [];
-  const cursor = new Date(rangeFrom);
-  while (cursor <= rangeTo) {
+  const cursor = new Date(`${from}T00:00:00.000Z`);
+  const calendarEnd = new Date(`${to}T00:00:00.000Z`);
+  while (cursor <= calendarEnd) {
     const dateKey = cursor.toISOString().slice(0, 10);
     points.push({ date: dateKey, total_sales: byDate.get(dateKey) ?? 0 });
     cursor.setUTCDate(cursor.getUTCDate() + 1);

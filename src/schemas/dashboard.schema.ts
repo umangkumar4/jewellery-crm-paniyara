@@ -1,7 +1,10 @@
 import { z } from "zod";
 
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
-const MAX_RANGE_DAYS = 365;
+// 366, not 365 - a leap year's full calendar year (e.g. 2024-01-01 to
+// 2024-12-31) is 366 days inclusive, and that's a completely ordinary
+// "whole year" request, not an attempt to pull an oversized range.
+const MAX_RANGE_DAYS = 366;
 
 export function daysBetween(from: string, to: string): number {
   const fromMs = new Date(`${from}T00:00:00.000Z`).getTime();
@@ -9,10 +12,25 @@ export function daysBetween(from: string, to: string): number {
   return Math.round((toMs - fromMs) / (1000 * 60 * 60 * 24)) + 1;
 }
 
+// The regex only checks digit shape, not that the date is real - new
+// Date("2024-02-30") doesn't throw, it silently normalizes to 2024-03-01.
+// Round-tripping through Date.UTC's own component getters catches that
+// rollover for day/month overflow (Feb 30, Apr 31, month 13, day 00, ...).
+function isValidCalendarDate(value: string): boolean {
+  const [year, month, day] = value.split("-").map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day;
+}
+
+const dateString = z
+  .string()
+  .regex(DATE_PATTERN, "Must be YYYY-MM-DD")
+  .refine(isValidCalendarDate, "Must be a real calendar date");
+
 export const dashboardRangeQuerySchema = z
   .object({
-    from: z.string().regex(DATE_PATTERN, "Must be YYYY-MM-DD"),
-    to: z.string().regex(DATE_PATTERN, "Must be YYYY-MM-DD"),
+    from: dateString,
+    to: dateString,
   })
   .refine((value) => value.to >= value.from, {
     message: "to must be on or after from",
