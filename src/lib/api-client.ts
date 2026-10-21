@@ -9,12 +9,18 @@ import { clearStoredToken, getStoredToken } from "@/lib/auth-token";
 export class ApiError extends Error {
   status: number;
   fields?: Record<string, string>;
+  // Some routes (invoice creation's tag-conflict errors) return which exact
+  // items failed, not just a generic message - e.g. "these tag codes are
+  // already sold" - so the caller can remove precisely those lines instead
+  // of discarding the whole in-progress draft.
+  codes?: string[];
 
-  constructor(status: number, message: string, fields?: Record<string, string>) {
+  constructor(status: number, message: string, fields?: Record<string, string>, codes?: string[]) {
     super(message);
     this.name = "ApiError";
     this.status = status;
     this.fields = fields;
+    this.codes = codes;
   }
 }
 
@@ -43,7 +49,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
   if (!res.ok) {
     const body = await res.json().catch(() => ({ error: res.statusText }));
-    throw new ApiError(res.status, body.error ?? "Request failed", body.fields);
+    throw new ApiError(res.status, body.error ?? "Request failed", body.fields, body.codes);
   }
 
   if (res.status === 204) {

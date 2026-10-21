@@ -161,6 +161,18 @@
     @apply font-display;
     letter-spacing: 0.01em;
   }
+
+  /* No spin-button increment/decrement controls on number inputs anywhere
+     in the app - POS/billing fields (weights, rates, charges, payments)
+     are typed or pasted, never incremented one click at a time. */
+  input[type="number"] {
+    -moz-appearance: textfield;
+  }
+  input[type="number"]::-webkit-outer-spin-button,
+  input[type="number"]::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
 }
 
 @layer utilities {

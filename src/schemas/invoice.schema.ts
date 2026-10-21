@@ -16,10 +16,14 @@ const invoiceItemInputSchema = z.object({
   metal: z.string().trim().min(1, "Metal is required"),
   purity: z.string().trim().min(1, "Purity is required"),
   pieces: z.number().int().min(1, "Pieces must be at least 1").default(1),
-  gross_wt_g: z.number().min(0, "Gross weight must be 0 or more"),
+  // Gross/net weight and rate must be real, positive values - 0 isn't "not
+  // entered yet," it's a physically meaningless weight/rate for a line
+  // that's actually being billed. Stone weight stays min(0): a plain gold
+  // band genuinely has zero stone weight, that's a valid real value.
+  gross_wt_g: z.number().positive("Gross weight is required"),
   stone_wt_g: z.number().min(0, "Stone weight must be 0 or more").default(0),
-  net_wt_g: z.number().min(0, "Net weight must be 0 or more"),
-  rate_per_gram: z.number().min(0, "Rate per gram must be 0 or more"),
+  net_wt_g: z.number().positive("Net weight is required"),
+  rate_per_gram: z.number().positive("Rate per gram is required"),
   making_charge: z.number().min(0, "Making charge must be 0 or more").default(0),
   stone_charge: z.number().min(0, "Stone charge must be 0 or more").default(0),
   // Optional - a manually-added line (no scanned/browsed tag behind it) has none.

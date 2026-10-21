@@ -64,8 +64,14 @@ export function TagForm({ onCreated }: { onCreated: (tag: Tag) => void }) {
   const stoneWtG = watch("stone_wt_g");
 
   useEffect(() => {
+    // Rounded to 3dp, not 2 - gross/stone weights are routinely entered to
+    // 3 decimal places (milligram precision), and rounding to 2dp could
+    // both lose a real digit and round the wrong way (e.g. 22.972 - 2.067
+    // = 20.905, which at 2dp incorrectly became 20.91, not just a shorter
+    // 20.9). See src/features/billing/components/ItemTable.tsx's identical
+    // fix for the same formula.
     const net = Math.max(0, (Number(grossWtG) || 0) - (Number(stoneWtG) || 0));
-    setValue("net_wt_g", Math.round(net * 100) / 100);
+    setValue("net_wt_g", Math.round(net * 1000) / 1000);
   }, [grossWtG, stoneWtG, setValue]);
 
   const onSubmit = handleSubmit((values) => {
