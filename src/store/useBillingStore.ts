@@ -9,6 +9,13 @@ export interface BillingCustomer {
 }
 
 export interface BillingItem {
+  // Client-only identity, never sent to the server (billing/page.tsx maps
+  // each item to the API payload field-by-field, not via spread, so this
+  // never leaks into the request body). Exists purely so the billing
+  // grid's cell renderers can be matched to the correct row across an
+  // edit - see the long comment on ItemTable.tsx's AgGridReact `getRowId`
+  // for why this is load-bearing, not decorative.
+  id: string;
   tagCode?: string | null;
   description: string;
   hsnCode: string;
@@ -53,8 +60,8 @@ interface BillingState {
   itemErrors: BillingItemErrors;
 
   setCustomer: (customer: BillingCustomer) => void;
-  addItem: (item: Omit<BillingItem, "total">) => void;
-  updateItem: (index: number, patch: Partial<Omit<BillingItem, "total">>) => void;
+  addItem: (item: Omit<BillingItem, "total" | "id">) => void;
+  updateItem: (index: number, patch: Partial<Omit<BillingItem, "total" | "id">>) => void;
   removeItem: (index: number) => void;
   hasTag: (tagCode: string) => boolean;
   setDiscountAmount: (amount: number) => void;
@@ -97,7 +104,11 @@ export const useBillingStore = create<BillingState>((set, get) => ({
 
   setCustomer: (customer) => set({ customer, ...NO_ERRORS }),
 
-  addItem: (item) => set((state) => ({ items: [...state.items, withTotal(item)], ...NO_ERRORS })),
+  addItem: (item) =>
+    set((state) => ({
+      items: [...state.items, withTotal({ ...item, id: crypto.randomUUID() })],
+      ...NO_ERRORS,
+    })),
 
   updateItem: (index, patch) =>
     set((state) => ({

@@ -1,15 +1,33 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { ChevronLeft, ChevronRight, Eye, Search } from "lucide-react";
+import { AgGridReact } from "ag-grid-react";
+import type { ColDef, ICellRendererParams } from "ag-grid-community";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { agGridTheme, AG_GRID_HEADER_CLASS, AG_GRID_DEFAULT_COL_DEF } from "@/lib/ag-grid";
 import { ApiError } from "@/lib/api-client";
 import { useCustomers } from "@/features/customers/hooks/useCustomers";
+import type { CustomerListRow } from "@/features/customers/hooks/useCustomers";
 
 const LIMIT = 20;
+
+function ActionCell({ data }: ICellRendererParams<CustomerListRow>) {
+  if (!data) return null;
+  return (
+    <div className="flex h-full items-center">
+      <Link
+        href={`/customers/${data.id}`}
+        aria-label={`View ${data.name}`}
+        className="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+      >
+        <Eye className="h-4 w-4" />
+      </Link>
+    </div>
+  );
+}
 
 export function CustomersTable() {
   const [searchInput, setSearchInput] = useState("");
@@ -33,6 +51,46 @@ export function CustomersTable() {
 
   const total = data?.total ?? 0;
   const totalPages = Math.max(1, Math.ceil(total / LIMIT));
+  const columnDefs = useMemo<ColDef<CustomerListRow>[]>(
+  () => [
+    {
+      field: "name",
+      headerName: "Name",
+      flex: 1,
+      headerClass: AG_GRID_HEADER_CLASS,
+      cellClass: "font-medium",
+    },
+    {
+      field: "phone",
+      headerName: "Phone",
+      flex: 1,
+      headerClass: AG_GRID_HEADER_CLASS,
+    },
+    {
+      headerName: "Email",
+      flex: 1,
+      headerClass: AG_GRID_HEADER_CLASS,
+      valueGetter: (p) => p.data?.email || "—",
+    },
+    {
+      field: "created_at",
+      headerName: "Member Since",
+      flex: 1,
+      headerClass: AG_GRID_HEADER_CLASS,
+      valueFormatter: (p) =>
+        p.value ? new Date(p.value).toLocaleDateString("en-IN") : "",
+    },
+    {
+      headerName: "Action",
+      flex: 1,
+      headerClass: `${AG_GRID_HEADER_CLASS}`,
+      cellRenderer: ActionCell,
+      sortable: false,
+      filter: false,
+    },
+  ],
+  [],
+);
 
   return (
     <div className="panel p-6">
@@ -48,68 +106,28 @@ export function CustomersTable() {
       </div>
 
       <div className="mt-5">
-        <Table className="min-w-[640px]">
-          <TableHeader>
-            <TableRow className="border-border hover:bg-transparent">
-              <TableHead className="h-auto py-2 text-xs font-medium tracking-wide text-muted-foreground uppercase">
-                Name
-              </TableHead>
-              <TableHead className="h-auto py-2 text-xs font-medium tracking-wide text-muted-foreground uppercase">
-                Phone
-              </TableHead>
-              <TableHead className="h-auto py-2 text-xs font-medium tracking-wide text-muted-foreground uppercase">
-                Email
-              </TableHead>
-              <TableHead className="h-auto py-2 text-xs font-medium tracking-wide text-muted-foreground uppercase">
-                Member Since
-              </TableHead>
-              <TableHead className="h-auto py-2 text-right text-xs font-medium tracking-wide text-muted-foreground uppercase">
-                Action
-              </TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {isLoading ? (
-              <TableRow className="border-border/60 hover:bg-transparent">
-                <TableCell colSpan={5} className="py-6 text-center whitespace-normal text-muted-foreground">
-                  Loading…
-                </TableCell>
-              </TableRow>
-            ) : isError ? (
-              <TableRow className="border-border/60 hover:bg-transparent">
-                <TableCell colSpan={5} className="py-6 text-center whitespace-normal text-destructive">
-                  {error instanceof ApiError ? error.message : "Failed to load customers."}
-                </TableCell>
-              </TableRow>
-            ) : !data || data.data.length === 0 ? (
-              <TableRow className="border-border/60 hover:bg-transparent">
-                <TableCell colSpan={5} className="py-6 text-center whitespace-normal text-muted-foreground">
-                  {q ? "No customers match this search." : "No customers yet."}
-                </TableCell>
-              </TableRow>
-            ) : (
-              data.data.map((customer) => (
-                <TableRow key={customer.id} className="border-border/60">
-                  <TableCell className="py-3 font-medium text-foreground">{customer.name}</TableCell>
-                  <TableCell className="py-3 text-muted-foreground">{customer.phone}</TableCell>
-                  <TableCell className="py-3 text-muted-foreground">{customer.email || "—"}</TableCell>
-                  <TableCell className="py-3 text-muted-foreground">
-                    {new Date(customer.created_at).toLocaleDateString("en-IN")}
-                  </TableCell>
-                  <TableCell className="py-3 text-right">
-                    <Link
-                      href={`/customers/${customer.id}`}
-                      aria-label={`View ${customer.name}`}
-                      className="inline-flex rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
-                    >
-                      <Eye className="h-4 w-4" />
-                    </Link>
-                  </TableCell>
-                </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
+        {isLoading && !data ? (
+          <div className="py-6 text-center text-sm text-muted-foreground">Loading…</div>
+        ) : isError ? (
+          <div className="py-6 text-center text-sm text-destructive">
+            {error instanceof ApiError ? error.message : "Failed to load customers."}
+          </div>
+        ) : !data || data.data.length === 0 ? (
+          <div className="py-6 text-center text-sm text-muted-foreground">
+            {q ? "No customers match this search." : "No customers yet."}
+          </div>
+        ) : (
+          <AgGridReact<CustomerListRow>
+            theme={agGridTheme}
+            defaultColDef={AG_GRID_DEFAULT_COL_DEF}
+            rowData={data.data}
+            columnDefs={columnDefs}
+            getRowId={(p) => p.data.id}
+            domLayout="autoHeight"
+            suppressCellFocus
+            animateRows={false}
+          />
+        )}
       </div>
 
       <div className="mt-4 flex items-center justify-between text-sm text-muted-foreground">

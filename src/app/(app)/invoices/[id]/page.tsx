@@ -1,20 +1,34 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import { Receipt } from "lucide-react";
 import { toast } from "sonner";
+import { AgGridReact } from "ag-grid-react";
+import type { ColDef, ICellRendererParams } from "ag-grid-community";
 import { Button } from "@/components/ui/Button";
 import { Dialog } from "@/components/ui/Dialog";
+import { agGridTheme, AG_GRID_HEADER_CLASS, AG_GRID_DEFAULT_COL_DEF } from "@/lib/ag-grid";
 import { ApiError } from "@/lib/api-client";
 import { PaymentPanel } from "@/features/billing/components/PaymentPanel";
 import { useAddPayment } from "@/features/billing/hooks/useAddPayment";
 import { calculateNewPending } from "@/features/billing/lib/calculations";
 import { useInvoiceDetail } from "@/features/dashboard/hooks/useInvoiceDetail";
+import type { InvoiceItemDetail } from "@/features/dashboard/hooks/useInvoiceDetail";
 import type { BillingPayment } from "@/store/useBillingStore";
 
 function formatInr(value: number): string {
   return `₹${value.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+function DescriptionCell({ data }: ICellRendererParams<InvoiceItemDetail>) {
+  if (!data) return null;
+  return (
+    <span>
+      {data.description}
+      {data.tag_code ? <span className="ml-2 text-xs text-muted-foreground">{data.tag_code}</span> : null}
+    </span>
+  );
 }
 
 export default function InvoiceDetailPage() {
@@ -24,6 +38,45 @@ export default function InvoiceDetailPage() {
   const [collectOpen, setCollectOpen] = useState(false);
   const [draftPayment, setDraftPayment] = useState<BillingPayment | null>(null);
   const addPayment = useAddPayment(id);
+
+  const itemColumnDefs = useMemo<ColDef<InvoiceItemDetail>[]>(
+    // Fixed widths, not flex - with 9 columns, flex forces every column to
+    // shrink to fit the panel's width, truncating header text. Fixed
+    // widths let every header stay fully readable; the grid scrolls
+    // horizontally instead (same tradeoff as the original shadcn-table's
+    // own `min-w-[820px]` + `overflow-x-auto`).
+    () => [
+      { field: "sr_no", headerName: "#", width: 60, headerClass: AG_GRID_HEADER_CLASS },
+      { headerName: "Description", width: 220, headerClass: AG_GRID_HEADER_CLASS, cellRenderer: DescriptionCell },
+      { field: "hsn_code", headerName: "HSN", width: 90, headerClass: AG_GRID_HEADER_CLASS },
+      { field: "gross_wt_g", headerName: "Gross Wt (g)", width: 130, headerClass: AG_GRID_HEADER_CLASS },
+      { field: "stone_wt_g", headerName: "Stone Wt (g)", width: 130, headerClass: AG_GRID_HEADER_CLASS },
+      { field: "net_wt_g", headerName: "Net Wt (g)", width: 120, headerClass: AG_GRID_HEADER_CLASS },
+      {
+        field: "rate_per_gram",
+        headerName: "Rate/g",
+        width: 120,
+        headerClass: AG_GRID_HEADER_CLASS,
+        valueFormatter: (p) => (p.value != null ? formatInr(p.value) : ""),
+      },
+      {
+        field: "making_charge",
+        headerName: "Making",
+        width: 120,
+        headerClass: AG_GRID_HEADER_CLASS,
+        valueFormatter: (p) => (p.value != null ? formatInr(p.value) : ""),
+      },
+      {
+        field: "total",
+        headerName: "Total",
+        width: 130,
+        headerClass: AG_GRID_HEADER_CLASS,
+        cellClass: "font-medium! text-foreground!",
+        valueFormatter: (p) => (p.value != null ? formatInr(p.value) : ""),
+      },
+    ],
+    [],
+  );
 
   if (isLoading) {
     return <p className="text-sm text-muted-foreground">Loading…</p>;
@@ -90,42 +143,17 @@ export default function InvoiceDetailPage() {
           ) : null}
 
           <h3 className="mt-6 font-display text-lg text-foreground">Items</h3>
-          <div className="mt-3 overflow-x-auto">
-            <table className="w-full min-w-[820px] text-left text-sm">
-              <thead>
-                <tr className="border-b border-border text-xs tracking-wide text-muted-foreground uppercase">
-                  <th className="py-2 pr-3 font-medium">#</th>
-                  <th className="py-2 pr-3 font-medium">Description</th>
-                  <th className="py-2 pr-3 font-medium">HSN</th>
-                  <th className="py-2 pr-3 font-medium">Gross Wt (g)</th>
-                  <th className="py-2 pr-3 font-medium">Stone Wt (g)</th>
-                  <th className="py-2 pr-3 font-medium">Net Wt (g)</th>
-                  <th className="py-2 pr-3 font-medium">Rate/g</th>
-                  <th className="py-2 pr-3 font-medium">Making</th>
-                  <th className="py-2 pr-3 font-medium">Total</th>
-                </tr>
-              </thead>
-              <tbody>
-                {invoice.items.map((item) => (
-                  <tr key={item.sr_no} className="border-b border-border/60">
-                    <td className="py-2 pr-3 text-muted-foreground">{item.sr_no}</td>
-                    <td className="py-2 pr-3 text-foreground">
-                      {item.description}
-                      {item.tag_code ? (
-                        <span className="ml-2 text-xs text-muted-foreground">{item.tag_code}</span>
-                      ) : null}
-                    </td>
-                    <td className="py-2 pr-3 text-muted-foreground">{item.hsn_code}</td>
-                    <td className="py-2 pr-3 text-muted-foreground">{item.gross_wt_g}</td>
-                    <td className="py-2 pr-3 text-muted-foreground">{item.stone_wt_g}</td>
-                    <td className="py-2 pr-3 text-muted-foreground">{item.net_wt_g}</td>
-                    <td className="py-2 pr-3 text-muted-foreground">{formatInr(item.rate_per_gram)}</td>
-                    <td className="py-2 pr-3 text-muted-foreground">{formatInr(item.making_charge)}</td>
-                    <td className="py-2 pr-3 font-medium text-foreground">{formatInr(item.total)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="mt-3">
+            <AgGridReact<InvoiceItemDetail>
+              theme={agGridTheme}
+              defaultColDef={AG_GRID_DEFAULT_COL_DEF}
+              rowData={invoice.items}
+              columnDefs={itemColumnDefs}
+              getRowId={(p) => String(p.data.sr_no)}
+              domLayout="autoHeight"
+              suppressCellFocus
+              animateRows={false}
+            />
           </div>
 
           <h3 className="mt-6 font-display text-lg text-foreground">Payments</h3>

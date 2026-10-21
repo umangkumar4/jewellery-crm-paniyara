@@ -1,4 +1,4 @@
-import { InvoiceTable } from "@/features/dashboard/components/InvoiceTable";
+import { InvoiceGrid } from "@/features/dashboard/components/InvoiceGrid";
 
 export default function InvoicesPage() {
   return (
@@ -7,7 +7,7 @@ export default function InvoicesPage() {
       <p className="mt-1 text-sm text-muted-foreground">Every sale recorded through Billing.</p>
 
       <div className="mt-6">
-        <InvoiceTable />
+        <InvoiceGrid />
       </div>
     </div>
   );

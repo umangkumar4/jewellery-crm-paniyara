@@ -113,7 +113,7 @@ export async function getDashboardSummary({ from, to }: DashboardRangeParams): P
     ]),
     CustomerModel.countDocuments({ createdAt: { $gte: currentFrom, $lte: currentTo } }),
   ]);
-
+  console.log("Dashboard summary raw results:", { facetResult, pendingResult, stockResult, newCustomers });
   const current = facetResult[0]?.current[0] ?? {
     total_sales: 0,
     invoice_count: 0,
@@ -123,6 +123,7 @@ export async function getDashboardSummary({ from, to }: DashboardRangeParams): P
   const previous = facetResult[0]?.previous[0] ?? { total_sales: 0, invoice_count: 0 };
   const pendingAmount = pendingResult[0]?.pending_amount ?? 0;
   const stock = stockResult[0] ?? { count: 0, net_weight_g: 0 };
+  // console.log("Dashboard summary:", { current, previous, pendingAmount, stock, newCustomers });
 
   return {
     from,

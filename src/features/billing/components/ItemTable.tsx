@@ -1,12 +1,15 @@
 "use client";
 
-import { Fragment, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { Plus, Trash2 } from "lucide-react";
+import { AgGridReact } from "ag-grid-react";
+import type { ColDef, ICellRendererParams, RowClassParams } from "ag-grid-community";
 import { Button } from "@/components/ui/Button";
 import { Dialog } from "@/components/ui/Dialog";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
 import { Select } from "@/components/ui/Select";
+import { agGridTheme, AG_GRID_HEADER_CLASS, AG_GRID_DEFAULT_COL_DEF } from "@/lib/ag-grid";
 import { cn } from "@/lib/utils";
 import { METALS, type Metal } from "@/lib/metals";
 import { useMetalPurities } from "@/features/settings/hooks/useMetalPurities";
@@ -85,30 +88,36 @@ const FIELD_LABELS: Record<string, string> = {
   _item: "This item",
 };
 
-function ItemCellInput({
-  value,
-  field,
-  onChange,
-  hasError,
-}: {
-  value: BillingItem[EditableField];
+interface EditCellExtra {
   field: EditableField;
-  onChange: (value: string) => void;
-  hasError?: boolean;
-}) {
-  const numeric = NUMERIC_FIELDS.has(field);
+  onFieldChange: (rowIndex: number, field: EditableField, raw: string) => void;
+}
 
-  // Numeric cells keep a local display buffer (same mechanism already used
-  // by TotalsPanel/PaymentPanel) so an in-progress "15." isn't wiped by the
-  // parent's Number() coercion before the next digit is typed. Called
-  // unconditionally (Rules of Hooks) - for text cells it's inert, fed a
-  // constant 0 and its output never used.
-  const numericField = useNumericStoreField(
-    typeof value === "number" ? value : 0,
-    // Bridges back to the parent's string contract - handleFieldChange's
-    // Number(String(n)) || 0 round-trips n exactly.
-    (n) => onChange(String(n)),
-  );
+// Each cell subscribes directly to the slice of the store it needs
+// (its row's submitted-validation error) rather than having that threaded
+// through cellRendererParams/columnDefs - columnDefs stays a stable
+// reference across every keystroke this way (only rowData changes, which
+// ag-grid refreshes without remounting cell components), so a controlled
+// <input> here never loses focus mid-type the way it would if columnDefs
+// regenerated on every store update.
+function ItemFieldCell({ data, node, field, onFieldChange }: ICellRendererParams<BillingItem> & EditCellExtra) {
+  const rowIndex = node.rowIndex;
+  const schemaField = SCHEMA_FIELD_NAMES[field];
+  const submittedError = useBillingStore((s) => (rowIndex != null ? s.itemErrors[rowIndex]?.[schemaField] : undefined));
+
+  const numeric = NUMERIC_FIELDS.has(field);
+  const value = data ? data[field] : "";
+
+  // Called unconditionally (Rules of Hooks) - for text cells it's inert,
+  // fed a constant 0 and its output never used.
+  const numericField = useNumericStoreField(typeof value === "number" ? value : 0, (n) => {
+    if (rowIndex != null) onFieldChange(rowIndex, field, String(n));
+  });
+
+  if (!data || rowIndex == null) return null;
+
+  const liveErrors = getLiveItemErrors(data);
+  const hasError = !!(liveErrors[schemaField] || submittedError);
 
   return (
     <input
@@ -118,11 +127,11 @@ function ItemCellInput({
       // even though the underlying value is correctly 11.
       type="text"
       inputMode={numeric ? "decimal" : undefined}
-      value={numeric ? numericField.value : value}
+      value={numeric ? numericField.value : (value as string)}
       onChange={(e) => {
         const raw = e.target.value;
         if (!numeric) {
-          onChange(raw);
+          onFieldChange(rowIndex, field, raw);
           return;
         }
         if (!isValidNumericInput(raw)) return;
@@ -131,11 +140,7 @@ function ItemCellInput({
       onBlur={() => {
         if (!numeric) return;
         // Normalize the buffer to canonical form: "" -> "0" (previous
-        // behavior, preserved), "15." -> "15", "15.50" -> "15.5". The store
-        // already holds the right number either way - this only tidies the
-        // display, and guarantees no non-canonical buffer text survives
-        // into an index-shift after a row removal (blur fires before the
-        // remove button's click).
+        // behavior, preserved), "15." -> "15", "15.50" -> "15.5".
         const canonical = String(Number(numericField.value) || 0);
         if (canonical !== numericField.value) {
           numericField.onValueChange(canonical);
@@ -146,6 +151,24 @@ function ItemCellInput({
         hasError && "border-destructive focus-visible:ring-destructive",
       )}
     />
+  );
+}
+
+function RemoveCell({ node }: ICellRendererParams<BillingItem>) {
+  const removeItem = useBillingStore((s) => s.removeItem);
+  const rowIndex = node.rowIndex;
+  if (rowIndex == null) return null;
+  return (
+    <div className="flex h-full items-center">
+      <button
+        type="button"
+        onClick={() => removeItem(rowIndex)}
+        aria-label="Remove item"
+        className="rounded-md p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+      >
+        <Trash2 className="h-4 w-4" />
+      </button>
+    </div>
   );
 }
 
@@ -336,32 +359,108 @@ function ManualAddForm({ onDone }: { onDone: () => void }) {
 export function ItemTable({ onBrowseTags }: { onBrowseTags: () => void }) {
   const items = useBillingStore((state) => state.items);
   const updateItem = useBillingStore((state) => state.updateItem);
-  const removeItem = useBillingStore((state) => state.removeItem);
   const itemErrors = useBillingStore((state) => state.itemErrors);
   const [showManualAdd, setShowManualAdd] = useState(false);
 
-  const handleFieldChange = (index: number, field: EditableField, raw: string) => {
-    const value = NUMERIC_FIELDS.has(field) ? Number(raw) || 0 : raw;
-    const patch: Partial<Omit<BillingItem, "total">> = { [field]: value };
+  // Stable across renders (only depends on the zustand action reference,
+  // which zustand itself keeps stable) - this is what lets columnDefs below
+  // stay a stable reference too, which is the actual fix for the
+  // live-typing-loses-focus risk a naive port of this grid would have had.
+  const handleFieldChange = useCallback(
+    (rowIndex: number, field: EditableField, raw: string) => {
+      const value = NUMERIC_FIELDS.has(field) ? Number(raw) || 0 : raw;
+      const patch: Partial<Omit<BillingItem, "total">> = { [field]: value };
 
-    // Net weight stays auto-derived from gross - stone in the grid too,
-    // matching ManualAddForm's exact behavior (same Math.max(0, gross -
-    // stone), rounded to 3dp) - this never existed in the grid before,
-    // it's a gap, not a regression (confirmed via git: this file has no
-    // prior committed version - handleFieldChange has always only touched
-    // the single field being edited, in every version written this
-    // session). Editing Net Wt directly still works and isn't immediately
-    // overwritten - only touching gross/stone re-triggers this.
-    if (field === "grossWtG" || field === "stoneWtG") {
-      const item = items[index];
-      const gross = field === "grossWtG" ? (value as number) : item.grossWtG;
-      const stone = field === "stoneWtG" ? (value as number) : item.stoneWtG;
-      const net = Math.max(0, gross - stone);
-      patch.netWtG = Math.round(net * 1000) / 1000;
-    }
+      // Net weight stays auto-derived from gross - stone in the grid too,
+      // matching ManualAddForm's exact behavior (same Math.max(0, gross -
+      // stone), rounded to 3dp). Reads the sibling weight via getState()
+      // (not a closed-over `items` prop) specifically so this callback
+      // itself never needs to change identity when items changes.
+      if (field === "grossWtG" || field === "stoneWtG") {
+        const item = useBillingStore.getState().items[rowIndex];
+        const gross = field === "grossWtG" ? (value as number) : item.grossWtG;
+        const stone = field === "stoneWtG" ? (value as number) : item.stoneWtG;
+        const net = Math.max(0, gross - stone);
+        patch.netWtG = Math.round(net * 1000) / 1000;
+      }
 
-    updateItem(index, patch);
+      updateItem(rowIndex, patch);
+    },
+    [updateItem],
+  );
+
+  const columnDefs = useMemo<ColDef<BillingItem>[]>(() => {
+    // Fixed widths, not flex - with 11 columns, flex forces every column to
+    // shrink to fit the panel's width, which truncates header text
+    // ("Gross Wt (g) *" becomes "G..."). Fixed widths sized to each
+    // header's actual text let every column stay fully readable; the grid
+    // scrolls horizontally instead, same tradeoff the original shadcn-table
+    // version made with its own `min-w-[1140px]` + `overflow-x-auto`.
+    const editable = (field: EditableField, headerName: string, width: number): ColDef<BillingItem> => ({
+      headerName,
+      width,
+      headerClass: AG_GRID_HEADER_CLASS,
+      cellRenderer: ItemFieldCell,
+      cellRendererParams: { field, onFieldChange: handleFieldChange } satisfies EditCellExtra,
+    });
+
+    return [
+      editable("description", "Description *", 220),
+      {
+        headerName: "Tag",
+        width: 150,
+        headerClass: AG_GRID_HEADER_CLASS,
+        valueGetter: (p) => p.data?.tagCode ?? "—",
+      },
+      { field: "metal", headerName: "Metal", width: 110, headerClass: AG_GRID_HEADER_CLASS },
+      { field: "purity", headerName: "Purity", width: 100, headerClass: AG_GRID_HEADER_CLASS },
+      editable("grossWtG", "Gross Wt (g) *", 140),
+      editable("stoneWtG", "Stone Wt (g)", 130),
+      editable("netWtG", "Net Wt (g) *", 130),
+      editable("ratePerGram", "Rate/g *", 150),
+      editable("makingCharge", "Making Charge", 150),
+      editable("stoneCharge", "Stone Charge", 150),
+      {
+        field: "total",
+        headerName: "Total",
+        width: 170,
+        headerClass: AG_GRID_HEADER_CLASS,
+        cellClass: "font-semibold! text-foreground!",
+        valueFormatter: (p) => (p.value != null ? `₹${p.value.toLocaleString("en-IN")}` : ""),
+      },
+      {
+        headerName: "Action",
+        width: 60,
+        headerClass: AG_GRID_HEADER_CLASS,
+        cellRenderer: RemoveCell,
+      },
+    ];
+  }, [handleFieldChange]);
+
+  // AG_GRID_DEFAULT_COL_DEF (sortable/filter both off) matters even more
+  // here than on the app's other grids: every cell/action in this one is
+  // keyed by node.rowIndex to mutate the zustand store's
+  // positionally-ordered items array (there's no stable row id to sort by
+  // instead). If a column were sortable, sorting would change the grid's
+  // displayed row order without changing the store's array order, so the
+  // next edit or Remove click would silently land on the wrong line item -
+  // a real correctness bug for a money-handling grid, not a cosmetic one.
+
+  const getRowClass = (params: RowClassParams<BillingItem>) => {
+    if (!params.data || params.rowIndex == null) return undefined;
+    const errors = { ...getLiveItemErrors(params.data), ...itemErrors[params.rowIndex] };
+    return Object.keys(errors).length > 0 ? "bg-destructive/5!" : undefined;
   };
+
+  // Consolidated below the grid instead of a second full-width row per
+  // erroring item (what the shadcn-table version did via a <Fragment> pair
+  // of <tr>s) - ag-grid's row model doesn't have an easy equivalent to
+  // "two rows per data row", and every row with an issue already gets a
+  // red tint via getRowClass plus red borders on its specific bad cell(s),
+  // so this list is a secondary, not the only, error signal.
+  const rowsWithErrors = items
+    .map((item, index) => ({ index, errors: { ...getLiveItemErrors(item), ...itemErrors[index] } }))
+    .filter((row) => Object.keys(row.errors).length > 0);
 
   return (
     <div className="panel p-6">
@@ -382,125 +481,33 @@ export function ItemTable({ onBrowseTags }: { onBrowseTags: () => void }) {
           No items yet - scan a tag code above, browse available tags, or add one manually.
         </p>
       ) : (
-        <div className="mt-5 overflow-x-auto">
-          <table className="w-full min-w-[1140px] text-left text-sm">
-            <thead>
-              <tr className="border-b border-border text-xs tracking-wide text-muted-foreground uppercase">
-                <th className="py-2 pr-3 font-medium">Description *</th>
-                <th className="py-2 pr-3 font-medium">Tag</th>
-                <th className="py-2 pr-3 font-medium">Metal/Purity</th>
-                <th className="py-2 pr-3 font-medium">Gross Wt (g) *</th>
-                <th className="py-2 pr-3 font-medium">Stone Wt (g)</th>
-                <th className="py-2 pr-3 font-medium">Net Wt (g) *</th>
-                <th className="py-2 pr-3 font-medium">Rate/g *</th>
-                <th className="py-2 pr-3 font-medium">Making</th>
-                <th className="py-2 pr-3 font-medium">Stone Charge</th>
-                <th className="py-2 pr-3 font-medium">Total</th>
-                <th className="py-2" />
-              </tr>
-            </thead>
-            <tbody>
-              {items.map((item, index) => {
-                // Live checks first, then Zod's post-submit results layered
-                // on top (which also cover things live checks don't, like
-                // a duplicate tag or a sanity-check mismatch) - either
-                // source alone being present is enough to flag the row.
-                const liveErrors = getLiveItemErrors(item);
-                const mergedErrors = { ...liveErrors, ...itemErrors[index] };
-                const rowErrors = Object.keys(mergedErrors).length > 0 ? mergedErrors : undefined;
-                return (
-                  <Fragment key={index}>
-                    <tr className={cn("border-b border-border/60", rowErrors && "bg-destructive/5")}>
-                      <td className="py-2 pr-3">
-                        <ItemCellInput
-                          value={item.description}
-                          field="description"
-                          onChange={(v) => handleFieldChange(index, "description", v)}
-                          hasError={!!rowErrors?.[SCHEMA_FIELD_NAMES.description]}
-                        />
-                      </td>
-                      <td className="py-2 pr-3 text-muted-foreground">{item.tagCode ?? "—"}</td>
-                      <td className="py-2 pr-3 text-muted-foreground">
-                        {item.metal} {item.purity}
-                      </td>
-                      <td className="py-2 pr-3">
-                        <ItemCellInput
-                          value={item.grossWtG}
-                          field="grossWtG"
-                          onChange={(v) => handleFieldChange(index, "grossWtG", v)}
-                          hasError={!!rowErrors?.[SCHEMA_FIELD_NAMES.grossWtG]}
-                        />
-                      </td>
-                      <td className="py-2 pr-3">
-                        <ItemCellInput
-                          value={item.stoneWtG}
-                          field="stoneWtG"
-                          onChange={(v) => handleFieldChange(index, "stoneWtG", v)}
-                          hasError={!!rowErrors?.[SCHEMA_FIELD_NAMES.stoneWtG]}
-                        />
-                      </td>
-                      <td className="py-2 pr-3">
-                        <ItemCellInput
-                          value={item.netWtG}
-                          field="netWtG"
-                          onChange={(v) => handleFieldChange(index, "netWtG", v)}
-                          hasError={!!rowErrors?.[SCHEMA_FIELD_NAMES.netWtG]}
-                        />
-                      </td>
-                      <td className="py-2 pr-3">
-                        <ItemCellInput
-                          value={item.ratePerGram}
-                          field="ratePerGram"
-                          onChange={(v) => handleFieldChange(index, "ratePerGram", v)}
-                          hasError={!!rowErrors?.[SCHEMA_FIELD_NAMES.ratePerGram]}
-                        />
-                      </td>
-                      <td className="py-2 pr-3">
-                        <ItemCellInput
-                          value={item.makingCharge}
-                          field="makingCharge"
-                          onChange={(v) => handleFieldChange(index, "makingCharge", v)}
-                          hasError={!!rowErrors?.[SCHEMA_FIELD_NAMES.makingCharge]}
-                        />
-                      </td>
-                      <td className="py-2 pr-3">
-                        <ItemCellInput
-                          value={item.stoneCharge}
-                          field="stoneCharge"
-                          onChange={(v) => handleFieldChange(index, "stoneCharge", v)}
-                          hasError={!!rowErrors?.[SCHEMA_FIELD_NAMES.stoneCharge]}
-                        />
-                      </td>
-                      <td className="py-2 pr-3 font-semibold text-foreground">
-                        ₹{item.total.toLocaleString("en-IN")}
-                      </td>
-                      <td className="py-2">
-                        <button
-                          type="button"
-                          onClick={() => removeItem(index)}
-                          aria-label="Remove item"
-                          className="rounded-md p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                      </td>
-                    </tr>
-                    {rowErrors ? (
-                      <tr className="border-b border-border/60 bg-destructive/5">
-                        <td colSpan={11} className="px-3 py-2 text-xs text-destructive">
-                          Row {index + 1}:{" "}
-                          {Object.entries(rowErrors)
-                            .map(([field, message]) => `${FIELD_LABELS[field] ?? field} - ${message}`)
-                            .join(" · ")}
-                        </td>
-                      </tr>
-                    ) : null}
-                  </Fragment>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+        <>
+          <div className="mt-5">
+            <AgGridReact<BillingItem>
+              theme={agGridTheme}
+              rowData={items}
+              columnDefs={columnDefs}
+              defaultColDef={AG_GRID_DEFAULT_COL_DEF}
+              getRowId={(p) => p.data.id}
+              getRowClass={getRowClass}
+              domLayout="autoHeight"
+              suppressCellFocus
+              animateRows={false}
+            />
+          </div>
+          {rowsWithErrors.length > 0 ? (
+            <ul className="mt-3 space-y-1">
+              {rowsWithErrors.map(({ index, errors }) => (
+                <li key={index} className="text-xs text-destructive">
+                  Row {index + 1}:{" "}
+                  {Object.entries(errors)
+                    .map(([field, message]) => `${FIELD_LABELS[field] ?? field} - ${message}`)
+                    .join(" · ")}
+                </li>
+              ))}
+            </ul>
+          ) : null}
+        </>
       )}
 
       {showManualAdd ? <ManualAddForm onDone={() => setShowManualAdd(false)} /> : null}

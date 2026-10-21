@@ -1,11 +1,14 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight, Printer, Search } from "lucide-react";
+import { AgGridReact } from "ag-grid-react";
+import type { ColDef, ICellRendererParams } from "ag-grid-community";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
-import { cn } from "@/lib/utils";
+import { agGridTheme, AG_GRID_HEADER_CLASS, AG_GRID_DEFAULT_COL_DEF } from "@/lib/ag-grid";
 import { ApiError } from "@/lib/api-client";
 import { useTags } from "@/features/tagging/hooks/useTags";
 import type { Tag } from "@/features/tagging/hooks/useCreateTag";
@@ -16,6 +19,29 @@ const STATUS_BADGE: Record<Tag["status"], string> = {
   tagged: "bg-emerald-ink/10 text-emerald-ink",
   sold: "bg-gold/20 text-gold-foreground",
 };
+
+function StatusCell({ data }: ICellRendererParams<Tag>) {
+  if (!data) return null;
+  return (
+    <Badge variant="outline" className={`border-transparent font-medium capitalize ${STATUS_BADGE[data.status]}`}>
+      {data.status}
+    </Badge>
+  );
+}
+
+// onReprint isn't part of ICellRendererParams - passed through per-column
+// via colDef.cellRendererParams instead, since it comes from a prop on
+// TagsTable, not from the row data itself.
+function ReprintCell({ data, onReprint }: ICellRendererParams<Tag> & { onReprint: (tag: Tag) => void }) {
+  if (!data) return null;
+  return (
+    <div className="flex h-full items-center">
+      <Button type="button" variant="outline" size="icon" onClick={() => onReprint(data)}>
+        <Printer className="h-4 w-4" />
+      </Button>
+    </div>
+  );
+}
 
 export function TagsTable({ onReprint }: { onReprint: (tag: Tag) => void }) {
   const [searchInput, setSearchInput] = useState("");
@@ -47,6 +73,53 @@ export function TagsTable({ onReprint }: { onReprint: (tag: Tag) => void }) {
   const total = data?.total ?? 0;
   const totalPages = Math.max(1, Math.ceil(total / LIMIT));
 
+const columnDefs = useMemo<ColDef<Tag>[]>(
+  () => [
+    {
+      field: "code",
+      headerName: "Tag Code",
+      flex: 1,
+      headerClass: AG_GRID_HEADER_CLASS,
+    },
+    {
+      field: "product_name",
+      headerName: "Product",
+      flex: 1,
+      headerClass: AG_GRID_HEADER_CLASS,
+    },
+    {
+      headerName: "Metal / Purity",
+      flex: 1,
+      headerClass: AG_GRID_HEADER_CLASS,
+      valueGetter: (p) =>
+        p.data ? `${p.data.metal} · ${p.data.purity}` : "",
+    },
+    {
+      headerName: "Net Wt",
+      flex: 1,
+      headerClass: AG_GRID_HEADER_CLASS,
+      valueGetter: (p) => (p.data ? `${p.data.net_wt_g}g` : ""),
+    },
+    {
+      headerName: "Status",
+      flex: 1,
+      headerClass: AG_GRID_HEADER_CLASS,
+      cellRenderer: StatusCell,
+      valueGetter: (p) => p.data?.status,
+    },
+    {
+      headerName: "Action",
+      flex: 1,
+      headerClass: `${AG_GRID_HEADER_CLASS}`,
+      cellRenderer: ReprintCell,
+      cellRendererParams: { onReprint },
+      sortable: false,
+      filter: false,
+    },
+  ],
+  [onReprint],
+);
+
   return (
     <div className="panel p-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -71,66 +144,27 @@ export function TagsTable({ onReprint }: { onReprint: (tag: Tag) => void }) {
         </div>
       </div>
 
-      <div className="mt-5 overflow-x-auto">
-        <table className="w-full min-w-[640px] text-left text-sm">
-          <thead>
-            <tr className="border-b border-border text-xs tracking-wide text-muted-foreground uppercase">
-              <th className="py-2 pr-3 font-medium">Code</th>
-              <th className="py-2 pr-3 font-medium">Product</th>
-              <th className="py-2 pr-3 font-medium">Metal / Purity</th>
-              <th className="py-2 pr-3 font-medium">Net Wt</th>
-              <th className="py-2 pr-3 font-medium">Status</th>
-              <th className="py-2 pr-3 font-medium text-right">Action</th>
-            </tr>
-          </thead>
-          <tbody>
-            {isLoading ? (
-              <tr>
-                <td colSpan={6} className="py-6 text-center text-muted-foreground">
-                  Loading…
-                </td>
-              </tr>
-            ) : isError ? (
-              <tr>
-                <td colSpan={6} className="py-6 text-center text-destructive">
-                  {error instanceof ApiError ? error.message : "Failed to load tags."}
-                </td>
-              </tr>
-            ) : !data || data.data.length === 0 ? (
-              <tr>
-                <td colSpan={6} className="py-6 text-center text-muted-foreground">
-                  No tags yet.
-                </td>
-              </tr>
-            ) : (
-              data.data.map((tag) => (
-                <tr key={tag.id} className="border-b border-border/60">
-                  <td className="py-3 pr-3 font-mono text-xs text-foreground">{tag.code}</td>
-                  <td className="py-3 pr-3 text-foreground">{tag.product_name}</td>
-                  <td className="py-3 pr-3 text-muted-foreground">
-                    {tag.metal} · {tag.purity}
-                  </td>
-                  <td className="py-3 pr-3 text-muted-foreground">{tag.net_wt_g}g</td>
-                  <td className="py-3 pr-3">
-                    <span
-                      className={cn(
-                        "rounded-full px-2.5 py-0.5 text-xs font-medium capitalize",
-                        STATUS_BADGE[tag.status],
-                      )}
-                    >
-                      {tag.status}
-                    </span>
-                  </td>
-                  <td className="py-3 pr-3 text-right">
-                    <Button type="button" variant="outline" size="icon" onClick={() => onReprint(tag)}>
-                      <Printer className="h-4 w-4" />
-                    </Button>
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
+      <div className="mt-5">
+        {isLoading && !data ? (
+          <div className="py-6 text-center text-sm text-muted-foreground">Loading…</div>
+        ) : isError ? (
+          <div className="py-6 text-center text-sm text-destructive">
+            {error instanceof ApiError ? error.message : "Failed to load tags."}
+          </div>
+        ) : !data || data.data.length === 0 ? (
+          <div className="py-6 text-center text-sm text-muted-foreground">No tags yet.</div>
+        ) : (
+          <AgGridReact<Tag>
+            theme={agGridTheme}
+            defaultColDef={AG_GRID_DEFAULT_COL_DEF}
+            rowData={data.data}
+            columnDefs={columnDefs}
+            getRowId={(p) => p.data.id}
+            domLayout="autoHeight"
+            suppressCellFocus
+            animateRows={false}
+          />
+        )}
       </div>
 
       <div className="mt-4 flex items-center justify-between text-sm text-muted-foreground">

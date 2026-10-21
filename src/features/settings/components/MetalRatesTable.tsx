@@ -1,7 +1,11 @@
 "use client";
 
+import { useMemo } from "react";
 import { Pencil } from "lucide-react";
+import { AgGridReact } from "ag-grid-react";
+import type { ColDef, ICellRendererParams } from "ag-grid-community";
 import { Button } from "@/components/ui/Button";
+import { agGridTheme, AG_GRID_HEADER_CLASS, AG_GRID_DEFAULT_COL_DEF } from "@/lib/ag-grid";
 import { ApiError } from "@/lib/api-client";
 import { METALS } from "@/lib/metals";
 import { useMetalPurities, type MetalPurity } from "@/features/settings/hooks/useMetalPurities";
@@ -13,6 +17,17 @@ function formatUpdatedAt(iso: string) {
   });
 }
 
+function EditCell({ data, onEdit }: ICellRendererParams<MetalPurity> & { onEdit: (purity: MetalPurity) => void }) {
+  if (!data) return null;
+  return (
+    <div className="flex h-full items-center justify-end">
+      <Button type="button" variant="outline" size="icon" onClick={() => onEdit(data)}>
+        <Pencil className="h-4 w-4" />
+      </Button>
+    </div>
+  );
+}
+
 export function MetalRatesTable({ onEdit }: { onEdit: (purity: MetalPurity) => void }) {
   const { data, isLoading, isError, error } = useMetalPurities();
 
@@ -21,6 +36,36 @@ export function MetalRatesTable({ onEdit }: { onEdit: (purity: MetalPurity) => v
     metal,
     purities: priced.filter((purity) => purity.metal === metal),
   })).filter((group) => group.purities.length > 0);
+
+  const columnDefs = useMemo<ColDef<MetalPurity>[]>(
+    () => [
+      { field: "purity", headerName: "Purity", width: 100, headerClass: AG_GRID_HEADER_CLASS },
+      {
+        field: "rate_per_gram",
+        headerName: "Rate/g",
+        width: 110,
+        headerClass: AG_GRID_HEADER_CLASS,
+        valueFormatter: (p) => (p.value != null ? `₹${p.value}` : ""),
+      },
+      {
+        field: "updated_at",
+        headerName: "Updated",
+        width: 190,
+        headerClass: AG_GRID_HEADER_CLASS,
+        valueFormatter: (p) => (p.value ? formatUpdatedAt(p.value) : ""),
+      },
+      {
+        headerName: "Action",
+        width: 90,
+        headerClass: `${AG_GRID_HEADER_CLASS} text-right!`,
+        cellRenderer: EditCell,
+        cellRendererParams: { onEdit },
+        sortable: false,
+        filter: false,
+      },
+    ],
+    [onEdit],
+  );
 
   return (
     <div className="panel mt-6 p-6">
@@ -43,31 +88,17 @@ export function MetalRatesTable({ onEdit }: { onEdit: (purity: MetalPurity) => v
           {groups.map((group) => (
             <div key={group.metal} className="rounded-lg border border-border p-4">
               <h4 className="font-display text-base text-foreground">{group.metal}</h4>
-              <div className="mt-2 overflow-x-auto">
-                <table className="w-full text-left text-sm">
-                  <thead>
-                    <tr className="border-b border-border text-xs tracking-wide text-muted-foreground uppercase">
-                      <th className="py-2 pr-3 font-medium">Purity</th>
-                      <th className="py-2 pr-3 font-medium">Rate/g</th>
-                      <th className="py-2 pr-3 font-medium">Updated</th>
-                      <th className="py-2 pr-3 font-medium text-right">Action</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {group.purities.map((purity) => (
-                      <tr key={purity.id} className="border-b border-border/60">
-                        <td className="py-3 pr-3 text-foreground">{purity.purity}</td>
-                        <td className="py-3 pr-3 text-muted-foreground">₹{purity.rate_per_gram}</td>
-                        <td className="py-3 pr-3 text-muted-foreground">{formatUpdatedAt(purity.updated_at)}</td>
-                        <td className="py-3 pr-3 text-right">
-                          <Button type="button" variant="outline" size="icon" onClick={() => onEdit(purity)}>
-                            <Pencil className="h-4 w-4" />
-                          </Button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              <div className="mt-2">
+                <AgGridReact<MetalPurity>
+                  theme={agGridTheme}
+                  defaultColDef={AG_GRID_DEFAULT_COL_DEF}
+                  rowData={group.purities}
+                  columnDefs={columnDefs}
+                  getRowId={(p) => p.data.id}
+                  domLayout="autoHeight"
+                  suppressCellFocus
+                  animateRows={false}
+                />
               </div>
             </div>
           ))}
