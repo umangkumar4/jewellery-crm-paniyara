@@ -83,6 +83,7 @@ function withTotal(item: Omit<BillingItem, "total">): BillingItem {
       ratePerGram: item.ratePerGram,
       makingCharge: item.makingCharge,
       stoneCharge: item.stoneCharge,
+      pieces: item.pieces,
     }),
   };
 }
@@ -122,7 +123,13 @@ export const useBillingStore = create<BillingState>((set, get) => ({
   // Used before adding a tag-linked item, to reject a second scan/pick of a
   // tag already in the current draft - a tag can't be sold twice in one
   // invoice (see docs/billing-plan.md decision 8, enforced again server-side).
-  hasTag: (tagCode) => get().items.some((item) => item.tagCode === tagCode),
+  // Normalized to uppercase before comparing - tag codes are case-insensitive
+  // everywhere else (Tag model stores uppercase, findTagByCode uppercases,
+  // createInvoiceSchema's tag_code field uppercases), so a scan/typed code in
+  // a different case than what's already in the cart must still be caught
+  // here, not just at the final submit-time schema check.
+  hasTag: (tagCode) =>
+    get().items.some((item) => item.tagCode?.toUpperCase() === tagCode.toUpperCase()),
 
   setDiscountAmount: (discountAmount) => set({ discountAmount, ...NO_ERRORS }),
   setGstPercent: (gstPercent) => set({ gstPercent, ...NO_ERRORS }),

@@ -40,7 +40,7 @@ export default function InvoiceDetailPage() {
   const addPayment = useAddPayment(id);
 
   const itemColumnDefs = useMemo<ColDef<InvoiceItemDetail>[]>(
-    // Fixed widths, not flex - with 9 columns, flex forces every column to
+    // Fixed widths, not flex - with 10 columns, flex forces every column to
     // shrink to fit the panel's width, truncating header text. Fixed
     // widths let every header stay fully readable; the grid scrolls
     // horizontally instead (same tradeoff as the original shadcn-table's
@@ -49,6 +49,7 @@ export default function InvoiceDetailPage() {
       { field: "sr_no", headerName: "#", width: 60, headerClass: AG_GRID_HEADER_CLASS },
       { headerName: "Description", width: 220, headerClass: AG_GRID_HEADER_CLASS, cellRenderer: DescriptionCell },
       { field: "hsn_code", headerName: "HSN", width: 90, headerClass: AG_GRID_HEADER_CLASS },
+      { field: "pieces", headerName: "Pcs", width: 70, headerClass: AG_GRID_HEADER_CLASS },
       { field: "gross_wt_g", headerName: "Gross Wt (g)", width: 130, headerClass: AG_GRID_HEADER_CLASS },
       { field: "stone_wt_g", headerName: "Stone Wt (g)", width: 130, headerClass: AG_GRID_HEADER_CLASS },
       { field: "net_wt_g", headerName: "Net Wt (g)", width: 120, headerClass: AG_GRID_HEADER_CLASS },
@@ -222,6 +223,7 @@ export default function InvoiceDetailPage() {
           onChange={setDraftPayment}
           grandTotal={invoice.pending_amount}
           bare
+          payButtonLabel="Pay remaining"
         />
         <div className="mt-4 flex justify-end gap-2">
           <Button variant="outline" onClick={() => setCollectOpen(false)}>

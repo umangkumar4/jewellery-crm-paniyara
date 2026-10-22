@@ -2,7 +2,7 @@
 
 This document is the authoritative specification for the UI half of this Next.js app — the `src/app/**/page.tsx` tree, client components, client-side state, POS barcode scanning, billing calculations, and printable views. The API half lives in the same `src/app/api/**/route.ts` tree — see `docs/bckend_setup.md`.
 
-> **No separate frontend origin:** there is no `VITE_API_BASE_URL` or cross-origin fetch. Client components call `/api/*` on the same origin via `src/lib/api-client.ts` (a thin `fetch` wrapper).
+> **No separate frontend origin:** there is no `VITE_API_BASE_URL` or cross-origin fetch. Client components call `/api/*` on the same origin via `src/lib/api-client.ts` (a thin `fetch` wrapper). 
 >
 > **Auth token lives in `sessionStorage`, not a cookie** (`src/lib/auth-token.ts`) — an explicit project decision, not the Next.js default. `api-client.ts` attaches it as `Authorization: Bearer <token>` on every request. This means the server has no idea who's logged in during a plain page load/navigation — only `fetch` calls carry the token. See `docs/bckend_setup.md §6` for the security trade-off (XSS exposure vs. an httpOnly cookie) and why this rules out a server-side `proxy.ts` redirect for protected pages.
 >

@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useMemo, useState } from "react";
-import { Plus, Trash2 } from "lucide-react";
+import { Plus, Search, Trash2 } from "lucide-react";
 import { AgGridReact } from "ag-grid-react";
 import type { ColDef, ICellRendererParams, RowClassParams } from "ag-grid-community";
 import { Button } from "@/components/ui/Button";
@@ -14,6 +14,7 @@ import { cn } from "@/lib/utils";
 import { METALS, type Metal } from "@/lib/metals";
 import { useMetalPurities } from "@/features/settings/hooks/useMetalPurities";
 import { NumberField } from "@/features/billing/components/NumberField";
+import { ScanInput } from "@/features/billing/components/ScanInput";
 import { sanitizeNumericInput, isValidNumericInput } from "@/features/billing/lib/numericInput";
 import { useNumericStoreField } from "@/features/billing/lib/useNumericStoreField";
 import { useBillingStore, type BillingItem } from "@/store/useBillingStore";
@@ -28,6 +29,12 @@ function getLiveItemErrors(item: BillingItem): Record<string, string> {
   if (!(item.grossWtG > 0)) errors.gross_wt_g = "Gross weight is required";
   if (!(item.netWtG > 0)) errors.net_wt_g = "Net weight is required";
   if (!(item.ratePerGram > 0)) errors.rate_per_gram = "Rate per gram is required";
+  // Pieces multiplies directly into the line total (calculations.ts) -
+  // unset/fractional pieces is a pricing error, gated the same as the
+  // other mandatory fields above.
+  if (!(item.pieces > 0) || !Number.isInteger(item.pieces)) {
+    errors.pieces = "Pieces must be a whole number, at least 1";
+  }
   return errors;
 }
 
@@ -154,6 +161,19 @@ function ItemFieldCell({ data, node, field, onFieldChange }: ICellRendererParams
   );
 }
 
+// A tag represents exactly one unique physical item - letting pieces be
+// edited away from 1 on a tag-linked row would bill the customer for N
+// units while the backend still only marks the one matching tag `sold`
+// (createInvoice matches purely by tag code, with no awareness of a line's
+// `pieces` value). Locked read-only here for tag-linked rows; manual rows
+// (no tag) are unaffected and stay fully editable via ItemFieldCell.
+function PiecesCell(props: ICellRendererParams<BillingItem> & EditCellExtra) {
+  if (props.data?.tagCode) {
+    return <span className="block px-2 py-1 text-sm text-muted-foreground">1</span>;
+  }
+  return <ItemFieldCell {...props} />;
+}
+
 function RemoveCell({ node }: ICellRendererParams<BillingItem>) {
   const removeItem = useBillingStore((s) => s.removeItem);
   const rowIndex = node.rowIndex;
@@ -189,19 +209,11 @@ function ManualAddForm({ onDone }: { onDone: () => void }) {
   const { data: purities } = useMetalPurities({ metal });
   const hasPurities = !!purities && purities.length > 0;
 
-  // Adjusted during render (same pattern as TagsTable.tsx's filter-driven
-  // page reset) rather than in a useEffect - a fresh purities list for a
-  // newly-selected metal is exactly the "derive state from a prop change"
-  // case React's docs recommend this for, and it avoids an extra commit.
-  const [prevPurities, setPrevPurities] = useState(purities);
-  if (purities !== prevPurities) {
-    setPrevPurities(purities);
-    if (purities && !purities.some((p) => p.purity === purity)) {
-      const first = purities[0];
-      setPurity(first?.purity ?? "");
-      setRatePerGram(String(first?.rate_per_gram ?? 0));
-    }
-  }
+  // No auto-select here, deliberately - purity (and the rate it carries)
+  // stays whatever the cashier explicitly picks from the dropdown below, so
+  // they always know whether they chose one or left it blank, rather than
+  // the form silently pre-filling the first purity in the list the moment a
+  // metal is picked or this dialog opens.
 
   // Net weight auto-computed from gross - stone, same math as TagForm.tsx's
   // tagging form (Math.max(0, gross - stone)) - still fully editable
@@ -223,12 +235,15 @@ function ManualAddForm({ onDone }: { onDone: () => void }) {
   // physical item being billed can't have a nameless, weightless, or
   // unpriced line. Stone weight is deliberately NOT required here: a plain
   // gold band genuinely has zero stone weight, that's a valid real value,
-  // not a missing one (see docs/billing-plan.md).
+  // not a missing one (see docs/billing-plan.md). Pieces is mandatory too -
+  // it multiplies directly into the line total (calculations.ts), so a
+  // zero/fractional value is a pricing error, not just an unset count.
   const hasDescription = description.trim().length > 0;
   const hasGrossWt = Number(grossWtG) > 0;
   const hasNetWt = Number(netWtG) > 0;
   const hasRate = Number(ratePerGram) > 0;
-  const canAdd = hasDescription && hasGrossWt && hasNetWt && hasRate;
+  const hasPieces = Number(pieces) > 0 && Number.isInteger(Number(pieces));
+  const canAdd = hasDescription && hasGrossWt && hasNetWt && hasRate && hasPieces;
 
   const handleAdd = () => {
     if (!canAdd) return;
@@ -238,7 +253,7 @@ function ManualAddForm({ onDone }: { onDone: () => void }) {
       hsnCode: hsnCode.trim(),
       metal,
       purity,
-      pieces: Number(pieces) || 1,
+      pieces: Number(pieces) || 0,
       grossWtG: Number(grossWtG) || 0,
       stoneWtG: Number(stoneWtG) || 0,
       netWtG: Number(netWtG) || 0,
@@ -267,8 +282,9 @@ function ManualAddForm({ onDone }: { onDone: () => void }) {
           <Input id="manual-hsn" value={hsnCode} onChange={(e) => setHsnCode(e.target.value)} />
         </div>
         <div>
-          <Label htmlFor="manual-pieces">Pieces</Label>
+          <Label htmlFor="manual-pieces">Pieces *</Label>
           <NumberField id="manual-pieces" value={pieces} onValueChange={setPieces} />
+          {!hasPieces ? <p className="mt-1.5 text-xs text-destructive">Pieces must be a whole number, at least 1</p> : null}
         </div>
 
         <div>
@@ -279,6 +295,13 @@ function ManualAddForm({ onDone }: { onDone: () => void }) {
             onChange={(e) => {
               setMetal(e.target.value as Metal);
               setPurity("");
+              // Rate was previously re-filled automatically the instant the
+              // purities list reloaded for the new metal. Now that purity
+              // isn't auto-selected, a rate left over from the old metal
+              // would otherwise silently persist - reset it too, so a
+              // forgotten purity pick shows up as "Rate per gram is
+              // required" instead of a plausible-looking wrong number.
+              setRatePerGram("0");
             }}
           >
             {METALS.map((m) => (
@@ -301,11 +324,19 @@ function ManualAddForm({ onDone }: { onDone: () => void }) {
             }}
           >
             {hasPurities ? (
-              purities!.map((p) => (
-                <option key={p.id} value={p.purity}>
-                  {p.purity}
-                </option>
-              ))
+              <>
+                {/* Real placeholder, not just an absent match - without this,
+                    a `value=""` with no matching <option> falls back to
+                    showing the browser's first real option as if selected,
+                    even though `purity` state is still "". That would look
+                    exactly like the auto-select this change is removing. */}
+                <option value="">Select purity</option>
+                {purities!.map((p) => (
+                  <option key={p.id} value={p.purity}>
+                    {p.purity}
+                  </option>
+                ))}
+              </>
             ) : (
               <option value="">No purities yet</option>
             )}
@@ -406,6 +437,7 @@ export function ItemTable({ onBrowseTags }: { onBrowseTags: () => void }) {
 
     return [
       editable("description", "Description *", 220),
+      editable("hsnCode", "HSN", 110),
       {
         headerName: "Tag",
         width: 150,
@@ -414,6 +446,13 @@ export function ItemTable({ onBrowseTags }: { onBrowseTags: () => void }) {
       },
       { field: "metal", headerName: "Metal", width: 110, headerClass: AG_GRID_HEADER_CLASS },
       { field: "purity", headerName: "Purity", width: 100, headerClass: AG_GRID_HEADER_CLASS },
+      {
+        headerName: "Pcs *",
+        width: 90,
+        headerClass: AG_GRID_HEADER_CLASS,
+        cellRenderer: PiecesCell,
+        cellRendererParams: { field: "pieces", onFieldChange: handleFieldChange } satisfies EditCellExtra,
+      },
       editable("grossWtG", "Gross Wt (g) *", 140),
       editable("stoneWtG", "Stone Wt (g)", 130),
       editable("netWtG", "Net Wt (g) *", 130),
@@ -463,15 +502,21 @@ export function ItemTable({ onBrowseTags }: { onBrowseTags: () => void }) {
     .filter((row) => Object.keys(row.errors).length > 0);
 
   return (
-    <div className="panel p-6">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <h3 className="font-display text-xl text-foreground">Items</h3>
-        <div className="flex gap-2">
+    <div className="panel p-5">
+      {/* Scan input lives in this header row (not its own panel above) -
+          keeps the add-item surface (scan / browse / manual) in one place,
+          right next to the table it fills, instead of a separate card. */}
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:gap-4">
+        <h3 className="font-display text-xl text-foreground shrink-0">Items</h3>
+        <div className="min-w-[220px] flex-1 lg:max-w-sm">
+          <ScanInput />
+        </div>
+        <div className="flex shrink-0 gap-2">
+          <Button type="button" variant="outline" size="md" onClick={onBrowseTags}>
+            <Search className="h-4 w-4" /> Browse Tags
+          </Button>
           <Button type="button" variant="outline" size="md" onClick={() => setShowManualAdd(true)}>
             <Plus className="h-4 w-4" /> Add Item
-          </Button>
-          <Button type="button" variant="outline" size="md" onClick={onBrowseTags}>
-            Browse Tags
           </Button>
         </div>
       </div>
@@ -482,7 +527,7 @@ export function ItemTable({ onBrowseTags }: { onBrowseTags: () => void }) {
         </p>
       ) : (
         <>
-          <div className="mt-5">
+          <div className="mt-4">
             <AgGridReact<BillingItem>
               theme={agGridTheme}
               rowData={items}

@@ -14,7 +14,12 @@ const invoiceItemInputSchema = z.object({
   description: z.string().trim().min(1, "Description is required"),
   hsn_code: z.string().trim().min(1, "HSN code is required"),
   metal: z.string().trim().min(1, "Metal is required"),
-  purity: z.string().trim().min(1, "Purity is required"),
+  // Deliberately NOT min(1) - purity is optional end-to-end (explicit
+  // product decision): a manually-added line can be finalized with no
+  // purity recorded. Still a real string field (not .optional()) because
+  // the client always sends one, even when empty - ManualAddForm's Select
+  // defaults to "" when the cashier hasn't picked one.
+  purity: z.string().trim(),
   pieces: z.number().int().min(1, "Pieces must be at least 1").default(1),
   // Gross/net weight and rate must be real, positive values - 0 isn't "not
   // entered yet," it's a physically meaningless weight/rate for a line

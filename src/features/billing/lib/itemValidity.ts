@@ -9,12 +9,17 @@ import type { BillingItem } from "@/store/useBillingStore";
  * problem after an explicit submit attempt triggers the full Zod parse.
  * purity/hsn_code are intentionally NOT included - already required
  * server-side, but left ungated here per an explicit product decision.
+ * pieces IS included - it now multiplies directly into the line total
+ * (calculations.ts), so an unset/fractional pieces value is a real pricing
+ * error, not just a missing count.
  */
 export function isItemValid(item: BillingItem): boolean {
   return (
     item.description.trim().length > 0 &&
     item.grossWtG > 0 &&
     item.netWtG > 0 &&
-    item.ratePerGram > 0
+    item.ratePerGram > 0 &&
+    item.pieces > 0 &&
+    Number.isInteger(item.pieces)
   );
 }

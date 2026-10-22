@@ -84,17 +84,22 @@ export function CustomerFields() {
   } else if (lookupReady && found === null) {
     status = (
       <p className="mt-1.5 text-xs text-muted-foreground">
-        No customer found with this number. Enter details manually below.
+        No customer found with this number. Enter details manually.
       </p>
     );
   }
 
   return (
-    <div className="panel p-6">
+    <div className="panel p-5">
       <h3 className="font-display text-xl text-foreground">Customer</h3>
 
-      <div className="mt-4 grid grid-cols-2 gap-4">
-        <div className="col-span-2 sm:col-span-1">
+      {/* Single row on desktop (Phone/Name/Email/Address side by side) -
+          the phone lookup's status text/found-card renders full-width
+          below the row, not squeezed under just the Phone field, since a
+          found-customer card is too tall to fit inside a quarter-width
+          column. */}
+      <div className="mt-4 grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <div>
           <Label htmlFor="customer-phone">Phone</Label>
           <Input
             id="customer-phone"
@@ -105,11 +110,9 @@ export function CustomerFields() {
           />
           {fieldErrors["customer.phone"] ? (
             <p className="mt-1.5 text-xs text-destructive">{fieldErrors["customer.phone"]}</p>
-          ) : (
-            status
-          )}
+          ) : null}
         </div>
-        <div className="col-span-2 sm:col-span-1">
+        <div>
           <Label htmlFor="customer-name">Name</Label>
           <Input
             id="customer-name"
@@ -143,6 +146,8 @@ export function CustomerFields() {
           />
         </div>
       </div>
+
+      {!fieldErrors["customer.phone"] && status ? <div className="mt-3">{status}</div> : null}
     </div>
   );
 }

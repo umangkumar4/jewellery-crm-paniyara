@@ -60,7 +60,10 @@ const invoiceItemSchema = new Schema<InvoiceItem>(
     description: { type: String, required: true },
     hsnCode: { type: String, required: true },
     metal: { type: String, required: true },
-    purity: { type: String, required: true },
+    // Not required - purity is optional end-to-end (explicit product
+    // decision, see invoice.schema.ts). Defaults to "" rather than being
+    // left undefined, matching what the client always sends.
+    purity: { type: String, default: "" },
     pieces: { type: Number, required: true, default: 1 },
     grossWtG: { type: Number, required: true, min: 0 },
     stoneWtG: { type: Number, required: true, min: 0, default: 0 },

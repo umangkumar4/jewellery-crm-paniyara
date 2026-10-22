@@ -5,7 +5,6 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/Button";
 import { ApiError } from "@/lib/api-client";
 import { CustomerFields } from "@/features/billing/components/CustomerFields";
-import { ScanInput } from "@/features/billing/components/ScanInput";
 import { TagBrowseDialog } from "@/features/billing/components/TagBrowseDialog";
 import { ItemTable } from "@/features/billing/components/ItemTable";
 import { TotalsPanel } from "@/features/billing/components/TotalsPanel";
@@ -15,6 +14,12 @@ import { isItemValid } from "@/features/billing/lib/itemValidity";
 import { useCreateInvoice } from "@/features/billing/hooks/useCreateInvoice";
 import { useBillingStore, type BillingFieldErrors, type BillingItemErrors } from "@/store/useBillingStore";
 import { createInvoiceSchema, type CreateInvoiceInput } from "@/schemas/invoice.schema";
+
+// Same formatting as TotalsPanel's own formatInr - duplicated locally
+// rather than extracted to a shared util for one extra call site.
+function formatInr(value: number): string {
+  return `₹${value.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
 
 // Full-precision client-side validation, run right before submit with the
 // exact schema the server uses. The server's 422 body only ever carries one
@@ -175,38 +180,49 @@ export default function BillingPage() {
   }
 
   return (
-    <div className="mx-auto max-w-5xl">
+    <div className="mx-auto max-w-7xl">
       <h2 className="font-display text-2xl text-foreground">Billing</h2>
       <p className="mt-1 text-sm text-muted-foreground">Scan or add items, then finalize the sale.</p>
 
-      <div className="mt-6 grid gap-6 lg:grid-cols-3">
-        <div className="space-y-6 lg:col-span-2">
-          <CustomerFields />
+      {/* Single full-width column, not a sidebar split - each section lays
+          its own fields out horizontally instead of stacking narrow
+          columns, which is what was driving the excess scroll before. */}
+      <div className="mt-6 space-y-4">
+        <CustomerFields />
 
-          <div className="panel p-6">
-            <h3 className="font-display text-xl text-foreground">Add Item</h3>
-            <div className="mt-4">
-              <ScanInput />
+        {fieldErrors.items ? (
+          <p className="text-sm text-destructive">{fieldErrors.items}</p>
+        ) : null}
+        <ItemTable onBrowseTags={() => setBrowseOpen(true)} />
+
+        <div className="panel p-5">
+          <h3 className="font-display text-xl text-foreground">Totals &amp; Payment</h3>
+
+          <div className="mt-4 flex flex-col gap-6 lg:flex-row">
+            <div className="lg:flex-1">
+              <TotalsPanel bare />
+            </div>
+            <div className="lg:flex-1">
+              <PaymentPanel
+                bare
+                showHint
+                payment={payment}
+                onChange={setPayment}
+                grandTotal={totals.grandTotal}
+                error={fieldErrors["paid_amount"] ?? fieldErrors["payment.amount"] ?? fieldErrors["payment.mode"]}
+              />
             </div>
           </div>
 
-          {fieldErrors.items ? (
-            <p className="text-sm text-destructive">{fieldErrors.items}</p>
-          ) : null}
-          <ItemTable onBrowseTags={() => setBrowseOpen(true)} />
-        </div>
-
-        <div className="space-y-6">
-          <TotalsPanel />
-          <PaymentPanel
-            payment={payment}
-            onChange={setPayment}
-            grandTotal={totals.grandTotal}
-            error={fieldErrors["paid_amount"] ?? fieldErrors["payment.amount"] ?? fieldErrors["payment.mode"]}
-          />
-          <Button className="w-full" disabled={!canFinalize} onClick={handleFinalize}>
-            {createInvoice.isPending ? "Finalizing…" : "Finalize Sale"}
-          </Button>
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4">
+            <p className="text-sm text-muted-foreground">
+              Paid {formatInr(payment?.amount ?? 0)} · Pending{" "}
+              <span className="font-medium text-foreground">{formatInr(pendingAmount)}</span>
+            </p>
+            <Button className="w-full sm:w-auto" disabled={!canFinalize} onClick={handleFinalize}>
+              {createInvoice.isPending ? "Finalizing…" : "Finalize Sale"}
+            </Button>
+          </div>
         </div>
       </div>
 

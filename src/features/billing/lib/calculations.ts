@@ -1,13 +1,20 @@
 export interface LineItemCalculationInput {
+  // netWtG/ratePerGram/makingCharge/stoneCharge are all PER-PIECE figures -
+  // explicit product decision: a line with pieces > 1 (e.g. 5 identical
+  // bangles) is weighed/priced as one piece, and the line total scales by
+  // the piece count. Previously `pieces` wasn't part of this calculation at
+  // all, which under-billed any multi-piece line by a factor of `pieces`.
   netWtG: number;
   ratePerGram: number;
   makingCharge: number;
   stoneCharge: number;
+  pieces: number;
 }
 
 export function calculateItemTotal(item: LineItemCalculationInput): number {
   const metalValue = Math.round(item.netWtG * item.ratePerGram);
-  return metalValue + Math.round(item.makingCharge) + Math.round(item.stoneCharge);
+  const perPieceTotal = metalValue + Math.round(item.makingCharge) + Math.round(item.stoneCharge);
+  return perPieceTotal * item.pieces;
 }
 
 export interface InvoiceTotals {

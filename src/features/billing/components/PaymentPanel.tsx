@@ -21,20 +21,43 @@ interface PaymentPanelProps {
   grandTotal: number;
   // false (default) for standalone placement on the billing page's own
   // grid; true when nested inside something already panel-styled (the
-  // invoice detail page's "Collect Payment" Dialog) to avoid a visible
-  // panel-inside-panel border/shadow.
+  // invoice detail page's "Collect Payment" Dialog, or the billing page's
+  // combined Totals & Payment panel) to avoid a visible panel-inside-panel
+  // border/shadow.
   bare?: boolean;
   // Caller-supplied, not read from any store - this component is reused on
   // the invoice detail page's "Collect Payment" dialog too, which has
   // nothing to do with the billing page's validation state.
   error?: string;
+  // Independent of `bare` - `bare` only controls the outer panel/heading.
+  // This controls the "Optional - leave the amount at 0..." hint
+  // specifically, since that copy is billing-page-specific ("a fully
+  // on-credit sale") and doesn't fit the invoice detail page's "collect a
+  // payment against an existing invoice" dialog. Defaults to `!bare` so
+  // both pre-existing call sites keep their exact current behavior.
+  showHint?: boolean;
+  // Label for the shortcut button that fills the amount field with
+  // `grandTotal`. Defaults to "Pay full amount" (billing page: a new sale,
+  // `grandTotal` is the full invoice total). The invoice detail page passes
+  // "Pay remaining" instead, since there `grandTotal` is actually the
+  // invoice's pending balance, not its total.
+  payButtonLabel?: string;
 }
 
 // Reused as-is on the invoice detail page's "Collect Payment" dialog
 // (Phase 10) - it only reports a {amount, mode} draft upward via onChange,
 // so the POS creation flow and the later add-payment flow can each decide
 // what to do with it without this component knowing which one it's in.
-export function PaymentPanel({ payment, onChange, grandTotal, bare = false, error }: PaymentPanelProps) {
+export function PaymentPanel({
+  payment,
+  onChange,
+  grandTotal,
+  bare = false,
+  error,
+  showHint,
+  payButtonLabel = "Pay full amount",
+}: PaymentPanelProps) {
+  const effectiveShowHint = showHint ?? !bare;
   const amount = payment?.amount ?? 0;
   const mode = payment?.mode ?? "cash";
 
@@ -53,14 +76,12 @@ export function PaymentPanel({ payment, onChange, grandTotal, bare = false, erro
 
   return (
     <div className={bare ? undefined : "panel p-6"}>
-      {bare ? null : (
-        <>
-          <h3 className="font-display text-xl text-foreground">Payment</h3>
-          <p className="mt-1 text-xs text-muted-foreground">
-            Optional - leave the amount at 0 for a fully on-credit sale.
-          </p>
-        </>
-      )}
+      {bare ? null : <h3 className="font-display text-xl text-foreground">Payment</h3>}
+      {effectiveShowHint ? (
+        <p className="mt-1 text-xs text-muted-foreground">
+          Optional - leave the amount at 0 for a fully on-credit sale.
+        </p>
+      ) : null}
 
       <div className={bare ? "grid grid-cols-2 gap-4" : "mt-4 grid grid-cols-2 gap-4"}>
         <div>
@@ -95,7 +116,7 @@ export function PaymentPanel({ payment, onChange, grandTotal, bare = false, erro
               onClick={() => amountField.onValueChange(String(grandTotal))}
               className="shrink-0 text-xs font-medium text-gold hover:underline"
             >
-              {bare ? "Pay remaining" : "Pay in full"}
+              {payButtonLabel}
             </button>
           </div>
         </div>

@@ -64,6 +64,7 @@ export default function InvoicePrintPage() {
             <th className="py-1.5 pr-2">#</th>
             <th className="py-1.5 pr-2">Description</th>
             <th className="py-1.5 pr-2">HSN</th>
+            <th className="py-1.5 pr-2">Pcs</th>
             <th className="py-1.5 pr-2">Gross Wt (g)</th>
             <th className="py-1.5 pr-2">Stone Wt (g)</th>
             <th className="py-1.5 pr-2">Net Wt (g)</th>
@@ -78,6 +79,7 @@ export default function InvoicePrintPage() {
               <td className="py-1.5 pr-2">{item.sr_no}</td>
               <td className="py-1.5 pr-2">{item.description}</td>
               <td className="py-1.5 pr-2">{item.hsn_code}</td>
+              <td className="py-1.5 pr-2">{item.pieces}</td>
               <td className="py-1.5 pr-2">{item.gross_wt_g}</td>
               <td className="py-1.5 pr-2">{item.stone_wt_g}</td>
               <td className="py-1.5 pr-2">{item.net_wt_g}</td>
