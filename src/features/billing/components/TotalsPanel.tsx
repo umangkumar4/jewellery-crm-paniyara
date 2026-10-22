@@ -21,14 +21,16 @@ export interface TotalsPanelProps {
 export function TotalsPanel({ bare = false }: TotalsPanelProps) {
   const items = useBillingStore((state) => state.items);
   const discountAmount = useBillingStore((state) => state.discountAmount);
-  const gstPercent = useBillingStore((state) => state.gstPercent);
+  const cgstPercent = useBillingStore((state) => state.cgstPercent);
+  const sgstPercent = useBillingStore((state) => state.sgstPercent);
   const setDiscountAmount = useBillingStore((state) => state.setDiscountAmount);
-  const setGstPercent = useBillingStore((state) => state.setGstPercent);
+  const setCgstPercent = useBillingStore((state) => state.setCgstPercent);
+  const setSgstPercent = useBillingStore((state) => state.setSgstPercent);
   const fieldErrors = useBillingStore((state) => state.fieldErrors);
 
   // Live display and the numbers eventually sent in the POST body both come
   // from this same function - they can never disagree with each other.
-  const totals = calculateInvoiceTotals(items, discountAmount, gstPercent);
+  const totals = calculateInvoiceTotals(items, discountAmount, cgstPercent, sgstPercent);
 
   // calculateInvoiceTotals clamps discount to the subtotal (never a negative
   // taxable amount) - that clamped value is what the Discount row in the
@@ -38,13 +40,14 @@ export function TotalsPanel({ bare = false }: TotalsPanelProps) {
   const isDiscountClamped = discountAmount > totals.subtotal;
 
   const discountField = useNumericStoreField(discountAmount, setDiscountAmount);
-  const gstField = useNumericStoreField(gstPercent, setGstPercent);
+  const cgstField = useNumericStoreField(cgstPercent, setCgstPercent);
+  const sgstField = useNumericStoreField(sgstPercent, setSgstPercent);
 
   return (
     <div className={bare ? undefined : "panel p-5"}>
       {bare ? null : <h3 className="font-display text-xl text-foreground">Totals</h3>}
 
-      <div className={bare ? "grid grid-cols-2 gap-4" : "mt-4 grid grid-cols-2 gap-4"}>
+      <div className={bare ? "grid grid-cols-3 gap-4" : "mt-4 grid grid-cols-3 gap-4"}>
         <div>
           <Label htmlFor="discount-amount">Discount (₹)</Label>
           <NumberField
@@ -62,15 +65,27 @@ export function TotalsPanel({ bare = false }: TotalsPanelProps) {
           ) : null}
         </div>
         <div>
-          <Label htmlFor="gst-percent">GST %</Label>
+          <Label htmlFor="cgst-percent">CGST %</Label>
           <NumberField
-            id="gst-percent"
-            value={gstField.value}
-            onValueChange={gstField.onValueChange}
-            className={fieldErrors.gst_percent ? "border-destructive focus-visible:ring-destructive" : undefined}
+            id="cgst-percent"
+            value={cgstField.value}
+            onValueChange={cgstField.onValueChange}
+            className={fieldErrors.cgst_percent ? "border-destructive focus-visible:ring-destructive" : undefined}
           />
-          {fieldErrors.gst_percent ? (
-            <p className="mt-1.5 text-xs text-destructive">{fieldErrors.gst_percent}</p>
+          {fieldErrors.cgst_percent ? (
+            <p className="mt-1.5 text-xs text-destructive">{fieldErrors.cgst_percent}</p>
+          ) : null}
+        </div>
+        <div>
+          <Label htmlFor="sgst-percent">SGST %</Label>
+          <NumberField
+            id="sgst-percent"
+            value={sgstField.value}
+            onValueChange={sgstField.onValueChange}
+            className={fieldErrors.sgst_percent ? "border-destructive focus-visible:ring-destructive" : undefined}
+          />
+          {fieldErrors.sgst_percent ? (
+            <p className="mt-1.5 text-xs text-destructive">{fieldErrors.sgst_percent}</p>
           ) : null}
         </div>
       </div>
@@ -99,8 +114,12 @@ export function TotalsPanel({ bare = false }: TotalsPanelProps) {
             <dd className="text-foreground">− {formatInr(totals.discountAmount)}</dd>
           </div>
           <div className="flex items-center gap-1.5">
-            <dt className="text-muted-foreground">GST ({gstPercent}%)</dt>
-            <dd className="text-foreground">{formatInr(totals.gstAmount)}</dd>
+            <dt className="text-muted-foreground">CGST ({cgstPercent}%)</dt>
+            <dd className="text-foreground">{formatInr(totals.cgstAmount)}</dd>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <dt className="text-muted-foreground">SGST ({sgstPercent}%)</dt>
+            <dd className="text-foreground">{formatInr(totals.sgstAmount)}</dd>
           </div>
           <div className="flex items-center gap-1.5 text-base font-semibold">
             <dt className="text-foreground">Grand Total</dt>
@@ -118,8 +137,12 @@ export function TotalsPanel({ bare = false }: TotalsPanelProps) {
             <dd className="text-foreground">− {formatInr(totals.discountAmount)}</dd>
           </div>
           <div className="flex justify-between">
-            <dt className="text-muted-foreground">GST ({gstPercent}%)</dt>
-            <dd className="text-foreground">{formatInr(totals.gstAmount)}</dd>
+            <dt className="text-muted-foreground">CGST ({cgstPercent}%)</dt>
+            <dd className="text-foreground">{formatInr(totals.cgstAmount)}</dd>
+          </div>
+          <div className="flex justify-between">
+            <dt className="text-muted-foreground">SGST ({sgstPercent}%)</dt>
+            <dd className="text-foreground">{formatInr(totals.sgstAmount)}</dd>
           </div>
           <div className="gold-rule my-2" />
           <div className="flex justify-between text-base font-semibold">

@@ -21,22 +21,44 @@ export interface InvoiceTotals {
   subtotal: number;
   discountAmount: number;
   taxableAmount: number;
+  cgstAmount: number;
+  sgstAmount: number;
   gstAmount: number;
+  gstPercent: number;
   grandTotal: number;
 }
 
+// CGST%/SGST% are independently editable by the cashier (not forced to a
+// 50/50 split of one GST% - a future inter-state sale may need an uneven
+// split), so each is applied to the taxable amount separately rather than
+// halving a single combined GST%/GST amount. gstPercent/gstAmount are the
+// derived sums - every other consumer of "GST" (dashboard, invoice list,
+// the server's grand_total sanity check) reads those, unaffected by this.
 export function calculateInvoiceTotals(
   items: { total: number }[],
   discountAmount: number = 0,
-  gstPercent: number = 3.0,
+  cgstPercent: number = 1.5,
+  sgstPercent: number = 1.5,
 ): InvoiceTotals {
   const subtotal = items.reduce((sum, item) => sum + item.total, 0);
   const safeDiscount = Math.min(discountAmount, subtotal);
   const taxableAmount = Math.max(0, subtotal - safeDiscount);
-  const gstAmount = Math.round(((taxableAmount * gstPercent) / 100) * 100) / 100;
+  const cgstAmount = Math.round(((taxableAmount * cgstPercent) / 100) * 100) / 100;
+  const sgstAmount = Math.round(((taxableAmount * sgstPercent) / 100) * 100) / 100;
+  const gstAmount = Math.round((cgstAmount + sgstAmount) * 100) / 100;
+  const gstPercent = Math.round((cgstPercent + sgstPercent) * 100) / 100;
   const grandTotal = Math.round(taxableAmount + gstAmount);
 
-  return { subtotal, discountAmount: safeDiscount, taxableAmount, gstAmount, grandTotal };
+  return {
+    subtotal,
+    discountAmount: safeDiscount,
+    taxableAmount,
+    cgstAmount,
+    sgstAmount,
+    gstAmount,
+    gstPercent,
+    grandTotal,
+  };
 }
 
 export type PaymentStatus = "unpaid" | "partial" | "paid";

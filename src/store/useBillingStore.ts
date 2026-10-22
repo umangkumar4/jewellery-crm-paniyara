@@ -54,7 +54,9 @@ interface BillingState {
   customer: BillingCustomer;
   items: BillingItem[];
   discountAmount: number;
-  gstPercent: number;
+  // Independently editable - not forced to a 50/50 split of one GST% field.
+  cgstPercent: number;
+  sgstPercent: number;
   payment: BillingPayment | null;
   fieldErrors: BillingFieldErrors;
   itemErrors: BillingItemErrors;
@@ -65,7 +67,8 @@ interface BillingState {
   removeItem: (index: number) => void;
   hasTag: (tagCode: string) => boolean;
   setDiscountAmount: (amount: number) => void;
-  setGstPercent: (percent: number) => void;
+  setCgstPercent: (percent: number) => void;
+  setSgstPercent: (percent: number) => void;
   setPayment: (payment: BillingPayment | null) => void;
   setValidationErrors: (fieldErrors: BillingFieldErrors, itemErrors: BillingItemErrors) => void;
   reset: () => void;
@@ -98,7 +101,9 @@ export const useBillingStore = create<BillingState>((set, get) => ({
   customer: EMPTY_CUSTOMER,
   items: [],
   discountAmount: 0,
-  gstPercent: 3,
+  // Sums to the same 3% the old single gstPercent field defaulted to.
+  cgstPercent: 1.5,
+  sgstPercent: 1.5,
   payment: null,
   fieldErrors: {},
   itemErrors: {},
@@ -132,7 +137,8 @@ export const useBillingStore = create<BillingState>((set, get) => ({
     get().items.some((item) => item.tagCode?.toUpperCase() === tagCode.toUpperCase()),
 
   setDiscountAmount: (discountAmount) => set({ discountAmount, ...NO_ERRORS }),
-  setGstPercent: (gstPercent) => set({ gstPercent, ...NO_ERRORS }),
+  setCgstPercent: (cgstPercent) => set({ cgstPercent, ...NO_ERRORS }),
+  setSgstPercent: (sgstPercent) => set({ sgstPercent, ...NO_ERRORS }),
   setPayment: (payment) => set({ payment, ...NO_ERRORS }),
   setValidationErrors: (fieldErrors, itemErrors) => set({ fieldErrors, itemErrors }),
 
@@ -141,7 +147,8 @@ export const useBillingStore = create<BillingState>((set, get) => ({
       customer: EMPTY_CUSTOMER,
       items: [],
       discountAmount: 0,
-      gstPercent: 3,
+      cgstPercent: 1.5,
+      sgstPercent: 1.5,
       payment: null,
       ...NO_ERRORS,
     }),

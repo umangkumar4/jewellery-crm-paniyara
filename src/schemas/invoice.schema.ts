@@ -53,8 +53,18 @@ export const createInvoiceSchema = z
     customer: invoiceCustomerInputSchema,
     items: z.array(invoiceItemInputSchema).min(1, "At least one item is required"),
     discount_amount: z.number().min(0, "Discount cannot be negative").default(0),
+    // gst_percent/gst_amount stay the authoritative combined totals (every
+    // other consumer - dashboard, invoice list, the grand_total check below -
+    // reads these, not the CGST/SGST split). cgst_percent/sgst_percent are
+    // independently editable by the cashier, not forced to a 50/50 split, so
+    // they're submitted and cross-checked separately rather than derived
+    // server-side.
     gst_percent: z.number().min(0, "GST percent cannot be negative").max(100, "GST percent cannot exceed 100"),
     gst_amount: z.number().min(0, "GST amount cannot be negative"),
+    cgst_percent: z.number().min(0, "CGST percent cannot be negative").max(100, "CGST percent cannot exceed 100"),
+    sgst_percent: z.number().min(0, "SGST percent cannot be negative").max(100, "SGST percent cannot exceed 100"),
+    cgst_amount: z.number().min(0, "CGST amount cannot be negative"),
+    sgst_amount: z.number().min(0, "SGST amount cannot be negative"),
     subtotal: z.number().min(0, "Subtotal cannot be negative"),
     grand_total: z.number().min(0, "Grand total cannot be negative"),
     // Optional - a fully-on-credit sale has no payment yet.
@@ -81,6 +91,19 @@ export const createInvoiceSchema = z
       return new Set(tagCodes).size === tagCodes.length;
     },
     { message: "The same tag cannot appear twice on one invoice", path: ["items"] },
+  )
+  // Consistency guards, same spirit as the grand_total check above - the
+  // client computes CGST+SGST independently and is also the one that sums
+  // them into gst_percent/gst_amount, so these two should never actually
+  // disagree. Checked anyway as a tamper/drift guard, not a recomputation
+  // of the split itself (decision 7, docs/billing-plan.md).
+  .refine(
+    (data) => Math.abs(data.cgst_percent + data.sgst_percent - data.gst_percent) <= 0.01,
+    { message: "CGST% + SGST% does not match GST%", path: ["cgst_percent"] },
+  )
+  .refine(
+    (data) => Math.abs(data.cgst_amount + data.sgst_amount - data.gst_amount) <= 1,
+    { message: "CGST + SGST amount does not match the GST amount", path: ["cgst_amount"] },
   );
 
 export type CreateInvoiceInput = z.output<typeof createInvoiceSchema>;

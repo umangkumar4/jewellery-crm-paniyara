@@ -39,8 +39,18 @@ export interface InvoiceDocument extends Document {
   payments: InvoicePayment[];
   subtotal: number;
   discountAmount: number;
-  gstPercent: number;
-  gstAmount: number;
+  // Not required at this schema level, same as the CGST/SGST fields below -
+  // presence is already guaranteed by createInvoiceSchema (Zod) before
+  // createInvoice() ever runs, so this layer doesn't also enforce it.
+  gstPercent?: number;
+  gstAmount?: number;
+  // Independently-settable CGST/SGST breakdown of the flat gstPercent/
+  // gstAmount above (which stay the authoritative sum - every existing
+  // consumer of gstPercent/gstAmount is unaffected by this addition).
+  cgstPercent?: number;
+  sgstPercent?: number;
+  cgstAmount?: number;
+  sgstAmount?: number;
   grandTotal: number;
   paidAmount: number;
   pendingAmount: number;
@@ -99,8 +109,12 @@ const invoiceSchema = new Schema<InvoiceDocument>(
     payments: { type: [invoicePaymentSchema], default: [] },
     subtotal: { type: Number, required: true, min: 0 },
     discountAmount: { type: Number, required: true, min: 0, default: 0 },
-    gstPercent: { type: Number, required: true, min: 0, default: 3 },
-    gstAmount: { type: Number, required: true, min: 0 },
+    gstPercent: { type: Number, min: 0 },
+    gstAmount: { type: Number, min: 0 },
+    cgstPercent: { type: Number, min: 0 },
+    sgstPercent: { type: Number, min: 0 },
+    cgstAmount: { type: Number, min: 0 },
+    sgstAmount: { type: Number, min: 0 },
     grandTotal: { type: Number, required: true, min: 0 },
     paidAmount: { type: Number, required: true, min: 0, default: 0 },
     pendingAmount: { type: Number, required: true, min: 0 },

@@ -58,7 +58,8 @@ export default function BillingPage() {
   const customer = useBillingStore((state) => state.customer);
   const items = useBillingStore((state) => state.items);
   const discountAmount = useBillingStore((state) => state.discountAmount);
-  const gstPercent = useBillingStore((state) => state.gstPercent);
+  const cgstPercent = useBillingStore((state) => state.cgstPercent);
+  const sgstPercent = useBillingStore((state) => state.sgstPercent);
   const payment = useBillingStore((state) => state.payment);
   const setPayment = useBillingStore((state) => state.setPayment);
   const fieldErrors = useBillingStore((state) => state.fieldErrors);
@@ -69,7 +70,7 @@ export default function BillingPage() {
 
   // Same calculations.ts the backend's loose sanity check expects to roughly
   // match - this is the live display AND the exact numbers submitted below.
-  const totals = calculateInvoiceTotals(items, discountAmount, gstPercent);
+  const totals = calculateInvoiceTotals(items, discountAmount, cgstPercent, sgstPercent);
   const { pendingAmount, paymentStatus } = calculateNewPending(totals.grandTotal, payment?.amount ?? 0);
 
   // Proactive, not just "fails on submit" - a row with rate_per_gram at 0
@@ -108,8 +109,12 @@ export default function BillingPage() {
         total: item.total,
       })),
       discount_amount: totals.discountAmount,
-      gst_percent: gstPercent,
+      gst_percent: totals.gstPercent,
       gst_amount: totals.gstAmount,
+      cgst_percent: cgstPercent,
+      sgst_percent: sgstPercent,
+      cgst_amount: totals.cgstAmount,
+      sgst_amount: totals.sgstAmount,
       subtotal: totals.subtotal,
       grand_total: totals.grandTotal,
       payment: payment && payment.amount > 0 ? payment : undefined,

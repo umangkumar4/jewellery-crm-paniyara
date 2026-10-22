@@ -17,7 +17,12 @@ import { useInvoiceDetail } from "@/features/dashboard/hooks/useInvoiceDetail";
 import type { InvoiceItemDetail } from "@/features/dashboard/hooks/useInvoiceDetail";
 import type { BillingPayment } from "@/store/useBillingStore";
 
-function formatInr(value: number): string {
+// cgst_amount/sgst_amount are optional at the schema level (see
+// Invoice.model.ts) - nullish here means a document written outside the
+// normal createInvoice() flow, not a real "₹0" amount, so it renders as
+// "—" rather than crashing on undefined.toLocaleString().
+function formatInr(value: number | null | undefined): string {
+  if (value == null) return "—";
   return `₹${value.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
@@ -197,8 +202,12 @@ export default function InvoiceDetailPage() {
               <dd className="text-foreground">− {formatInr(invoice.discount_amount)}</dd>
             </div>
             <div className="flex justify-between">
-              <dt className="text-muted-foreground">GST ({invoice.gst_percent}%)</dt>
-              <dd className="text-foreground">{formatInr(invoice.gst_amount)}</dd>
+              <dt className="text-muted-foreground">CGST ({invoice.cgst_percent ?? "—"}%)</dt>
+              <dd className="text-foreground">{formatInr(invoice.cgst_amount)}</dd>
+            </div>
+            <div className="flex justify-between">
+              <dt className="text-muted-foreground">SGST ({invoice.sgst_percent ?? "—"}%)</dt>
+              <dd className="text-foreground">{formatInr(invoice.sgst_amount)}</dd>
             </div>
             <div className="gold-rule my-2" />
             <div className="flex justify-between text-base font-semibold">

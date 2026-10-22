@@ -14,6 +14,9 @@ export const shopConfig = {
   tagline:
     "Traditional Elegance Meets Modern Billing, Gold Rate Analytics & Stock Management.",
   gstin: "09ABCDE1234F1Z5",
+  addressEn: "Main Bazaar Road, Gorakhpur, Uttar Pradesh",
+  addressHi: "मुख्य बाज़ार रोड, गोरखपुर, उत्तर प्रदेश",
+  phone: "+91 98765 43210",
   version: "v2.4.0",
   since: 1985,
 } as const;

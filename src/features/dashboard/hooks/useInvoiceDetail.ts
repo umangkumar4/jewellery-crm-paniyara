@@ -33,8 +33,16 @@ export interface InvoiceDetail {
   payments: InvoicePaymentDetail[];
   subtotal: number;
   discount_amount: number;
-  gst_percent: number;
-  gst_amount: number;
+  // Optional at the schema level (Invoice.model.ts has no `required` on any
+  // of these) - genuinely can be undefined on the wire for a document
+  // written outside the normal createInvoice() flow, so every reader must
+  // handle that rather than assume non-null.
+  gst_percent?: number;
+  gst_amount?: number;
+  cgst_percent?: number;
+  sgst_percent?: number;
+  cgst_amount?: number;
+  sgst_amount?: number;
   grand_total: number;
   paid_amount: number;
   pending_amount: number;
