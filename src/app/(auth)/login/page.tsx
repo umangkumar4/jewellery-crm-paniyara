@@ -4,18 +4,17 @@ import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Award, Diamond, Shield } from "lucide-react";
 import { LoginForm } from "@/features/auth/components/LoginForm";
-import { useHasStoredToken } from "@/lib/use-has-token";
+import { getStoredToken } from "@/lib/auth-token";
 import { shopConfig } from "@/lib/shop-config";
 
 export default function LoginPage() {
   const router = useRouter();
-  const hasToken = useHasStoredToken();
 
   useEffect(() => {
-    if (hasToken) {
+    if (getStoredToken()) {
       router.replace("/dashboard");
     }
-  }, [hasToken, router]);
+  }, [router]);
 
   return (
     <div className="paper-texture flex min-h-screen items-center justify-center bg-background p-6">

@@ -2,15 +2,14 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { useHasStoredToken } from "@/lib/use-has-token";
+import { getStoredToken } from "@/lib/auth-token";
 
 export default function Home() {
   const router = useRouter();
-  const hasToken = useHasStoredToken();
 
   useEffect(() => {
-    router.replace(hasToken ? "/dashboard" : "/login");
-  }, [hasToken, router]);
+    router.replace(getStoredToken() ? "/dashboard" : "/login");
+  }, [router]);
 
   return null;
 }

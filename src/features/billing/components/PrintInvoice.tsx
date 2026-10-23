@@ -38,24 +38,35 @@ const PAGE_WIDTH = "277mm";
 
 // Percentages of the table's own width, not the page - these are relative,
 // so they structurally can't exceed 100% the way the first mockup's fixed
-// px widths did. 8 columns - no per-row GST/tax-inclusive-total column:
-// every item shows its stored pre-tax Amount only, GST/CGST/SGST is a
-// single invoice-level breakdown in the footer (already fully stored),
-// never computed per row.
+// px widths did. The only merged column is Description+Metal (metal/purity
+// subtext folded under the item name) - Purity, Gross Wt, Stone Wt, Making
+// Charge and Stone Charge are each their own column, matching the billing
+// page's entry grid one-for-one except for that single merge and Tag (an
+// internal reference, never shown on the printed bill). No per-row GST/
+// tax-inclusive-total column: every item shows its stored pre-tax Amount
+// only, GST/CGST/SGST is a single invoice-level breakdown in the footer
+// (already fully stored), never computed per row.
 const COL_WIDTHS = {
-  sr: "4%",
-  description: "32%",
-  hsn: "8%",
-  pcs: "6%",
-  netWt: "14%",
-  rate: "12%",
-  mkgStone: "12%",
-  amount: "12%",
+  sr: "3%",
+  description: "15%",
+  hsn: "6%",
+  purity: "7%",
+  pcs: "5%",
+  grossWt: "8%",
+  stoneWt: "8%",
+  netWt: "8%",
+  rate: "10%",
+  making: "9%",
+  stoneCharge: "9%",
+  amount: "9%",
 };
 
-const cellBase = "border border-[#c9beac] px-1.5 py-1.5 text-[10.5px]";
+// No vertical column dividers - a single light row-separator per cell
+// (bottom edge only), not a boxed spreadsheet grid. The table already sits
+// inside the document's own outer border, so it doesn't need a second frame.
+const cellBase = "border-b border-[#e8e1d0] px-2 py-1.5 text-[10.5px]";
 const headBase =
-  "border border-[#c9beac] border-t-[1.5px] border-t-[#1f1a12] px-1.5 py-1.5 text-left text-[8.5px] font-semibold tracking-wide text-muted-foreground";
+  "border-b-[1.5px] border-b-[#1f1a12] px-2 py-1.5 text-left text-[8.5px] font-semibold tracking-wide text-muted-foreground";
 
 export interface PrintInvoiceProps {
   id: string;
@@ -101,11 +112,11 @@ export function PrintInvoice({ id }: PrintInvoiceProps) {
   const roundOff =
     Math.round((invoice.grand_total - (taxableAmount + (invoice.gst_amount ?? 0))) * 100) / 100;
 
+  const grossWtTotal = invoice.items.reduce((sum, item) => sum + item.gross_wt_g, 0);
+  const stoneWtTotal = invoice.items.reduce((sum, item) => sum + item.stone_wt_g, 0);
   const netWtTotal = invoice.items.reduce((sum, item) => sum + item.net_wt_g, 0);
-  const mkgStoneTotal = invoice.items.reduce(
-    (sum, item) => sum + item.making_charge + item.stone_charge,
-    0,
-  );
+  const makingTotal = invoice.items.reduce((sum, item) => sum + item.making_charge, 0);
+  const stoneChargeTotal = invoice.items.reduce((sum, item) => sum + item.stone_charge, 0);
   const amountTotal = invoice.items.reduce((sum, item) => sum + item.total, 0);
 
   return (
@@ -213,16 +224,20 @@ export function PrintInvoice({ id }: PrintInvoiceProps) {
             </div>
 
             {/* Items table */}
-            <div className="px-7 pt-3.5">
-              <table className="w-full table-fixed border-collapse">
+            <div className="w-full">
+              <table className="w-full table-fixed border-collapse" style={{ width: "100%" }}>
                 <colgroup>
                   <col style={{ width: COL_WIDTHS.sr }} />
                   <col style={{ width: COL_WIDTHS.description }} />
                   <col style={{ width: COL_WIDTHS.hsn }} />
+                  <col style={{ width: COL_WIDTHS.purity }} />
                   <col style={{ width: COL_WIDTHS.pcs }} />
+                  <col style={{ width: COL_WIDTHS.grossWt }} />
+                  <col style={{ width: COL_WIDTHS.stoneWt }} />
                   <col style={{ width: COL_WIDTHS.netWt }} />
                   <col style={{ width: COL_WIDTHS.rate }} />
-                  <col style={{ width: COL_WIDTHS.mkgStone }} />
+                  <col style={{ width: COL_WIDTHS.making }} />
+                  <col style={{ width: COL_WIDTHS.stoneCharge }} />
                   <col style={{ width: COL_WIDTHS.amount }} />
                 </colgroup>
                 <thead>
@@ -230,61 +245,61 @@ export function PrintInvoice({ id }: PrintInvoiceProps) {
                     <th className={headBase}>{t.tableHeaders.sr}</th>
                     <th className={headBase}>{t.tableHeaders.description}</th>
                     <th className={headBase}>{t.tableHeaders.hsn}</th>
+                    <th className={headBase}>{t.tableHeaders.purity}</th>
                     <th className={`${headBase} text-center`}>{t.tableHeaders.pcs}</th>
+                    <th className={`${headBase} text-right`}>{t.tableHeaders.grossWt}</th>
+                    <th className={`${headBase} text-right`}>{t.tableHeaders.stoneWt}</th>
                     <th className={`${headBase} text-right`}>{t.tableHeaders.netWt}</th>
                     <th className={`${headBase} text-right`}>{t.tableHeaders.ratePerGram}</th>
-                    <th className={`${headBase} text-right`}>{t.tableHeaders.makingStone}</th>
-                    <th className={`${headBase} text-right border-r-[1.5px] border-r-[#1f1a12]`}>
-                      {t.tableHeaders.amount}
-                    </th>
+                    <th className={`${headBase} text-right`}>{t.tableHeaders.makingCharge}</th>
+                    <th className={`${headBase} text-right`}>{t.tableHeaders.stoneCharge}</th>
+                    <th className={`${headBase} text-right`}>{t.tableHeaders.amount}</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {invoice.items.map((item) => {
-                    const purityText = item.purity ? `${item.metal} · ${item.purity}` : item.metal;
-                    return (
-                      <tr key={item.sr_no}>
-                        <td className={`${cellBase} border-l-[1.5px] border-l-[#1f1a12]`}>{item.sr_no}</td>
-                        <td className={cellBase}>
-                          <div className="font-medium">{item.description}</div>
-                          <div className="text-[9.5px] text-muted-foreground">{purityText}</div>
-                        </td>
-                        <td className={cellBase}>{item.hsn_code}</td>
-                        <td className={`${cellBase} text-center`}>{item.pieces}</td>
-                        <td className={`${cellBase} text-right tabular-nums`}>
-                          <div>{formatWt(item.net_wt_g)}</div>
-                          <div className="text-[9.5px] text-muted-foreground">
-                            G {formatWt(item.gross_wt_g)} · S {formatWt(item.stone_wt_g)}
-                          </div>
-                        </td>
-                        <td className={`${cellBase} text-right tabular-nums`}>{formatInr(item.rate_per_gram)}</td>
-                        <td className={`${cellBase} text-right tabular-nums`}>
-                          {formatInr(item.making_charge + item.stone_charge)}
-                        </td>
-                        <td
-                          className={`${cellBase} text-right font-semibold tabular-nums border-r-[1.5px] border-r-[#1f1a12]`}
-                        >
-                          {formatInr(item.total)}
-                        </td>
-                      </tr>
-                    );
-                  })}
+                  {invoice.items.map((item) => (
+                    <tr key={item.sr_no}>
+                      <td className={cellBase}>{item.sr_no}</td>
+                      <td className={cellBase}>
+                        <div className="font-medium">{item.description}</div>
+                        <div className="text-[9.5px] text-muted-foreground">{item.metal}</div>
+                      </td>
+                      <td className={cellBase}>{item.hsn_code}</td>
+                      <td className={cellBase}>{item.purity || "—"}</td>
+                      <td className={`${cellBase} text-center`}>{item.pieces}</td>
+                      <td className={`${cellBase} text-right tabular-nums`}>{formatWt(item.gross_wt_g)}</td>
+                      <td className={`${cellBase} text-right tabular-nums`}>{formatWt(item.stone_wt_g)}</td>
+                      <td className={`${cellBase} text-right tabular-nums`}>{formatWt(item.net_wt_g)}</td>
+                      <td className={`${cellBase} text-right tabular-nums`}>{formatInr(item.rate_per_gram)}</td>
+                      <td className={`${cellBase} text-right tabular-nums`}>{formatInr(item.making_charge)}</td>
+                      <td className={`${cellBase} text-right tabular-nums`}>{formatInr(item.stone_charge)}</td>
+                      <td className={`${cellBase} text-right font-semibold tabular-nums`}>
+                        {formatInr(item.total)}
+                      </td>
+                    </tr>
+                  ))}
                   <tr style={{ background: "#f1e9d8" }}>
-                    <td
-                      colSpan={4}
-                      className={`${cellBase} border-b-[1.5px] border-b-[#1f1a12] border-l-[1.5px] border-l-[#1f1a12] font-bold`}
-                    >
+                    <td colSpan={5} className={`${cellBase} border-t-[1.5px] border-t-[#1f1a12] font-bold`}>
                       {t.subTotal}
                     </td>
-                    <td className={`${cellBase} border-b-[1.5px] border-b-[#1f1a12] text-right font-bold tabular-nums`}>
+                    <td className={`${cellBase} border-t-[1.5px] border-t-[#1f1a12] text-right font-bold tabular-nums`}>
+                      {formatWt(grossWtTotal)}
+                    </td>
+                    <td className={`${cellBase} border-t-[1.5px] border-t-[#1f1a12] text-right font-bold tabular-nums`}>
+                      {formatWt(stoneWtTotal)}
+                    </td>
+                    <td className={`${cellBase} border-t-[1.5px] border-t-[#1f1a12] text-right font-bold tabular-nums`}>
                       {formatWt(netWtTotal)}
                     </td>
-                    <td className={`${cellBase} border-b-[1.5px] border-b-[#1f1a12]`}></td>
-                    <td className={`${cellBase} border-b-[1.5px] border-b-[#1f1a12] text-right font-bold tabular-nums`}>
-                      {formatInr(mkgStoneTotal)}
+                    <td className={`${cellBase} border-t-[1.5px] border-t-[#1f1a12]`}></td>
+                    <td className={`${cellBase} border-t-[1.5px] border-t-[#1f1a12] text-right font-bold tabular-nums`}>
+                      {formatInr(makingTotal)}
+                    </td>
+                    <td className={`${cellBase} border-t-[1.5px] border-t-[#1f1a12] text-right font-bold tabular-nums`}>
+                      {formatInr(stoneChargeTotal)}
                     </td>
                     <td
-                      className={`${cellBase} border-b-[1.5px] border-b-[#1f1a12] border-r-[1.5px] border-r-[#1f1a12] text-right font-bold tabular-nums`}
+                      className={`${cellBase} border-t-[1.5px] border-t-[#1f1a12] text-right font-bold tabular-nums`}
                     >
                       {formatInr(amountTotal)}
                     </td>

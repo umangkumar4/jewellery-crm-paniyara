@@ -20,10 +20,14 @@ export interface InvoicePrintLabels {
     sr: string;
     description: string;
     hsn: string;
+    purity: string;
     pcs: string;
+    grossWt: string;
+    stoneWt: string;
     netWt: string;
     ratePerGram: string;
-    makingStone: string;
+    makingCharge: string;
+    stoneCharge: string;
     amount: string;
   };
   subTotal: string;
@@ -60,10 +64,14 @@ export const invoicePrintLabels: Record<PrintLang, InvoicePrintLabels> = {
       sr: "Sr",
       description: "Description",
       hsn: "HSN",
+      purity: "Purity",
       pcs: "Pcs",
+      grossWt: "Gross Wt (g)",
+      stoneWt: "Stone Wt (g)",
       netWt: "Net Wt (g)",
       ratePerGram: "Rate/g",
-      makingStone: "Mkg + Stone",
+      makingCharge: "Making Charge",
+      stoneCharge: "Stone Charge",
       amount: "Amount",
     },
     subTotal: "Sub-Total",
@@ -98,10 +106,14 @@ export const invoicePrintLabels: Record<PrintLang, InvoicePrintLabels> = {
       sr: "क्र.",
       description: "विवरण",
       hsn: "एचएसएन",
+      purity: "शुद्धता",
       pcs: "नग",
+      grossWt: "सकल भार (ग्राम)",
+      stoneWt: "पत्थर भार (ग्राम)",
       netWt: "शुद्ध भार (ग्राम)",
       ratePerGram: "दर/ग्राम",
-      makingStone: "मजदूरी + पत्थर",
+      makingCharge: "मजदूरी",
+      stoneCharge: "पत्थर शुल्क",
       amount: "राशि",
     },
     subTotal: "उप-योग",
