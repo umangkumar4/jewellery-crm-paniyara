@@ -207,12 +207,20 @@
 }
 
 @media print {
-  .tag-bw,
-  .tag-bw-inner,
-  .tag-bw-divider,
-  .tag-bw-line {
+  /* Thermal-transfer tag printers are single-color (black ribbon only) -
+     force pure black-on-white so the printed label doesn't get the muddy,
+     dithered look a colored/anti-aliased render produces on that hardware. */
+  .tag-print,
+  .tag-print * {
     color: #000 !important;
     background: #fff !important;
     border-color: #000 !important;
+  }
+
+  /* The waist's dashed line is a screen-only aid (see TagLabelPreview.tsx) -
+     the physical roll stock is already die-cut narrower there, so printing
+     a line across it would be drawing on paper that doesn't match it. */
+  .tag-print .tag-waist * {
+    border: none !important;
   }
 }

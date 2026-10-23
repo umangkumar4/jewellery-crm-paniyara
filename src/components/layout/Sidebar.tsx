@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  Boxes,
   FileText,
   LayoutDashboard,
   Receipt,
@@ -29,8 +28,6 @@ const modules: NavItem[] = [
   { label: "Tags", href: "/tagging", icon: Tag },
   { label: "Settings", href: "/settings", icon: Settings },
 ];
-
-const comingSoon: NavItem[] = [{ label: "Inventory", href: "#", icon: Boxes }];
 
 export function Sidebar({ collapsed }: { collapsed: boolean }) {
   const pathname = usePathname();
@@ -84,24 +81,6 @@ export function Sidebar({ collapsed }: { collapsed: boolean }) {
               </li>
             );
           })}
-        </ul>
-
-        {!collapsed ? (
-          <p className="px-3 pt-6 pb-2 text-[11px] tracking-wide text-sidebar-foreground/50 uppercase">
-            Coming soon
-          </p>
-        ) : (
-          <div className="mt-6 border-t border-sidebar-border/60 pt-6" />
-        )}
-        <ul className="space-y-1">
-          {comingSoon.map((item) => (
-            <li key={item.label}>
-              <span className="flex cursor-not-allowed items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-sidebar-foreground/40 opacity-50">
-                <item.icon className="h-4 w-4 shrink-0" />
-                {!collapsed ? <span className="truncate">{item.label}</span> : null}
-              </span>
-            </li>
-          ))}
         </ul>
       </nav>
 

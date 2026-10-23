@@ -35,13 +35,17 @@ export default function LoginPage() {
               </div>
             </div>
 
-            <h1 className="font-display mt-10 text-4xl text-gold">{shopConfig.legalNameHi}</h1>
+            <p className="mt-10 text-sm italic text-sidebar-foreground/60">{shopConfig.heritageLineEn}</p>
+            <h1 className="font-display mt-1.5 text-4xl text-gold">{shopConfig.legalNameHi}</h1>
             <p className="font-display mt-2 text-2xl text-sidebar-foreground/90">
               {shopConfig.legalNameHiSub}
             </p>
 
             <p className="font-display mt-8 text-lg italic text-sidebar-foreground/90">
               {shopConfig.legalNameEn}
+            </p>
+            <p className="mt-2 text-xs text-sidebar-foreground/60">
+              {shopConfig.addressEn} &nbsp;·&nbsp; {shopConfig.phone}
             </p>
             <p className="mt-4 max-w-sm text-sm text-sidebar-foreground/70">{shopConfig.tagline}</p>
 
