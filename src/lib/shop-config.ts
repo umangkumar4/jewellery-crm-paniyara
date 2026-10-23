@@ -9,14 +9,18 @@ export const shopConfig = {
   portalName: "Jewelry & Utensils ERP",
   portalTagline: "POS & Inventory System",
   legalNameHi: "गोविन्द प्रसाद नीलेश कुमार",
-  legalNameHiSub: "ज्वैलर्स एण्ड बर्तन भण्डार",
+  legalNameHiSub: "ज्वेलर्स एण्ड बर्तन भण्डार",
   legalNameEn: "Govind Prasad Nilesh Kumar Jewellers & Bartan Bhandar",
+  // The shop's physical board carries this heritage line above the
+  // proprietor's name - "Late Khaderu Ram's old shop".
+  heritageLineHi: "स्व० खदेरू राम की पुरानी दुकान",
+  heritageLineEn: "Late Khaderu Ram's Old Shop",
   tagline:
     "Traditional Elegance Meets Modern Billing, Gold Rate Analytics & Stock Management.",
   gstin: "09ABCDE1234F1Z5",
-  addressEn: "Main Bazaar Road, Gorakhpur, Uttar Pradesh",
-  addressHi: "मुख्य बाज़ार रोड, गोरखपुर, उत्तर प्रदेश",
-  phone: "+91 98765 43210",
+  addressEn: "Paniyara, Maharajganj, Uttar Pradesh",
+  addressHi: "पनियरा – महाराजगंज",
+  phone: "+91 70717 21819",
   version: "v2.4.0",
-  since: 1985,
+  since: 1993,
 } as const;

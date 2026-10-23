@@ -4,7 +4,6 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   Boxes,
-  Diamond,
   FileText,
   LayoutDashboard,
   Receipt,
@@ -44,9 +43,11 @@ export function Sidebar({ collapsed }: { collapsed: boolean }) {
       )}
     >
       <div className="flex items-center gap-3 px-5 py-5">
-        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gold/20 text-gold">
-          <Diamond className="h-5 w-5" />
-        </div>
+        <img
+          src="/logo.png"
+          alt={shopConfig.appName}
+          className="h-9 w-9 shrink-0 rounded-full bg-gold/20 object-contain p-1"
+        />
         {!collapsed ? (
           <div className="min-w-0">
             <p className="font-display truncate text-lg leading-tight">{shopConfig.appName}</p>

@@ -92,9 +92,15 @@ export function PrintInvoice({ id }: PrintInvoiceProps) {
   const bodyFont = isHi ? "'Noto Sans Devanagari','Inter',sans-serif" : "'Inter',sans-serif";
   const displayFont = isHi ? "'Noto Serif Devanagari',serif" : "'Cormorant Garamond',serif";
 
-  const shopNameBig = isHi ? shopConfig.legalNameHi : shopConfig.legalNameEn;
-  const shopNameSmall = isHi ? shopConfig.legalNameEn : shopConfig.legalNameHi;
+  // The invoice shows the shop's full registered name (proprietor + business
+  // type combined), matching the physical shop board - legalNameHi/
+  // legalNameHiSub stay split in shopConfig since the login page shows them
+  // as two separately-styled lines; this is the one place they're combined.
+  const shopFullNameHi = `${shopConfig.legalNameHi} ${shopConfig.legalNameHiSub}`;
+  const shopNameBig = isHi ? shopFullNameHi : shopConfig.legalNameEn;
+  const shopNameSmall = isHi ? shopConfig.legalNameEn : shopFullNameHi;
   const shopAddress = isHi ? shopConfig.addressHi : shopConfig.addressEn;
+  const heritageLine = isHi ? shopConfig.heritageLineHi : shopConfig.heritageLineEn;
 
   const paymentModes = Array.from(new Set(invoice.payments.map((payment) => payment.mode)));
   const paymentModeText =
@@ -161,10 +167,16 @@ export function PrintInvoice({ id }: PrintInvoiceProps) {
           >
             {/* Header */}
             <div className="relative border-b-2 border-[#1f1a12] px-7 py-5 text-center">
+              <img
+                src="/logo.png"
+                alt=""
+                className="absolute left-7 top-4 h-16 w-16 object-contain"
+              />
               <div className="mb-1.5 text-[10px] font-semibold tracking-[0.28em]" style={{ color: "#9a7b2f" }}>
                 {t.taxInvoice}
               </div>
-              <div style={{ fontFamily: displayFont }} className="text-[28px] font-bold leading-tight">
+              <div className="text-[10.5px] italic text-muted-foreground">{heritageLine}</div>
+              <div style={{ fontFamily: displayFont }} className="mt-0.5 text-[28px] font-bold leading-tight">
                 {shopNameBig}
               </div>
               <div style={{ fontFamily: displayFont }} className="mt-0.5 text-[14px] text-muted-foreground">

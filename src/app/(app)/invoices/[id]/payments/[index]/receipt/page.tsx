@@ -60,7 +60,8 @@ export default function PaymentReceiptPage() {
   return (
     <div className="mx-auto max-w-md bg-background p-8 text-foreground">
       <div className="text-center">
-        <h1 className="font-display text-2xl">{shopConfig.legalNameEn}</h1>
+        <img src="/logo.png" alt="" className="mx-auto h-14 w-14 object-contain" />
+        <h1 className="font-display mt-2 text-2xl">{shopConfig.legalNameEn}</h1>
         <p className="text-sm text-muted-foreground">{shopConfig.legalNameHi}</p>
         <p className="mt-1 text-xs text-muted-foreground">GSTIN: {shopConfig.gstin}</p>
       </div>

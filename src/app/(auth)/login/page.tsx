@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Award, Diamond, Shield } from "lucide-react";
+import { Award, Shield } from "lucide-react";
 import { LoginForm } from "@/features/auth/components/LoginForm";
 import { getStoredToken } from "@/lib/auth-token";
 import { shopConfig } from "@/lib/shop-config";
@@ -22,9 +22,11 @@ export default function LoginPage() {
         <div className="ink-panel relative flex flex-col justify-between p-10">
           <div>
             <div className="flex items-center gap-3">
-              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gold text-gold-foreground">
-                <Diamond className="h-7 w-7" />
-              </div>
+              <img
+                src="/logo.png"
+                alt={shopConfig.legalNameEn}
+                className="h-14 w-14 shrink-0 rounded-2xl bg-gold object-contain p-1.5"
+              />
               <div>
                 <p className="text-sm font-semibold tracking-wide text-gold uppercase">
                   {shopConfig.portalName}
