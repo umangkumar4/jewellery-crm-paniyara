@@ -2,6 +2,7 @@ import { z } from "zod";
 
 const paymentModeSchema = z.enum(["cash", "upi", "card", "bank_transfer"]);
 const paymentStatusSchema = z.enum(["unpaid", "partial", "paid"]);
+const makingMethodSchema = z.enum(["fixed", "per_gram", "percent_metal"]);
 
 const invoiceCustomerInputSchema = z.object({
   name: z.string().trim().min(1, "Customer name is required"),
@@ -29,7 +30,15 @@ const invoiceItemInputSchema = z.object({
   stone_wt_g: z.number().min(0, "Stone weight must be 0 or more").default(0),
   net_wt_g: z.number().positive("Net weight is required"),
   rate_per_gram: z.number().positive("Rate per gram is required"),
+  // making_charge is always the computed ₹ result (never recomputed
+  // server-side, same "client math is authoritative" rule as the rest of
+  // this schema - see docs/billing-how-it-works.md §4/§9). making_method/
+  // making_value just record what the admin actually chose in the "Making
+  // method" dialog, for audit/re-edit - "fixed"/0 is the default for a
+  // freshly-scanned tag item or a manual row that hasn't opened the dialog.
   making_charge: z.number().min(0, "Making charge must be 0 or more").default(0),
+  making_method: makingMethodSchema.default("fixed"),
+  making_value: z.number().min(0, "Making value must be 0 or more").default(0),
   stone_charge: z.number().min(0, "Stone charge must be 0 or more").default(0),
   // Optional - a manually-added line (no scanned/browsed tag behind it) has none.
   tag_code: z.string().trim().toUpperCase().optional(),

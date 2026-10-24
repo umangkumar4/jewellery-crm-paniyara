@@ -83,11 +83,6 @@ export function PaymentPanel({
   return (
     <div className={bare ? undefined : "panel p-6"}>
       {bare ? null : <h3 className="font-display text-xl text-foreground">Payment</h3>}
-      {effectiveShowHint ? (
-        <p className="mt-1 text-xs text-muted-foreground">
-          Optional - leave the amount at 0 for a fully on-credit sale.
-        </p>
-      ) : null}
 
       <div className={bare ? "grid grid-cols-2 gap-4" : "mt-4 grid grid-cols-2 gap-4"}>
         <div>
@@ -110,6 +105,13 @@ export function PaymentPanel({
               <p className="text-xs text-destructive">{error}</p>
             ) : (
               <p className="text-xs text-muted-foreground">
+                {/* Moved here from a standalone line above the input grid -
+                    that line had no equivalent on TotalsPanel's side of the
+                    billing page's combined panel, so the two columns' label
+                    rows started at different heights. Folding it into this
+                    already-existing below-input hint line keeps both
+                    columns' grids flush with each other. */}
+                {effectiveShowHint ? "Leave at 0 for a fully on-credit sale · " : null}
                 Up to ₹{grandTotal.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </p>
             )}

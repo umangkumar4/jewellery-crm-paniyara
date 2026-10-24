@@ -100,57 +100,35 @@ export function TotalsPanel({ bare = false }: TotalsPanelProps) {
         </p>
       ) : null}
 
-      {bare ? (
-        // Compact single-line summary for the combined Totals & Payment
-        // panel - same figures as the stacked <dl> below, just laid out
-        // horizontally to save vertical space.
-        <dl className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
-          <div className="flex items-center gap-1.5">
-            <dt className="text-muted-foreground">Subtotal</dt>
-            <dd className="text-foreground">{formatInr(totals.subtotal)}</dd>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <dt className="text-muted-foreground">Discount</dt>
-            <dd className="text-foreground">− {formatInr(totals.discountAmount)}</dd>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <dt className="text-muted-foreground">CGST ({cgstPercent}%)</dt>
-            <dd className="text-foreground">{formatInr(totals.cgstAmount)}</dd>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <dt className="text-muted-foreground">SGST ({sgstPercent}%)</dt>
-            <dd className="text-foreground">{formatInr(totals.sgstAmount)}</dd>
-          </div>
-          <div className="flex items-center gap-1.5 text-base font-semibold">
-            <dt className="text-foreground">Grand Total</dt>
-            <dd className="gold-text">{formatInr(totals.grandTotal)}</dd>
-          </div>
-        </dl>
-      ) : (
-        <dl className="mt-5 space-y-2 text-sm">
-          <div className="flex justify-between">
-            <dt className="text-muted-foreground">Subtotal</dt>
-            <dd className="text-foreground">{formatInr(totals.subtotal)}</dd>
-          </div>
-          <div className="flex justify-between">
-            <dt className="text-muted-foreground">Discount</dt>
-            <dd className="text-foreground">− {formatInr(totals.discountAmount)}</dd>
-          </div>
-          <div className="flex justify-between">
-            <dt className="text-muted-foreground">CGST ({cgstPercent}%)</dt>
-            <dd className="text-foreground">{formatInr(totals.cgstAmount)}</dd>
-          </div>
-          <div className="flex justify-between">
-            <dt className="text-muted-foreground">SGST ({sgstPercent}%)</dt>
-            <dd className="text-foreground">{formatInr(totals.sgstAmount)}</dd>
-          </div>
-          <div className="gold-rule my-2" />
-          <div className="flex justify-between text-base font-semibold">
-            <dt className="text-foreground">Grand Total</dt>
-            <dd className="gold-text">{formatInr(totals.grandTotal)}</dd>
-          </div>
-        </dl>
-      )}
+      {/* Same stacked, right-aligned layout in both bare and standalone
+          placements - a horizontal flex-wrap summary used to render here for
+          `bare` instead, but on the billing page's combined Totals & Payment
+          panel it crammed every figure onto one or two ragged lines next to
+          the Payment column, which read as cluttered rather than scannable.
+          A vertical dt/dd list scans top-to-bottom like a receipt instead. */}
+      <dl className="mt-5 space-y-2 text-sm">
+        <div className="flex justify-between">
+          <dt className="text-muted-foreground">Subtotal</dt>
+          <dd className="text-foreground">{formatInr(totals.subtotal)}</dd>
+        </div>
+        <div className="flex justify-between">
+          <dt className="text-muted-foreground">Discount</dt>
+          <dd className="text-foreground">− {formatInr(totals.discountAmount)}</dd>
+        </div>
+        <div className="flex justify-between">
+          <dt className="text-muted-foreground">CGST ({cgstPercent}%)</dt>
+          <dd className="text-foreground">{formatInr(totals.cgstAmount)}</dd>
+        </div>
+        <div className="flex justify-between">
+          <dt className="text-muted-foreground">SGST ({sgstPercent}%)</dt>
+          <dd className="text-foreground">{formatInr(totals.sgstAmount)}</dd>
+        </div>
+        <div className="gold-rule my-2" />
+        <div className="flex justify-between text-base font-semibold">
+          <dt className="text-foreground">Grand Total</dt>
+          <dd className="gold-text">{formatInr(totals.grandTotal)}</dd>
+        </div>
+      </dl>
     </div>
   );
 }

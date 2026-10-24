@@ -16,8 +16,10 @@ import { METALS, type Metal } from "@/lib/metals";
 import { useMetalPurities } from "@/features/settings/hooks/useMetalPurities";
 import { NumberField } from "@/features/billing/components/NumberField";
 import { ScanInput } from "@/features/billing/components/ScanInput";
+import { MakingChargeDialog } from "@/features/billing/components/MakingChargeDialog";
 import { sanitizeNumericInput, isValidNumericInput } from "@/features/billing/lib/numericInput";
 import { useNumericStoreField } from "@/features/billing/lib/useNumericStoreField";
+import { calculateMakingCharge, type MakingMethod } from "@/features/billing/lib/calculations";
 import { useBillingStore, type BillingItem } from "@/store/useBillingStore";
 
 // Mirrors createInvoiceSchema's mandatory checks for description/gross
@@ -49,10 +51,15 @@ type EditableField =
   | "stoneWtG"
   | "netWtG"
   | "ratePerGram"
-  | "makingCharge"
   | "stoneCharge";
 
 const METAL_OPTIONS = toOptions(METALS);
+
+const MAKING_METHOD_BADGE: Record<MakingMethod, string | null> = {
+  fixed: null,
+  per_gram: "₹/g",
+  percent_metal: "% metal",
+};
 
 const NUMERIC_FIELDS = new Set<EditableField>([
   "pieces",
@@ -60,7 +67,6 @@ const NUMERIC_FIELDS = new Set<EditableField>([
   "stoneWtG",
   "netWtG",
   "ratePerGram",
-  "makingCharge",
   "stoneCharge",
 ]);
 
@@ -77,7 +83,6 @@ const SCHEMA_FIELD_NAMES: Record<EditableField, string> = {
   stoneWtG: "stone_wt_g",
   netWtG: "net_wt_g",
   ratePerGram: "rate_per_gram",
-  makingCharge: "making_charge",
   stoneCharge: "stone_charge",
 };
 
@@ -177,6 +182,36 @@ function PiecesCell(props: ICellRendererParams<BillingItem> & EditCellExtra) {
   return <ItemFieldCell {...props} />;
 }
 
+interface MakingChargeCellExtra {
+  onOpen: (rowIndex: number) => void;
+}
+
+// Locked, not an ItemFieldCell - making charge is never typed directly
+// anymore, only set via MakingChargeDialog (opened by clicking this cell).
+// Shows the computed ₹ figure plus a small badge naming the method behind
+// it, so "₹12,500" next to "₹/g" reads as "this is a formula result", not
+// an arbitrary flat number.
+function MakingChargeCell({ data, node, onOpen }: ICellRendererParams<BillingItem> & MakingChargeCellExtra) {
+  const rowIndex = node.rowIndex;
+  if (!data || rowIndex == null) return null;
+  const badge = MAKING_METHOD_BADGE[data.makingMethod];
+
+  return (
+    <button
+      type="button"
+      onClick={() => onOpen(rowIndex)}
+      className="flex h-full w-full items-center justify-between gap-1.5 px-2 text-sm text-foreground hover:bg-muted/50"
+    >
+      <span>₹{data.makingCharge.toLocaleString("en-IN")}</span>
+      {badge ? (
+        <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+          {badge}
+        </span>
+      ) : null}
+    </button>
+  );
+}
+
 function RemoveCell({ node }: ICellRendererParams<BillingItem>) {
   const removeItem = useBillingStore((s) => s.removeItem);
   const rowIndex = node.rowIndex;
@@ -206,7 +241,10 @@ function ManualAddForm({ onDone }: { onDone: () => void }) {
   const [stoneWtG, setStoneWtG] = useState("0");
   const [netWtG, setNetWtG] = useState("0");
   const [ratePerGram, setRatePerGram] = useState("0");
-  const [makingCharge, setMakingCharge] = useState("0");
+  const [makingMethod, setMakingMethod] = useState<MakingMethod>("fixed");
+  const [makingValue, setMakingValue] = useState(0);
+  const [makingCharge, setMakingCharge] = useState(0);
+  const [showMakingDialog, setShowMakingDialog] = useState(false);
   const [stoneCharge, setStoneCharge] = useState("0");
 
   const { data: purities } = useMetalPurities({ metal });
@@ -238,6 +276,28 @@ function ManualAddForm({ onDone }: { onDone: () => void }) {
     setNetWtG(String(Math.round(net * 1000) / 1000));
   }
 
+  // Making charge is locked, set only via MakingChargeDialog - but for
+  // "per_gram"/"percent_metal" it's a live formula over net weight and
+  // rate/g, so if either changes after a method's been applied (including
+  // via the gross/stone-driven net-weight derive just above), recompute it
+  // here too, same as ItemTable's grid does for an already-added row.
+  // "fixed" has no formula, so nothing to recompute.
+  const [prevForMaking, setPrevForMaking] = useState({ netWtG, ratePerGram });
+  if (
+    makingMethod !== "fixed" &&
+    (prevForMaking.netWtG !== netWtG || prevForMaking.ratePerGram !== ratePerGram)
+  ) {
+    setPrevForMaking({ netWtG, ratePerGram });
+    setMakingCharge(
+      calculateMakingCharge({
+        method: makingMethod,
+        value: makingValue,
+        netWtG: Number(netWtG) || 0,
+        ratePerGram: Number(ratePerGram) || 0,
+      }),
+    );
+  }
+
   // Description, gross/net weight, and rate per gram are mandatory - a
   // physical item being billed can't have a nameless, weightless, or
   // unpriced line. Stone weight is deliberately NOT required here: a plain
@@ -265,7 +325,9 @@ function ManualAddForm({ onDone }: { onDone: () => void }) {
       stoneWtG: Number(stoneWtG) || 0,
       netWtG: Number(netWtG) || 0,
       ratePerGram: Number(ratePerGram) || 0,
-      makingCharge: Number(makingCharge) || 0,
+      makingCharge,
+      makingMethod,
+      makingValue,
       stoneCharge: Number(stoneCharge) || 0,
     });
     onDone();
@@ -360,7 +422,19 @@ function ManualAddForm({ onDone }: { onDone: () => void }) {
 
         <div>
           <Label htmlFor="manual-making">Making Charge (₹)</Label>
-          <NumberField id="manual-making" value={makingCharge} onValueChange={setMakingCharge} />
+          <button
+            type="button"
+            id="manual-making"
+            onClick={() => setShowMakingDialog(true)}
+            className="flex h-12 w-full items-center justify-between rounded-lg border border-input bg-card px-4 text-sm text-foreground hover:bg-muted/50"
+          >
+            <span>₹{makingCharge.toLocaleString("en-IN")}</span>
+            {MAKING_METHOD_BADGE[makingMethod] ? (
+              <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+                {MAKING_METHOD_BADGE[makingMethod]}
+              </span>
+            ) : null}
+          </button>
         </div>
         <div>
           <Label htmlFor="manual-stone-charge">Stone Charge (₹)</Label>
@@ -376,6 +450,24 @@ function ManualAddForm({ onDone }: { onDone: () => void }) {
           Add Item
         </Button>
       </div>
+
+      {showMakingDialog ? (
+        <MakingChargeDialog
+          onClose={() => setShowMakingDialog(false)}
+          initialMethod={makingMethod}
+          initialValue={makingValue}
+          description={description}
+          metal={metal}
+          purity={purity}
+          netWtG={Number(netWtG) || 0}
+          ratePerGram={Number(ratePerGram) || 0}
+          onApply={(result) => {
+            setMakingMethod(result.makingMethod);
+            setMakingValue(result.makingValue);
+            setMakingCharge(result.makingCharge);
+          }}
+        />
+      ) : null}
     </Dialog>
   );
 }
@@ -385,6 +477,7 @@ export function ItemTable({ onBrowseTags }: { onBrowseTags: () => void }) {
   const updateItem = useBillingStore((state) => state.updateItem);
   const itemErrors = useBillingStore((state) => state.itemErrors);
   const [showManualAdd, setShowManualAdd] = useState(false);
+  const [openMakingRow, setOpenMakingRow] = useState<number | null>(null);
 
   // Stable across renders (only depends on the zustand action reference,
   // which zustand itself keeps stable) - this is what lets columnDefs below
@@ -395,20 +488,49 @@ export function ItemTable({ onBrowseTags }: { onBrowseTags: () => void }) {
       const value = NUMERIC_FIELDS.has(field) ? Number(raw) || 0 : raw;
       const patch: Partial<Omit<BillingItem, "total">> = { [field]: value };
 
+      // Reads the sibling fields via getState() (not a closed-over `items`
+      // prop) specifically so this callback itself never needs to change
+      // identity when items changes.
+      const item = useBillingStore.getState().items[rowIndex];
+
       // Net weight stays auto-derived from gross - stone in the grid too,
       // matching ManualAddForm's exact behavior (same Math.max(0, gross -
-      // stone), rounded to 3dp). Reads the sibling weight via getState()
-      // (not a closed-over `items` prop) specifically so this callback
-      // itself never needs to change identity when items changes.
+      // stone), rounded to 3dp).
       if (field === "grossWtG" || field === "stoneWtG") {
-        const item = useBillingStore.getState().items[rowIndex];
         const gross = field === "grossWtG" ? (value as number) : item.grossWtG;
         const stone = field === "stoneWtG" ? (value as number) : item.stoneWtG;
         const net = Math.max(0, gross - stone);
         patch.netWtG = Math.round(net * 1000) / 1000;
       }
 
+      // Making charge is locked from direct typing, but for "per_gram"/
+      // "percent_metal" it's a live formula over net weight and rate/g - if
+      // either changes here (including the net-weight auto-derive just
+      // above), recompute it with the already-applied makingValue so the
+      // stored ₹ figure never goes stale against the method it claims to
+      // use. "fixed" rows have no formula, so nothing to recompute.
+      if (
+        (field === "grossWtG" || field === "stoneWtG" || field === "ratePerGram") &&
+        item.makingMethod !== "fixed"
+      ) {
+        const netWtG = patch.netWtG ?? item.netWtG;
+        const ratePerGram = field === "ratePerGram" ? (value as number) : item.ratePerGram;
+        patch.makingCharge = calculateMakingCharge({
+          method: item.makingMethod,
+          value: item.makingValue,
+          netWtG,
+          ratePerGram,
+        });
+      }
+
       updateItem(rowIndex, patch);
+    },
+    [updateItem],
+  );
+
+  const handleApplyMakingCharge = useCallback(
+    (rowIndex: number, result: { makingMethod: MakingMethod; makingValue: number; makingCharge: number }) => {
+      updateItem(rowIndex, result);
     },
     [updateItem],
   );
@@ -450,7 +572,13 @@ export function ItemTable({ onBrowseTags }: { onBrowseTags: () => void }) {
       editable("stoneWtG", "Stone Wt (g)", 130),
       editable("netWtG", "Net Wt (g) *", 130),
       editable("ratePerGram", "Rate/g *", 150),
-      editable("makingCharge", "Making Charge", 150),
+      {
+        headerName: "Making Charge",
+        width: 150,
+        headerClass: AG_GRID_HEADER_CLASS,
+        cellRenderer: MakingChargeCell,
+        cellRendererParams: { onOpen: setOpenMakingRow } satisfies MakingChargeCellExtra,
+      },
       editable("stoneCharge", "Stone Charge", 150),
       {
         field: "total",
@@ -549,6 +677,20 @@ export function ItemTable({ onBrowseTags }: { onBrowseTags: () => void }) {
       )}
 
       {showManualAdd ? <ManualAddForm onDone={() => setShowManualAdd(false)} /> : null}
+
+      {openMakingRow != null && items[openMakingRow] ? (
+        <MakingChargeDialog
+          onClose={() => setOpenMakingRow(null)}
+          initialMethod={items[openMakingRow].makingMethod}
+          initialValue={items[openMakingRow].makingValue}
+          description={items[openMakingRow].description}
+          metal={items[openMakingRow].metal}
+          purity={items[openMakingRow].purity}
+          netWtG={items[openMakingRow].netWtG}
+          ratePerGram={items[openMakingRow].ratePerGram}
+          onApply={(result) => handleApplyMakingCharge(openMakingRow, result)}
+        />
+      ) : null}
     </div>
   );
 }

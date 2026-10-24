@@ -1,6 +1,6 @@
 "use client";
 
-import { forwardRef, type InputHTMLAttributes } from "react";
+import { forwardRef, type InputHTMLAttributes, type ReactNode } from "react";
 import { Input } from "@/components/ui/Input";
 import { sanitizeNumericInput, isValidNumericInput } from "@/features/billing/lib/numericInput";
 
@@ -8,6 +8,11 @@ export interface NumberFieldProps
   extends Omit<InputHTMLAttributes<HTMLInputElement>, "value" | "onChange" | "type"> {
   value: string;
   onValueChange: (value: string) => void;
+  // Already forwarded to Input via {...props} below - declared here too so
+  // callers (e.g. MakingChargeDialog's ₹/% affixes) can pass them without a
+  // type error.
+  leadingIcon?: ReactNode;
+  trailingSlot?: ReactNode;
 }
 
 // Composes the existing Input primitive rather than modifying it - Input.tsx

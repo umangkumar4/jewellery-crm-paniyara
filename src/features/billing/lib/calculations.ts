@@ -1,3 +1,34 @@
+export type MakingMethod = "fixed" | "per_gram" | "percent_metal";
+
+export interface MakingChargeCalculationInput {
+  method: MakingMethod;
+  // The raw number the admin typed into the "Making method" dialog - a flat
+  // rupee amount for "fixed", a ₹/g rate for "per_gram", or a percentage for
+  // "percent_metal". Per-piece, same convention as every other weight/rate
+  // field in this module.
+  value: number;
+  netWtG: number;
+  ratePerGram: number;
+}
+
+// Mirrors calculateItemTotal's own metalValue rounding exactly, so a
+// "percent_metal" making charge is computed against the same number that
+// line's total calculation actually uses - never a second, slightly
+// different metal value that could quietly drift from it.
+export function calculateMakingCharge({ method, value, netWtG, ratePerGram }: MakingChargeCalculationInput): number {
+  switch (method) {
+    case "per_gram":
+      return Math.round(value * netWtG);
+    case "percent_metal": {
+      const metalValue = Math.round(netWtG * ratePerGram);
+      return Math.round((value / 100) * metalValue);
+    }
+    case "fixed":
+    default:
+      return Math.round(value);
+  }
+}
+
 export interface LineItemCalculationInput {
   // netWtG/ratePerGram/makingCharge/stoneCharge are all PER-PIECE figures -
   // explicit product decision: a line with pieces > 1 (e.g. 5 identical

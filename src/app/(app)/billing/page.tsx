@@ -104,6 +104,8 @@ export default function BillingPage() {
         net_wt_g: item.netWtG,
         rate_per_gram: item.ratePerGram,
         making_charge: item.makingCharge,
+        making_method: item.makingMethod,
+        making_value: item.makingValue,
         stone_charge: item.stoneCharge,
         tag_code: item.tagCode ?? undefined,
         total: item.total,
@@ -203,23 +205,35 @@ export default function BillingPage() {
         <div className="panel p-5">
           <h3 className="font-display text-xl text-foreground">Totals &amp; Payment</h3>
 
-          <div className="mt-4 flex flex-col gap-6 lg:flex-row">
-            <div className="lg:flex-1">
-              <TotalsPanel bare />
+          {/* A real 2-column grid with a visible divider, not two flex-1
+              panes separated only by a gap - a labeled sub-heading on each
+              side ("Charges"/"Payment") also means both columns now start
+              with exactly one line above their input grid, so the rows
+              underneath line up instead of drifting apart whenever one
+              side's hint text wrapped differently than the other's. */}
+          <div className="mt-5 grid grid-cols-1 gap-8 lg:grid-cols-2 lg:divide-x lg:divide-border">
+            <div>
+              <p className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">Charges</p>
+              <div className="mt-3">
+                <TotalsPanel bare />
+              </div>
             </div>
-            <div className="lg:flex-1">
-              <PaymentPanel
-                bare
-                showHint
-                payment={payment}
-                onChange={setPayment}
-                grandTotal={totals.grandTotal}
-                error={fieldErrors["paid_amount"] ?? fieldErrors["payment.amount"] ?? fieldErrors["payment.mode"]}
-              />
+            <div className="lg:pl-8">
+              <p className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">Payment</p>
+              <div className="mt-3">
+                <PaymentPanel
+                  bare
+                  showHint
+                  payment={payment}
+                  onChange={setPayment}
+                  grandTotal={totals.grandTotal}
+                  error={fieldErrors["paid_amount"] ?? fieldErrors["payment.amount"] ?? fieldErrors["payment.mode"]}
+                />
+              </div>
             </div>
           </div>
 
-          <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4">
+          <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4">
             <p className="text-sm text-muted-foreground">
               Paid {formatInr(payment?.amount ?? 0)} · Pending{" "}
               <span className="font-medium text-foreground">{formatInr(pendingAmount)}</span>
