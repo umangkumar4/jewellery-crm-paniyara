@@ -44,6 +44,7 @@ export function MetalRateForm({ editingPurity, onSaved }: MetalRateFormProps) {
       metal: METALS[0],
       purity: "",
       rate_per_gram: 0,
+      purchase_rate_per_gram: 0,
     },
   });
 
@@ -54,6 +55,7 @@ export function MetalRateForm({ editingPurity, onSaved }: MetalRateFormProps) {
         metal: editingPurity.metal as Metal,
         purity: editingPurity.purity,
         rate_per_gram: editingPurity.rate_per_gram ?? 0,
+        purchase_rate_per_gram: editingPurity.purchase_rate_per_gram ?? 0,
       });
     }
   }, [editingPurity, reset]);
@@ -78,7 +80,7 @@ export function MetalRateForm({ editingPurity, onSaved }: MetalRateFormProps) {
     setRate.mutate(values, {
       onSuccess: () => {
         toast.success(`${values.metal} ${values.purity} rate updated`);
-        reset({ metal: METALS[0], purity: "", rate_per_gram: 0 });
+        reset({ metal: METALS[0], purity: "", rate_per_gram: 0, purchase_rate_per_gram: 0 });
         setMetal(METALS[0]);
         onSaved?.();
       },
@@ -145,18 +147,36 @@ export function MetalRateForm({ editingPurity, onSaved }: MetalRateFormProps) {
         </div>
       </div>
 
-      <div>
-        <Label htmlFor="rate-value">Rate per gram (₹)</Label>
-        <Input
-          id="rate-value"
-          type="number"
-          step="0.01"
-          min="0"
-          {...register("rate_per_gram", { valueAsNumber: true })}
-        />
-        {errors.rate_per_gram ? (
-          <p className="mt-1.5 text-xs text-destructive">{errors.rate_per_gram.message}</p>
-        ) : null}
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <Label htmlFor="rate-value">Sell Rate per gram (₹)</Label>
+          <Input
+            id="rate-value"
+            type="number"
+            step="0.01"
+            min="0"
+            {...register("rate_per_gram", { valueAsNumber: true })}
+          />
+          {errors.rate_per_gram ? (
+            <p className="mt-1.5 text-xs text-destructive">{errors.rate_per_gram.message}</p>
+          ) : null}
+        </div>
+        <div>
+          {/* What the shop pays buying this metal/purity back as old
+              jewellery - independent of the sell rate above, see
+              docs/old-jewellery-exchange-plan.md. */}
+          <Label htmlFor="purchase-rate-value">Purchase Rate per gram (₹)</Label>
+          <Input
+            id="purchase-rate-value"
+            type="number"
+            step="0.01"
+            min="0"
+            {...register("purchase_rate_per_gram", { valueAsNumber: true })}
+          />
+          {errors.purchase_rate_per_gram ? (
+            <p className="mt-1.5 text-xs text-destructive">{errors.purchase_rate_per_gram.message}</p>
+          ) : null}
+        </div>
       </div>
 
       {formError ? <p className="text-sm text-destructive">{formError}</p> : null}

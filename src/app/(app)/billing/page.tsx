@@ -7,6 +7,7 @@ import { ApiError } from "@/lib/api-client";
 import { CustomerFields } from "@/features/billing/components/CustomerFields";
 import { TagBrowseDialog } from "@/features/billing/components/TagBrowseDialog";
 import { ItemTable } from "@/features/billing/components/ItemTable";
+import { OldJewelleryExchangeSection } from "@/features/billing/components/OldJewelleryExchangeSection";
 import { TotalsPanel } from "@/features/billing/components/TotalsPanel";
 import { PaymentPanel } from "@/features/billing/components/PaymentPanel";
 import { calculateInvoiceTotals, calculateNewPending } from "@/features/billing/lib/calculations";
@@ -201,6 +202,8 @@ export default function BillingPage() {
           <p className="text-sm text-destructive">{fieldErrors.items}</p>
         ) : null}
         <ItemTable onBrowseTags={() => setBrowseOpen(true)} />
+
+        <OldJewelleryExchangeSection />
 
         <div className="panel p-5">
           <h3 className="font-display text-xl text-foreground">Totals &amp; Payment</h3>

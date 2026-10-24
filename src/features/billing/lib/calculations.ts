@@ -111,3 +111,33 @@ export function calculateNewPending(grandTotal: number, paidAmount: number): New
 
   return { pendingAmount, paymentStatus };
 }
+
+export interface OldJewelleryItemValuationInput {
+  grossWtG: number;
+  stoneWtG: number;
+  dustWtG: number;
+  otherDeductionWtG: number;
+  ratePerGram: number;
+}
+
+export interface OldJewelleryItemValuation {
+  netWtG: number;
+  calculatedValue: number;
+}
+
+// Decision 15: net weight is auto-derived only, never directly editable -
+// same "overwrites on every deduction change" convention the existing
+// new-jewellery billing form already uses for gross - stone. Rounded to
+// 3dp, not 2, for the same milligram-precision reason documented on that
+// form (ItemTable.tsx's ManualAddForm).
+export function calculateOldJewelleryItemValuation({
+  grossWtG,
+  stoneWtG,
+  dustWtG,
+  otherDeductionWtG,
+  ratePerGram,
+}: OldJewelleryItemValuationInput): OldJewelleryItemValuation {
+  const netWtG = Math.round(Math.max(0, grossWtG - stoneWtG - dustWtG - otherDeductionWtG) * 1000) / 1000;
+  const calculatedValue = Math.round(netWtG * ratePerGram);
+  return { netWtG, calculatedValue };
+}

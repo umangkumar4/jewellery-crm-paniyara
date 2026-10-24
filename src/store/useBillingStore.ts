@@ -1,5 +1,6 @@
 import { create } from "zustand";
-import { calculateItemTotal, type MakingMethod } from "@/features/billing/lib/calculations";
+import { calculateItemTotal, calculateOldJewelleryItemValuation, type MakingMethod } from "@/features/billing/lib/calculations";
+import { METALS } from "@/lib/metals";
 
 export interface BillingCustomer {
   name: string;
@@ -38,6 +39,36 @@ export interface BillingItem {
   total: number;
 }
 
+// A customer's old jewellery exchanged during this sale - settlement
+// against the bill (exchange-first, see docs/old-jewellery-exchange-plan.md),
+// never a discount on the new items above. Client-only draft shape, same
+// id/never-sent-raw convention as BillingItem.
+export interface OldJewelleryDraftItem {
+  id: string;
+  description: string;
+  metal: string;
+  purity: string;
+  grossWtG: number;
+  stoneWtG: number;
+  dustWtG: number;
+  otherDeductionWtG: number;
+  // Auto-derived only (Decision 15) - never typed directly, always
+  // max(0, gross - stone - dust - other), recomputed by withValuation below.
+  netWtG: number;
+  // Snapshot of MetalPurity.purchaseRatePerGram at the moment this purity
+  // was picked - null if that purity has no default purchase rate
+  // configured yet, in which case the admin types appliedRatePerGram by hand.
+  defaultRatePerGram: number | null;
+  appliedRatePerGram: number;
+  calculatedValue: number;
+  // Defaults to calculatedValue and re-syncs to it whenever a weight/rate
+  // field changes (same "auto-derive but still directly editable, overwritten
+  // again on the next relevant change" convention net weight itself already
+  // uses) - but is a fully independent, directly editable field in between.
+  finalValue: number;
+  overrideReason: string;
+}
+
 export type BillingPaymentMode = "cash" | "upi" | "card" | "bank_transfer";
 
 export interface BillingPayment {
@@ -60,6 +91,7 @@ export type BillingItemErrors = Record<number, Record<string, string>>;
 interface BillingState {
   customer: BillingCustomer;
   items: BillingItem[];
+  oldJewelleryItems: OldJewelleryDraftItem[];
   discountAmount: number;
   // Independently editable - not forced to a 50/50 split of one GST% field.
   cgstPercent: number;
@@ -73,6 +105,12 @@ interface BillingState {
   updateItem: (index: number, patch: Partial<Omit<BillingItem, "total" | "id">>) => void;
   removeItem: (index: number) => void;
   hasTag: (tagCode: string) => boolean;
+  // addOldJewelleryItem takes no required fields - it seeds a blank row the
+  // admin fills in, same "+ Add" affordance as the main items grid, rather
+  // than a pre-populated item like a tag-linked addItem() call.
+  addOldJewelleryItem: () => void;
+  updateOldJewelleryItem: (id: string, patch: Partial<Omit<OldJewelleryDraftItem, "id">>) => void;
+  removeOldJewelleryItem: (id: string) => void;
   setDiscountAmount: (amount: number) => void;
   setCgstPercent: (percent: number) => void;
   setSgstPercent: (percent: number) => void;
@@ -98,6 +136,25 @@ function withTotal(item: Omit<BillingItem, "total">): BillingItem {
   };
 }
 
+// netWtG/calculatedValue are always derived here, same "never trust a
+// passed-in total" rule as withTotal above - finalValue is deliberately
+// NOT touched here, since it's a directly-editable field, not a pure
+// formula output. Callers that change a weight/rate field are responsible
+// for also re-syncing finalValue in their own patch when that's the
+// intended behavior (see OldJewelleryExchangeSection.tsx) - this mirrors
+// exactly how ItemTable.tsx's handleFieldChange decides whether to also
+// patch makingCharge, kept at the call site rather than baked in here.
+function withValuation(item: Omit<OldJewelleryDraftItem, "netWtG" | "calculatedValue">): OldJewelleryDraftItem {
+  const { netWtG, calculatedValue } = calculateOldJewelleryItemValuation({
+    grossWtG: item.grossWtG,
+    stoneWtG: item.stoneWtG,
+    dustWtG: item.dustWtG,
+    otherDeductionWtG: item.otherDeductionWtG,
+    ratePerGram: item.appliedRatePerGram,
+  });
+  return { ...item, netWtG, calculatedValue };
+}
+
 // Validation errors are always cleared the moment anything they could apply
 // to changes - otherwise a fixed field would keep showing red (or a fixed
 // row's error could silently point at the wrong row after items are
@@ -107,6 +164,7 @@ const NO_ERRORS = { fieldErrors: {}, itemErrors: {} };
 export const useBillingStore = create<BillingState>((set, get) => ({
   customer: EMPTY_CUSTOMER,
   items: [],
+  oldJewelleryItems: [],
   discountAmount: 0,
   // Sums to the same 3% the old single gstPercent field defaulted to.
   cgstPercent: 1.5,
@@ -143,6 +201,42 @@ export const useBillingStore = create<BillingState>((set, get) => ({
   hasTag: (tagCode) =>
     get().items.some((item) => item.tagCode?.toUpperCase() === tagCode.toUpperCase()),
 
+  addOldJewelleryItem: () =>
+    set((state) => ({
+      oldJewelleryItems: [
+        ...state.oldJewelleryItems,
+        withValuation({
+          id: crypto.randomUUID(),
+          description: "",
+          metal: METALS[0],
+          purity: "",
+          grossWtG: 0,
+          stoneWtG: 0,
+          dustWtG: 0,
+          otherDeductionWtG: 0,
+          defaultRatePerGram: null,
+          appliedRatePerGram: 0,
+          finalValue: 0,
+          overrideReason: "",
+        }),
+      ],
+      ...NO_ERRORS,
+    })),
+
+  updateOldJewelleryItem: (id, patch) =>
+    set((state) => ({
+      oldJewelleryItems: state.oldJewelleryItems.map((item) =>
+        item.id === id ? withValuation({ ...item, ...patch }) : item,
+      ),
+      ...NO_ERRORS,
+    })),
+
+  removeOldJewelleryItem: (id) =>
+    set((state) => ({
+      oldJewelleryItems: state.oldJewelleryItems.filter((item) => item.id !== id),
+      ...NO_ERRORS,
+    })),
+
   setDiscountAmount: (discountAmount) => set({ discountAmount, ...NO_ERRORS }),
   setCgstPercent: (cgstPercent) => set({ cgstPercent, ...NO_ERRORS }),
   setSgstPercent: (sgstPercent) => set({ sgstPercent, ...NO_ERRORS }),
@@ -153,6 +247,7 @@ export const useBillingStore = create<BillingState>((set, get) => ({
     set({
       customer: EMPTY_CUSTOMER,
       items: [],
+      oldJewelleryItems: [],
       discountAmount: 0,
       cgstPercent: 1.5,
       sgstPercent: 1.5,

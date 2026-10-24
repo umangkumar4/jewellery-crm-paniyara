@@ -58,6 +58,16 @@ export interface InvoiceDocument extends Document {
   paidAmount: number;
   pendingAmount: number;
   paymentStatus: PaymentStatus;
+  // Old jewellery exchange settlement - 0/null for every ordinary sale with
+  // no exchange attached, which is the overwhelming majority of invoices.
+  // grandTotal itself is never changed by an exchange (guiding principle 2,
+  // docs/old-jewellery-exchange-plan.md) - this is a settlement line
+  // against it, not a discount. linkedOldPurchaseNo is denormalized
+  // (alongside the ObjectId ref) so a print/detail read never needs a
+  // second query just to show the purchase reference.
+  exchangeApplied: number;
+  linkedOldPurchaseId: Types.ObjectId | null;
+  linkedOldPurchaseNo: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -129,6 +139,9 @@ const invoiceSchema = new Schema<InvoiceDocument>(
       default: "unpaid",
       index: true,
     },
+    exchangeApplied: { type: Number, required: true, min: 0, default: 0 },
+    linkedOldPurchaseId: { type: Schema.Types.ObjectId, ref: "OldJewelleryPurchase", default: null },
+    linkedOldPurchaseNo: { type: String, default: null },
   },
   { timestamps: true },
 );

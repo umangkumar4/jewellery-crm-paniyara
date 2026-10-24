@@ -6,6 +6,7 @@ export interface MetalPurity {
   metal: string;
   purity: string;
   rate_per_gram: number | null;
+  purchase_rate_per_gram: number | null;
   active: boolean;
   updated_at: string;
 }

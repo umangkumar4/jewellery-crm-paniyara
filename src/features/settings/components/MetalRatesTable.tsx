@@ -42,10 +42,17 @@ export function MetalRatesTable({ onEdit }: { onEdit: (purity: MetalPurity) => v
       { field: "purity", headerName: "Purity", width: 100, headerClass: AG_GRID_HEADER_CLASS },
       {
         field: "rate_per_gram",
-        headerName: "Rate/g",
+        headerName: "Sell Rate/g",
         width: 110,
         headerClass: AG_GRID_HEADER_CLASS,
         valueFormatter: (p) => (p.value != null ? `₹${p.value}` : ""),
+      },
+      {
+        field: "purchase_rate_per_gram",
+        headerName: "Purchase Rate/g",
+        width: 130,
+        headerClass: AG_GRID_HEADER_CLASS,
+        valueFormatter: (p) => (p.value != null ? `₹${p.value}` : "—"),
       },
       {
         field: "updated_at",
