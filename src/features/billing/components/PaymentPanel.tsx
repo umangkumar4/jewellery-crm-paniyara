@@ -1,7 +1,8 @@
 "use client";
 
 import { Label } from "@/components/ui/Label";
-import { Select } from "@/components/ui/Select";
+import { SelectField } from "@/components/ui/SelectField";
+import type { SelectOption } from "@/components/ui/react-select-styles";
 import { NumberField } from "@/features/billing/components/NumberField";
 import { useNumericStoreField } from "@/features/billing/lib/useNumericStoreField";
 import type { BillingPayment, BillingPaymentMode } from "@/store/useBillingStore";
@@ -14,6 +15,11 @@ const MODE_LABELS: Record<BillingPaymentMode, string> = {
   card: "Card",
   bank_transfer: "Bank Transfer",
 };
+
+const PAYMENT_MODE_OPTIONS: SelectOption[] = PAYMENT_MODES.map((m) => ({
+  label: MODE_LABELS[m],
+  value: m,
+}));
 
 interface PaymentPanelProps {
   payment: BillingPayment | null;
@@ -122,18 +128,15 @@ export function PaymentPanel({
         </div>
         <div>
           <Label htmlFor="payment-mode">Mode</Label>
-          <Select
-            id="payment-mode"
-            value={mode}
-            disabled={amount <= 0}
-            onChange={(e) => onChange({ amount, mode: e.target.value as BillingPaymentMode })}
-          >
-            {PAYMENT_MODES.map((m) => (
-              <option key={m} value={m}>
-                {MODE_LABELS[m]}
-              </option>
-            ))}
-          </Select>
+          <SelectField
+            inputId="payment-mode"
+            options={PAYMENT_MODE_OPTIONS}
+            value={PAYMENT_MODE_OPTIONS.find((o) => o.value === mode) ?? null}
+            isDisabled={amount <= 0}
+            onChange={(option) =>
+              onChange({ amount, mode: (option?.value ?? "cash") as BillingPaymentMode })
+            }
+          />
         </div>
       </div>
     </div>

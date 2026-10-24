@@ -1,15 +1,18 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useForm } from "react-hook-form";
+import { useEffect, useMemo, useState } from "react";
+import { Controller, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
-import { Select } from "@/components/ui/Select";
+import { SelectField } from "@/components/ui/SelectField";
+import { toOptions } from "@/components/ui/react-select-styles";
 import { ApiError } from "@/lib/api-client";
 import { METALS } from "@/lib/metals";
+
+const METAL_OPTIONS = toOptions(METALS);
 import { createTagSchema, type CreateTagFormValues, type CreateTagInput } from "@/schemas/tag.schema";
 import { useCreateTag, type Tag } from "@/features/tagging/hooks/useCreateTag";
 import { useMetalPurities } from "@/features/settings/hooks/useMetalPurities";
@@ -23,6 +26,7 @@ export function TagForm({ onCreated }: { onCreated: (tag: Tag) => void }) {
 
   const {
     register,
+    control,
     handleSubmit,
     setError,
     setValue,
@@ -100,6 +104,10 @@ export function TagForm({ onCreated }: { onCreated: (tag: Tag) => void }) {
   });
 
   const hasPurities = !!purities && purities.length > 0;
+  const purityOptions = useMemo(
+    () => (purities ?? []).map((p) => ({ label: p.purity, value: p.id })),
+    [purities],
+  );
 
   return (
     <form onSubmit={onSubmit} className="space-y-5" noValidate>
@@ -114,28 +122,30 @@ export function TagForm({ onCreated }: { onCreated: (tag: Tag) => void }) {
       <div className="grid grid-cols-2 gap-4">
         <div>
           <Label htmlFor="metal">Metal</Label>
-          <Select id="metal" value={metal} onChange={(e) => setMetal(e.target.value)}>
-            {METALS.map((m) => (
-              <option key={m} value={m}>
-                {m}
-              </option>
-            ))}
-          </Select>
+          <SelectField
+            inputId="metal"
+            options={METAL_OPTIONS}
+            value={METAL_OPTIONS.find((o) => o.value === metal) ?? null}
+            onChange={(option) => setMetal(option?.value ?? METALS[0])}
+          />
         </div>
 
         <div>
           <Label htmlFor="purity_id">Purity</Label>
-          <Select id="purity_id" disabled={!hasPurities} {...register("purity_id")}>
-            {hasPurities ? (
-              purities!.map((purity) => (
-                <option key={purity.id} value={purity.id}>
-                  {purity.purity}
-                </option>
-              ))
-            ) : (
-              <option value="">No purities yet</option>
+          <Controller
+            control={control}
+            name="purity_id"
+            render={({ field }) => (
+              <SelectField
+                inputId="purity_id"
+                isDisabled={!hasPurities}
+                placeholder={hasPurities ? undefined : "No purities yet"}
+                options={purityOptions}
+                value={purityOptions.find((o) => o.value === field.value) ?? null}
+                onChange={(option) => field.onChange(option?.value ?? "")}
+              />
             )}
-          </Select>
+          />
           {!hasPurities ? (
             <p className="mt-1.5 text-xs text-muted-foreground">
               No active purities for {metal} yet - add one in Settings.

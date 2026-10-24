@@ -20,7 +20,9 @@ export default function DashboardPage() {
     <div className="space-y-6">
       <MetalRateCarousel />
 
-      <DateRangeFilter onChange={setRange} />
+      <div className="flex justify-end">
+        <DateRangeFilter onChange={setRange} />
+      </div>
 
       <KpiTiles
         summary={summaryQuery.data}

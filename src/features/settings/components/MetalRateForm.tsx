@@ -1,15 +1,18 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useForm } from "react-hook-form";
+import { useEffect, useMemo, useState } from "react";
+import { Controller, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
-import { Select } from "@/components/ui/Select";
+import { SelectField } from "@/components/ui/SelectField";
+import { toOptions } from "@/components/ui/react-select-styles";
 import { ApiError } from "@/lib/api-client";
 import { METALS, type Metal } from "@/lib/metals";
+
+const METAL_OPTIONS = toOptions(METALS);
 import { setMetalRateSchema, type SetMetalRateInput } from "@/schemas/metal-rate.schema";
 import { useMetalPurities, type MetalPurity } from "@/features/settings/hooks/useMetalPurities";
 import { useSetMetalRate } from "@/features/settings/hooks/useSetMetalRate";
@@ -28,6 +31,7 @@ export function MetalRateForm({ editingPurity, onSaved }: MetalRateFormProps) {
 
   const {
     register,
+    control,
     handleSubmit,
     setError,
     setValue,
@@ -95,42 +99,44 @@ export function MetalRateForm({ editingPurity, onSaved }: MetalRateFormProps) {
   });
 
   const hasPurities = !!purities && purities.length > 0;
+  const purityOptions = useMemo(
+    () => (purities ?? []).map((p) => ({ label: p.purity, value: p.purity })),
+    [purities],
+  );
 
   return (
     <form onSubmit={onSubmit} className="space-y-5" noValidate>
       <div className="grid grid-cols-2 gap-4">
         <div>
           <Label htmlFor="rate-metal">Metal</Label>
-          <Select
-            id="rate-metal"
-            value={metal}
-            onChange={(e) => {
-              const next = e.target.value as Metal;
+          <SelectField
+            inputId="rate-metal"
+            options={METAL_OPTIONS}
+            value={METAL_OPTIONS.find((o) => o.value === metal) ?? null}
+            onChange={(option) => {
+              const next = (option?.value ?? METALS[0]) as Metal;
               setMetal(next);
               setValue("metal", next);
             }}
-          >
-            {METALS.map((m) => (
-              <option key={m} value={m}>
-                {m}
-              </option>
-            ))}
-          </Select>
+          />
         </div>
 
         <div>
           <Label htmlFor="rate-purity">Purity</Label>
-          <Select id="rate-purity" disabled={!hasPurities} {...register("purity")}>
-            {hasPurities ? (
-              purities!.map((purity) => (
-                <option key={purity.id} value={purity.purity}>
-                  {purity.purity}
-                </option>
-              ))
-            ) : (
-              <option value="">No purities yet</option>
+          <Controller
+            control={control}
+            name="purity"
+            render={({ field }) => (
+              <SelectField
+                inputId="rate-purity"
+                isDisabled={!hasPurities}
+                placeholder={hasPurities ? undefined : "No purities yet"}
+                options={purityOptions}
+                value={purityOptions.find((o) => o.value === field.value) ?? null}
+                onChange={(option) => field.onChange(option?.value ?? "")}
+              />
             )}
-          </Select>
+          />
           {!hasPurities ? (
             <p className="mt-1.5 text-xs text-muted-foreground">
               No active purities for {metal} yet - add one below.

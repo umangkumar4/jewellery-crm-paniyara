@@ -8,7 +8,8 @@ import { Button } from "@/components/ui/Button";
 import { Dialog } from "@/components/ui/Dialog";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
-import { Select } from "@/components/ui/Select";
+import { SelectField } from "@/components/ui/SelectField";
+import { toOptions } from "@/components/ui/react-select-styles";
 import { agGridTheme, AG_GRID_HEADER_CLASS, AG_GRID_DEFAULT_COL_DEF } from "@/lib/ag-grid";
 import { cn } from "@/lib/utils";
 import { METALS, type Metal } from "@/lib/metals";
@@ -50,6 +51,8 @@ type EditableField =
   | "ratePerGram"
   | "makingCharge"
   | "stoneCharge";
+
+const METAL_OPTIONS = toOptions(METALS);
 
 const NUMERIC_FIELDS = new Set<EditableField>([
   "pieces",
@@ -208,6 +211,10 @@ function ManualAddForm({ onDone }: { onDone: () => void }) {
 
   const { data: purities } = useMetalPurities({ metal });
   const hasPurities = !!purities && purities.length > 0;
+  const purityOptions = useMemo(
+    () => (purities ?? []).map((p) => ({ label: p.purity, value: p.purity })),
+    [purities],
+  );
 
   // No auto-select here, deliberately - purity (and the rate it carries)
   // stays whatever the cashier explicitly picks from the dropdown below, so
@@ -289,11 +296,12 @@ function ManualAddForm({ onDone }: { onDone: () => void }) {
 
         <div>
           <Label htmlFor="manual-metal">Metal</Label>
-          <Select
-            id="manual-metal"
-            value={metal}
-            onChange={(e) => {
-              setMetal(e.target.value as Metal);
+          <SelectField
+            inputId="manual-metal"
+            options={METAL_OPTIONS}
+            value={METAL_OPTIONS.find((o) => o.value === metal) ?? null}
+            onChange={(option) => {
+              setMetal((option?.value ?? METALS[0]) as Metal);
               setPurity("");
               // Rate was previously re-filled automatically the instant the
               // purities list reloaded for the new metal. Now that purity
@@ -303,44 +311,29 @@ function ManualAddForm({ onDone }: { onDone: () => void }) {
               // required" instead of a plausible-looking wrong number.
               setRatePerGram("0");
             }}
-          >
-            {METALS.map((m) => (
-              <option key={m} value={m}>
-                {m}
-              </option>
-            ))}
-          </Select>
+          />
         </div>
         <div>
           <Label htmlFor="manual-purity">Purity</Label>
-          <Select
-            id="manual-purity"
-            disabled={!hasPurities}
-            value={purity}
-            onChange={(e) => {
-              setPurity(e.target.value);
-              const match = purities?.find((p) => p.purity === e.target.value);
+          <SelectField
+            inputId="manual-purity"
+            isDisabled={!hasPurities}
+            // No fake empty option needed - react-select shows the
+            // placeholder below whenever `value` is null, without the
+            // native-<select> auto-select-first-option quirk that the old
+            // "Select purity" option existed to work around. isClearable
+            // lets the cashier explicitly go back to "no purity picked"
+            // the same way re-selecting that old option did.
+            isClearable={hasPurities}
+            placeholder={hasPurities ? "Select purity" : "No purities yet"}
+            options={purityOptions}
+            value={hasPurities ? purityOptions.find((o) => o.value === purity) ?? null : null}
+            onChange={(option) => {
+              setPurity(option?.value ?? "");
+              const match = purities?.find((p) => p.purity === option?.value);
               setRatePerGram(String(match?.rate_per_gram ?? 0));
             }}
-          >
-            {hasPurities ? (
-              <>
-                {/* Real placeholder, not just an absent match - without this,
-                    a `value=""` with no matching <option> falls back to
-                    showing the browser's first real option as if selected,
-                    even though `purity` state is still "". That would look
-                    exactly like the auto-select this change is removing. */}
-                <option value="">Select purity</option>
-                {purities!.map((p) => (
-                  <option key={p.id} value={p.purity}>
-                    {p.purity}
-                  </option>
-                ))}
-              </>
-            ) : (
-              <option value="">No purities yet</option>
-            )}
-          </Select>
+          />
         </div>
         <div>
           <Label htmlFor="manual-rate">Rate/g (₹) *</Label>

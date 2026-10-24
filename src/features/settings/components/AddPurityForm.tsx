@@ -1,15 +1,18 @@
 "use client";
 
 import { useState } from "react";
-import { useForm } from "react-hook-form";
+import { Controller, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
-import { Select } from "@/components/ui/Select";
+import { SelectField } from "@/components/ui/SelectField";
+import { toOptions } from "@/components/ui/react-select-styles";
 import { ApiError } from "@/lib/api-client";
 import { METALS } from "@/lib/metals";
+
+const METAL_OPTIONS = toOptions(METALS);
 import { createPuritySchema, type CreatePurityInput } from "@/schemas/purity.schema";
 import { useAddPurity } from "@/features/settings/hooks/useAddPurity";
 
@@ -19,6 +22,7 @@ export function AddPurityForm() {
 
   const {
     register,
+    control,
     handleSubmit,
     setError,
     reset,
@@ -56,13 +60,18 @@ export function AddPurityForm() {
       <div className="grid grid-cols-2 gap-4">
         <div>
           <Label htmlFor="purity-metal">Metal</Label>
-          <Select id="purity-metal" {...register("metal")}>
-            {METALS.map((m) => (
-              <option key={m} value={m}>
-                {m}
-              </option>
-            ))}
-          </Select>
+          <Controller
+            control={control}
+            name="metal"
+            render={({ field }) => (
+              <SelectField
+                inputId="purity-metal"
+                options={METAL_OPTIONS}
+                value={METAL_OPTIONS.find((o) => o.value === field.value) ?? null}
+                onChange={(option) => field.onChange(option?.value ?? METALS[0])}
+              />
+            )}
+          />
         </div>
 
         <div>

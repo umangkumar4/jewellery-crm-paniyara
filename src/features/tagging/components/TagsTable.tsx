@@ -7,13 +7,20 @@ import type { ColDef, ICellRendererParams } from "ag-grid-community";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
-import { Select } from "@/components/ui/Select";
+import { SelectField } from "@/components/ui/SelectField";
+import type { SelectOption } from "@/components/ui/react-select-styles";
 import { agGridTheme, AG_GRID_HEADER_CLASS, AG_GRID_DEFAULT_COL_DEF } from "@/lib/ag-grid";
 import { ApiError } from "@/lib/api-client";
 import { useTags } from "@/features/tagging/hooks/useTags";
 import type { Tag } from "@/features/tagging/hooks/useCreateTag";
 
 const LIMIT = 20;
+
+const STATUS_OPTIONS: SelectOption[] = [
+  { label: "All statuses", value: "" },
+  { label: "Tagged", value: "tagged" },
+  { label: "Sold", value: "sold" },
+];
 
 const STATUS_BADGE: Record<Tag["status"], string> = {
   tagged: "bg-emerald-ink/10 text-emerald-ink",
@@ -132,15 +139,12 @@ const columnDefs = useMemo<ColDef<Tag>[]>(
             leadingIcon={<Search className="h-4 w-4" />}
             className="sm:w-64"
           />
-          <Select
-            value={status}
-            onChange={(e) => setStatus(e.target.value as "" | "tagged" | "sold")}
+          <SelectField
+            options={STATUS_OPTIONS}
+            value={STATUS_OPTIONS.find((o) => o.value === status) ?? null}
+            onChange={(option) => setStatus((option?.value ?? "") as "" | "tagged" | "sold")}
             className="sm:w-36"
-          >
-            <option value="">All statuses</option>
-            <option value="tagged">Tagged</option>
-            <option value="sold">Sold</option>
-          </Select>
+          />
         </div>
       </div>
 
