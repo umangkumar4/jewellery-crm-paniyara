@@ -55,6 +55,8 @@ export function useAddTagItem() {
         netWtG: tag.net_wt_g,
         ratePerGram,
         makingCharge: 0,
+        makingMethod: "fixed",
+        makingValue: 0,
         stoneCharge: 0,
       });
 

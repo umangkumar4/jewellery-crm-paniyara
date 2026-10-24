@@ -2,6 +2,7 @@ import { Schema, model, models, Types, type Document, type Model } from "mongoos
 
 export type PaymentStatus = "unpaid" | "partial" | "paid";
 export type PaymentMode = "cash" | "upi" | "card" | "bank_transfer";
+export type MakingMethod = "fixed" | "per_gram" | "percent_metal";
 
 export interface InvoiceItem {
   srNo: number;
@@ -16,6 +17,8 @@ export interface InvoiceItem {
   netWtG: number;
   ratePerGram: number;
   makingCharge: number;
+  makingMethod: MakingMethod;
+  makingValue: number;
   stoneCharge: number;
   total: number;
 }
@@ -80,6 +83,8 @@ const invoiceItemSchema = new Schema<InvoiceItem>(
     netWtG: { type: Number, required: true, min: 0 },
     ratePerGram: { type: Number, required: true, min: 0 },
     makingCharge: { type: Number, required: true, min: 0, default: 0 },
+    makingMethod: { type: String, enum: ["fixed", "per_gram", "percent_metal"], required: true, default: "fixed" },
+    makingValue: { type: Number, required: true, min: 0, default: 0 },
     stoneCharge: { type: Number, required: true, min: 0, default: 0 },
     total: { type: Number, required: true, min: 0 },
   },

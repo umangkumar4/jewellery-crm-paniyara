@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { calculateItemTotal } from "@/features/billing/lib/calculations";
+import { calculateItemTotal, type MakingMethod } from "@/features/billing/lib/calculations";
 
 export interface BillingCustomer {
   name: string;
@@ -26,7 +26,14 @@ export interface BillingItem {
   stoneWtG: number;
   netWtG: number;
   ratePerGram: number;
+  // makingCharge is always the derived ₹ result - never typed directly
+  // anymore (see MakingChargeDialog.tsx). makingMethod/makingValue record
+  // what actually produced it: the flat ₹, the ₹/g rate, or the % of metal
+  // value the admin chose, so reopening the dialog can pre-fill the real
+  // inputs instead of guessing a method from the number alone.
   makingCharge: number;
+  makingMethod: MakingMethod;
+  makingValue: number;
   stoneCharge: number;
   total: number;
 }
