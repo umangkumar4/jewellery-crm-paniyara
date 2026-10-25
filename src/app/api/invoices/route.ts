@@ -16,6 +16,7 @@ import { validationErrorResponse } from "@/server/validation";
 export const dynamic = "force-dynamic";
 
 const DATE_PARAM_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+const STATUS_PARAM_VALUES = new Set(["unpaid", "partial", "paid"]);
 
 export async function GET(request: Request) {
   const authError = await requireAuth(request);
@@ -35,10 +36,16 @@ export async function GET(request: Request) {
 
   const customerId = searchParams.get("customerId") ?? undefined;
 
+  const statusParam = searchParams.get("status");
+  const status =
+    statusParam && STATUS_PARAM_VALUES.has(statusParam)
+      ? (statusParam as "unpaid" | "partial" | "paid")
+      : undefined;
+
   await dbConnect();
 
   try {
-    const { items, total } = await listInvoices({ page, limit, date, customerId });
+    const { items, total } = await listInvoices({ page, limit, date, customerId, status });
     return Response.json({ data: items.map(serializeInvoiceListItem), total, page });
   } catch (error) {
     logger.error({ error }, "Failed to list invoices");

@@ -8,6 +8,7 @@ import type { ColDef, ICellRendererParams } from "ag-grid-community";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { agGridTheme, AG_GRID_HEADER_CLASS, AG_GRID_DEFAULT_COL_DEF } from "@/lib/ag-grid";
 import { useInvoicesList } from "@/features/dashboard/hooks/useInvoicesList";
 import type { InvoiceListRow } from "@/features/dashboard/hooks/useInvoicesList";
@@ -19,6 +20,31 @@ const STATUS_BADGE: Record<InvoiceListRow["payment_status"], string> = {
   partial: "bg-gold/20 text-gold-foreground",
   paid: "bg-emerald-ink/10 text-emerald-ink",
 };
+
+type StatusFilter = "all" | InvoiceListRow["payment_status"];
+
+// Mirrors STATUS_BADGE's colors so the active tab visually matches the same
+// status's badge color in the Status column below. Written as full literal
+// class strings (not built with template-literal concatenation) because
+// Tailwind's scanner only picks up classes that appear verbatim in source.
+const STATUS_TABS: { value: StatusFilter; label: string; activeClass: string }[] = [
+  { value: "all", label: "All", activeClass: "data-[state=active]:bg-background" },
+  {
+    value: "unpaid",
+    label: "Unpaid",
+    activeClass: "data-[state=active]:bg-destructive/10 data-[state=active]:text-destructive",
+  },
+  {
+    value: "partial",
+    label: "Partial",
+    activeClass: "data-[state=active]:bg-gold/20 data-[state=active]:text-gold-foreground",
+  },
+  {
+    value: "paid",
+    label: "Paid",
+    activeClass: "data-[state=active]:bg-emerald-ink/10 data-[state=active]:text-emerald-ink",
+  },
+];
 
 function formatInr(value: number): string {
   return `₹${value.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -78,11 +104,12 @@ interface InvoiceGridProps {
 // replacement for it, until/unless asked to convert that page too.
 export function InvoiceGrid({ customerId, title = "Invoices" }: InvoiceGridProps = {}) {
   const [date, setDate] = useState("");
+  const [status, setStatus] = useState<StatusFilter>("all");
   const [page, setPage] = useState(1);
 
-  const [prevDate, setPrevDate] = useState(date);
-  if (prevDate !== date) {
-    setPrevDate(date);
+  const [prevFilters, setPrevFilters] = useState({ date, status });
+  if (prevFilters.date !== date || prevFilters.status !== status) {
+    setPrevFilters({ date, status });
     setPage(1);
   }
 
@@ -91,6 +118,7 @@ export function InvoiceGrid({ customerId, title = "Invoices" }: InvoiceGridProps
     limit: LIMIT,
     date: date || undefined,
     customerId,
+    status: status === "all" ? undefined : status,
   });
 
   const total = data?.total ?? 0;
@@ -165,13 +193,25 @@ export function InvoiceGrid({ customerId, title = "Invoices" }: InvoiceGridProps
         <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="sm:w-48" />
       </div>
 
+      <Tabs value={status} onValueChange={(value) => setStatus(value as StatusFilter)} className="mt-4">
+        <TabsList>
+          {STATUS_TABS.map((tab) => (
+            <TabsTrigger key={tab.value} value={tab.value} className={tab.activeClass}>
+              {tab.label}
+            </TabsTrigger>
+          ))}
+        </TabsList>
+      </Tabs>
+
       <div className="mt-5">
         {isLoading && !data ? (
           <div className="py-6 text-center text-sm text-muted-foreground">Loading…</div>
         ) : isError ? (
           <div className="py-6 text-center text-sm text-destructive">Failed to load invoices.</div>
         ) : !data || data.data.length === 0 ? (
-          <div className="py-6 text-center text-sm text-muted-foreground">No invoices yet.</div>
+          <div className="py-6 text-center text-sm text-muted-foreground">
+            {date || status !== "all" ? "No invoices match the current filters." : "No invoices yet."}
+          </div>
         ) : (
           <AgGridReact<InvoiceListRow>
             theme={agGridTheme}

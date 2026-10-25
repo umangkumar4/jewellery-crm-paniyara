@@ -379,9 +379,10 @@ export interface ListInvoicesParams {
   limit: number;
   date?: string;
   customerId?: string;
+  status?: "unpaid" | "partial" | "paid";
 }
 
-export async function listInvoices({ page, limit, date, customerId }: ListInvoicesParams) {
+export async function listInvoices({ page, limit, date, customerId, status }: ListInvoicesParams) {
   const filter: QueryFilter<InvoiceDocument> = {};
   if (date) {
     filter.createdAt = {
@@ -395,6 +396,9 @@ export async function listInvoices({ page, limit, date, customerId }: ListInvoic
   // doesn't introduce a new validation style for just one param.
   if (customerId && Types.ObjectId.isValid(customerId)) {
     filter.customerId = new Types.ObjectId(customerId);
+  }
+  if (status) {
+    filter.paymentStatus = status;
   }
 
   const [items, total] = await Promise.all([

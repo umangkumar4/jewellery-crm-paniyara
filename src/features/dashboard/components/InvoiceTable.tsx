@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useInvoicesList } from "@/features/dashboard/hooks/useInvoicesList";
 import type { InvoiceListRow } from "@/features/dashboard/hooks/useInvoicesList";
 
@@ -17,6 +18,31 @@ const STATUS_BADGE: Record<InvoiceListRow["payment_status"], string> = {
   partial: "bg-gold/20 text-gold-foreground",
   paid: "bg-emerald-ink/10 text-emerald-ink",
 };
+
+type StatusFilter = "all" | InvoiceListRow["payment_status"];
+
+// Mirrors STATUS_BADGE's colors so the active tab visually matches the same
+// status's badge color in the Status column below. Written as full literal
+// class strings (not built with template-literal concatenation) because
+// Tailwind's scanner only picks up classes that appear verbatim in source.
+const STATUS_TABS: { value: StatusFilter; label: string; activeClass: string }[] = [
+  { value: "all", label: "All", activeClass: "data-[state=active]:bg-background" },
+  {
+    value: "unpaid",
+    label: "Unpaid",
+    activeClass: "data-[state=active]:bg-destructive/10 data-[state=active]:text-destructive",
+  },
+  {
+    value: "partial",
+    label: "Partial",
+    activeClass: "data-[state=active]:bg-gold/20 data-[state=active]:text-gold-foreground",
+  },
+  {
+    value: "paid",
+    label: "Paid",
+    activeClass: "data-[state=active]:bg-emerald-ink/10 data-[state=active]:text-emerald-ink",
+  },
+];
 
 function formatInr(value: number): string {
   return `₹${value.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -35,11 +61,12 @@ interface InvoiceTableProps {
 // the backend but is never linked from the UI (docs/billing-plan.md decision 5).
 export function InvoiceTable({ customerId, title = "Invoices" }: InvoiceTableProps = {}) {
   const [date, setDate] = useState("");
+  const [status, setStatus] = useState<StatusFilter>("all");
   const [page, setPage] = useState(1);
 
-  const [prevDate, setPrevDate] = useState(date);
-  if (prevDate !== date) {
-    setPrevDate(date);
+  const [prevFilters, setPrevFilters] = useState({ date, status });
+  if (prevFilters.date !== date || prevFilters.status !== status) {
+    setPrevFilters({ date, status });
     setPage(1);
   }
 
@@ -48,6 +75,7 @@ export function InvoiceTable({ customerId, title = "Invoices" }: InvoiceTablePro
     limit: LIMIT,
     date: date || undefined,
     customerId,
+    status: status === "all" ? undefined : status,
   });
 
   const total = data?.total ?? 0;
@@ -59,6 +87,16 @@ export function InvoiceTable({ customerId, title = "Invoices" }: InvoiceTablePro
         <h3 className="font-display text-xl text-foreground">{title}</h3>
         <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="sm:w-48" />
       </div>
+
+      <Tabs value={status} onValueChange={(value) => setStatus(value as StatusFilter)} className="mt-4">
+        <TabsList>
+          {STATUS_TABS.map((tab) => (
+            <TabsTrigger key={tab.value} value={tab.value} className={tab.activeClass}>
+              {tab.label}
+            </TabsTrigger>
+          ))}
+        </TabsList>
+      </Tabs>
 
       <div className="mt-5">
         <Table className="min-w-[760px]">
@@ -149,7 +187,7 @@ export function InvoiceTable({ customerId, title = "Invoices" }: InvoiceTablePro
             ) : (
               <TableRow className="border-border/60 hover:bg-transparent">
                 <TableCell colSpan={8} className="py-6 text-center whitespace-normal text-muted-foreground">
-                  No invoices yet.
+                  {date || status !== "all" ? "No invoices match the current filters." : "No invoices yet."}
                 </TableCell>
               </TableRow>
             )}
