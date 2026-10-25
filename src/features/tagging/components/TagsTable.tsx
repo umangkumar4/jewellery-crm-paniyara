@@ -7,8 +7,7 @@ import type { ColDef, ICellRendererParams } from "ag-grid-community";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
-import { SelectField } from "@/components/ui/SelectField";
-import type { SelectOption } from "@/components/ui/react-select-styles";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { agGridTheme, AG_GRID_HEADER_CLASS, AG_GRID_DEFAULT_COL_DEF } from "@/lib/ag-grid";
 import { ApiError } from "@/lib/api-client";
 import { useTags } from "@/features/tagging/hooks/useTags";
@@ -16,16 +15,30 @@ import type { Tag } from "@/features/tagging/hooks/useCreateTag";
 
 const LIMIT = 20;
 
-const STATUS_OPTIONS: SelectOption[] = [
-  { label: "All statuses", value: "" },
-  { label: "Tagged", value: "tagged" },
-  { label: "Sold", value: "sold" },
-];
-
 const STATUS_BADGE: Record<Tag["status"], string> = {
   tagged: "bg-emerald-ink/10 text-emerald-ink",
   sold: "bg-gold/20 text-gold-foreground",
 };
+
+type StatusFilter = "all" | Tag["status"];
+
+// Mirrors STATUS_BADGE's colors so the active tab visually matches the same
+// status's badge color in the Status column below. Written as full literal
+// class strings (not built with template-literal concatenation) because
+// Tailwind's scanner only picks up classes that appear verbatim in source.
+const STATUS_TABS: { value: StatusFilter; label: string; activeClass: string }[] = [
+  { value: "all", label: "All", activeClass: "data-[state=active]:bg-background" },
+  {
+    value: "tagged",
+    label: "Tagged",
+    activeClass: "data-[state=active]:bg-emerald-ink/10 data-[state=active]:text-emerald-ink",
+  },
+  {
+    value: "sold",
+    label: "Sold",
+    activeClass: "data-[state=active]:bg-gold/20 data-[state=active]:text-gold-foreground",
+  },
+];
 
 function StatusCell({ data }: ICellRendererParams<Tag>) {
   if (!data) return null;
@@ -53,7 +66,7 @@ function ReprintCell({ data, onReprint }: ICellRendererParams<Tag> & { onReprint
 export function TagsTable({ onReprint }: { onReprint: (tag: Tag) => void }) {
   const [searchInput, setSearchInput] = useState("");
   const [q, setQ] = useState("");
-  const [status, setStatus] = useState<"" | "tagged" | "sold">("");
+  const [status, setStatus] = useState<StatusFilter>("tagged");
   const [page, setPage] = useState(1);
 
   useEffect(() => {
@@ -74,7 +87,7 @@ export function TagsTable({ onReprint }: { onReprint: (tag: Tag) => void }) {
     page,
     limit: LIMIT,
     q: q || undefined,
-    status: status || undefined,
+    status: status === "all" ? undefined : status,
   });
 
   const total = data?.total ?? 0;
@@ -129,23 +142,26 @@ const columnDefs = useMemo<ColDef<Tag>[]>(
 
   return (
     <div className="panel p-6">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <h3 className="font-display text-xl text-foreground">Tags</h3>
-        <div className="flex flex-col gap-3 sm:flex-row">
-          <Input
-            value={searchInput}
-            onChange={(e) => setSearchInput(e.target.value)}
-            placeholder="Search by name or code"
-            leadingIcon={<Search className="h-4 w-4" />}
-            className="sm:w-64"
-          />
-          <SelectField
-            options={STATUS_OPTIONS}
-            value={STATUS_OPTIONS.find((o) => o.value === status) ?? null}
-            onChange={(option) => setStatus((option?.value ?? "") as "" | "tagged" | "sold")}
-            className="sm:w-36"
-          />
-        </div>
+      <h3 className="font-display text-xl text-foreground">Tags</h3>
+
+      <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <Input
+          value={searchInput}
+          onChange={(e) => setSearchInput(e.target.value)}
+          placeholder="Search by name or code"
+          leadingIcon={<Search className="h-4 w-4" />}
+          className="sm:w-64"
+        />
+
+        <Tabs value={status} onValueChange={(value) => setStatus(value as StatusFilter)}>
+          <TabsList>
+            {STATUS_TABS.map((tab) => (
+              <TabsTrigger key={tab.value} value={tab.value} className={tab.activeClass}>
+                {tab.label}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+        </Tabs>
       </div>
 
       <div className="mt-5">
@@ -156,7 +172,9 @@ const columnDefs = useMemo<ColDef<Tag>[]>(
             {error instanceof ApiError ? error.message : "Failed to load tags."}
           </div>
         ) : !data || data.data.length === 0 ? (
-          <div className="py-6 text-center text-sm text-muted-foreground">No tags yet.</div>
+          <div className="py-6 text-center text-sm text-muted-foreground">
+            {q || status !== "all" ? "No tags match the current filters." : "No tags yet."}
+          </div>
         ) : (
           <AgGridReact<Tag>
             theme={agGridTheme}
