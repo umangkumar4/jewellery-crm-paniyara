@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/Button";
 import { ApiError } from "@/lib/api-client";
@@ -8,10 +8,11 @@ import { CustomerFields } from "@/features/billing/components/CustomerFields";
 import { TagBrowseDialog } from "@/features/billing/components/TagBrowseDialog";
 import { ItemTable } from "@/features/billing/components/ItemTable";
 import { OldJewelleryExchangeSection } from "@/features/billing/components/OldJewelleryExchangeSection";
+import { RefundSection } from "@/features/billing/components/RefundSection";
 import { TotalsPanel } from "@/features/billing/components/TotalsPanel";
 import { PaymentPanel } from "@/features/billing/components/PaymentPanel";
-import { calculateInvoiceTotals, calculateNewPending } from "@/features/billing/lib/calculations";
-import { isItemValid } from "@/features/billing/lib/itemValidity";
+import { calculateExchangeApplied, calculateInvoiceTotals, calculateNewPending } from "@/features/billing/lib/calculations";
+import { isItemValid, isOldJewelleryItemValid } from "@/features/billing/lib/itemValidity";
 import { useCreateInvoice } from "@/features/billing/hooks/useCreateInvoice";
 import { useBillingStore, type BillingFieldErrors, type BillingItemErrors } from "@/store/useBillingStore";
 import { createInvoiceSchema, type CreateInvoiceInput } from "@/schemas/invoice.schema";
@@ -55,9 +56,18 @@ function collectValidationErrors(body: unknown): {
 export default function BillingPage() {
   const [browseOpen, setBrowseOpen] = useState(false);
   const [confirmation, setConfirmation] = useState<{ id: string; no: string } | null>(null);
+  // Idempotency key for the exchange path (see docs/old-jewellery-exchange-plan.md's
+  // Step 5 plan) - generated once per draft, lazily, and stays stable across
+  // repeated Finalize clicks/retries on the SAME draft, so a double-click or
+  // network retry is recognized server-side as the same operation rather
+  // than creating a duplicate. Regenerated explicitly on "New Sale" below,
+  // not on every render.
+  const [operationId, setOperationId] = useState(() => crypto.randomUUID());
 
   const customer = useBillingStore((state) => state.customer);
   const items = useBillingStore((state) => state.items);
+  const oldJewelleryItems = useBillingStore((state) => state.oldJewelleryItems);
+  const refund = useBillingStore((state) => state.refund);
   const discountAmount = useBillingStore((state) => state.discountAmount);
   const cgstPercent = useBillingStore((state) => state.cgstPercent);
   const sgstPercent = useBillingStore((state) => state.sgstPercent);
@@ -72,7 +82,45 @@ export default function BillingPage() {
   // Same calculations.ts the backend's loose sanity check expects to roughly
   // match - this is the live display AND the exact numbers submitted below.
   const totals = calculateInvoiceTotals(items, discountAmount, cgstPercent, sgstPercent);
-  const { pendingAmount, paymentStatus } = calculateNewPending(totals.grandTotal, payment?.amount ?? 0);
+  // Shared with TotalsPanel (which reads oldJewelleryItems from the store
+  // itself and calls the identical function) - the number shown there and
+  // the number used here for the payment cap can never drift apart.
+  const exchangeSettlement = calculateExchangeApplied(oldJewelleryItems, totals.grandTotal);
+  // creditUsed is always 0 - Customer Credit was built and then explicitly
+  // removed from this app's scope, see docs/old-jewellery-exchange-plan.md.
+  const { pendingAmount, paymentStatus, remainingBeforePayment } = calculateNewPending(
+    totals.grandTotal,
+    exchangeSettlement.exchangeApplied,
+    0,
+    payment?.amount ?? 0,
+  );
+
+  // Real, item-level validation for old jewellery - replaces the Step 3
+  // placeholder gate that unconditionally blocked Finalize whenever any old
+  // jewellery item existed (that gate existed only because the backend
+  // couldn't persist exchange data yet - it now can, see
+  // docs/old-jewellery-exchange-plan.md's Step 5 plan).
+  const hasExcess = exchangeSettlement.excessAmount > 0;
+  const isRefundComplete = refund.mode !== null && refund.confirmed;
+  // Exchange covers the bill exactly, or more than covers it (the excess
+  // case, settled separately via refund) - either way there's nothing left
+  // to collect, so the Payment input gets replaced with a plain statement
+  // instead of sitting there active with nothing valid to type into it.
+  const isFullySettled = remainingBeforePayment <= 0;
+
+  // Clears a payment amount that's now stale the moment old jewellery
+  // exchange grows enough to cover the whole bill - an actual side effect
+  // (a Zustand store write, not this component's own local state), so a
+  // real useEffect is used rather than the "derive during render" pattern
+  // this codebase uses elsewhere for local-state-only resets. Without this,
+  // a value typed before enough old jewellery was added would stay in the
+  // store (just hidden behind the now-disabled input) and could otherwise
+  // still ride along to Finalize.
+  useEffect(() => {
+    if (isFullySettled && payment !== null) {
+      setPayment(null);
+    }
+  }, [isFullySettled, payment, setPayment]);
 
   // Proactive, not just "fails on submit" - a row with rate_per_gram at 0
   // (or any other mandatory field unset) keeps the button disabled rather
@@ -84,6 +132,8 @@ export default function BillingPage() {
     customer.phone.trim().length > 0 &&
     items.length > 0 &&
     items.every(isItemValid) &&
+    oldJewelleryItems.every(isOldJewelleryItemValid) &&
+    (!hasExcess || isRefundComplete) &&
     !createInvoice.isPending;
 
   const handleFinalize = () => {
@@ -124,6 +174,32 @@ export default function BillingPage() {
       paid_amount: payment?.amount ?? 0,
       pending_amount: pendingAmount,
       payment_status: paymentStatus,
+      old_jewellery_items: oldJewelleryItems.map((item) => ({
+        description: item.description,
+        metal: item.metal,
+        purity: item.purity,
+        gross_wt_g: item.grossWtG,
+        stone_wt_g: item.stoneWtG,
+        dust_wt_g: item.dustWtG,
+        other_deduction_wt_g: item.otherDeductionWtG,
+        net_wt_g: item.netWtG,
+        default_rate_per_gram: item.defaultRatePerGram,
+        applied_rate_per_gram: item.appliedRatePerGram,
+        calculated_value: item.calculatedValue,
+        final_value: item.finalValue,
+        override_reason: item.overrideReason || undefined,
+      })),
+      excess_settlement: hasExcess ? "refund" : null,
+      refund:
+        hasExcess && refund.mode
+          ? {
+              amount: exchangeSettlement.excessAmount,
+              mode: refund.mode,
+              reference: refund.reference || undefined,
+              remarks: refund.remarks || undefined,
+            }
+          : undefined,
+      operation_id: oldJewelleryItems.length > 0 ? operationId : undefined,
     };
 
     const { fieldErrors: nextFieldErrors, itemErrors: nextItemErrors } = collectValidationErrors(body);
@@ -180,7 +256,18 @@ export default function BillingPage() {
             >
               Print Receipt
             </Button>
-            <Button onClick={() => setConfirmation(null)}>New Sale</Button>
+            <Button
+              onClick={() => {
+                setConfirmation(null);
+                // Fresh idempotency key for the next draft - reusing the
+                // previous one would be harmless (it'd just never match an
+                // existing invoice again), but a new draft is a genuinely
+                // new operation, not a retry of the last one.
+                setOperationId(crypto.randomUUID());
+              }}
+            >
+              New Sale
+            </Button>
           </div>
         </div>
       </div>
@@ -226,15 +313,41 @@ export default function BillingPage() {
               <div className="mt-3">
                 <PaymentPanel
                   bare
-                  showHint
                   payment={payment}
                   onChange={setPayment}
-                  grandTotal={totals.grandTotal}
+                  // remainingBeforePayment, not the raw grand total - this
+                  // prop is already semantically "the cap," not literally
+                  // the invoice total (the invoice detail page's Collect
+                  // Payment dialog already passes pending_amount here for
+                  // the same reason), so an exchange reduces what "Pay full
+                  // amount" fills in, same way a prior payment already would.
+                  grandTotal={remainingBeforePayment}
+                  payButtonLabel={exchangeSettlement.exchangeApplied > 0 ? "Pay remaining" : "Pay full amount"}
                   error={fieldErrors["paid_amount"] ?? fieldErrors["payment.amount"] ?? fieldErrors["payment.mode"]}
+                  disabled={isFullySettled}
                 />
               </div>
             </div>
           </div>
+
+          {/* Right after the Charges/Payment grid, not a separate panel
+              above it - keeps the whole settlement story (old jewellery
+              total → amount to pay → refund excess) reading as one block.
+              bare drops its own panel card in favor of a plain top border,
+              since it's now nested inside this panel instead of standing
+              alone. */}
+          <RefundSection bare />
+
+          {oldJewelleryItems.length > 0 && !oldJewelleryItems.every(isOldJewelleryItemValid) ? (
+            <p className="mt-4 text-sm text-destructive">
+              Every old jewellery item needs a description, gross weight, and rate before this sale can be
+              finalized.
+            </p>
+          ) : hasExcess && !isRefundComplete ? (
+            <p className="mt-4 text-sm text-destructive">
+              Choose a refund mode and confirm the payment above before this sale can be finalized.
+            </p>
+          ) : null}
 
           <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4">
             <p className="text-sm text-muted-foreground">

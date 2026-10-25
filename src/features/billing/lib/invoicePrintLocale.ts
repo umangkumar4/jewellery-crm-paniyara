@@ -29,11 +29,27 @@ export interface InvoicePrintLabels {
     makingCharge: string;
     stoneCharge: string;
     amount: string;
+    // Old Jewellery Exchange table only - metal/dustWt/value have no
+    // equivalent in the new-jewellery tableHeaders above (that table folds
+    // metal into Description's subtext and has no dust/value concept).
+    metal: string;
+    dustWt: string;
+    value: string;
   };
   subTotal: string;
   paymentSummary: string;
   amountPaid: string;
-  balanceDue: string;
+  // Settlement section shown below Grand Total when an exchange exists -
+  // see docs/old-jewellery-exchange-plan.md. oldJewelleryTotal/amountToPay
+  // replace what was a single "Exchange Applied" line in the old Payment
+  // Summary box; totalRemaining replaces "Balance Due" (same value -
+  // invoice.pending_amount - just relabeled since it's now the figure
+  // after exchange, not only after cash, even for an ordinary invoice
+  // where exchange is 0 and nothing about the number itself changes).
+  oldJewelleryExchange: string;
+  oldJewelleryTotal: string;
+  amountToPay: string;
+  totalRemaining: string;
   termsNote: string;
   taxableAmount: string;
   cgst: string;
@@ -73,11 +89,17 @@ export const invoicePrintLabels: Record<PrintLang, InvoicePrintLabels> = {
       makingCharge: "Making Charge",
       stoneCharge: "Stone Charge",
       amount: "Amount",
+      metal: "Metal",
+      dustWt: "Dust Wt (g)",
+      value: "Value",
     },
     subTotal: "Sub-Total",
     paymentSummary: "Payment Summary",
     amountPaid: "Amount Paid",
-    balanceDue: "Balance Due",
+    oldJewelleryExchange: "Old Jewellery Exchange",
+    oldJewelleryTotal: "Old Jewellery Total",
+    amountToPay: "Amount to Pay",
+    totalRemaining: "Total Remaining",
     termsNote: "Goods once sold will not be taken back or exchanged. Subject to local jurisdiction.",
     taxableAmount: "Taxable Amount",
     cgst: "CGST",
@@ -115,11 +137,17 @@ export const invoicePrintLabels: Record<PrintLang, InvoicePrintLabels> = {
       makingCharge: "मजदूरी",
       stoneCharge: "पत्थर शुल्क",
       amount: "राशि",
+      metal: "धातु",
+      dustWt: "धूल भार (ग्राम)",
+      value: "मूल्य",
     },
     subTotal: "उप-योग",
     paymentSummary: "भुगतान सारांश",
     amountPaid: "भुगतान राशि",
-    balanceDue: "शेष राशि",
+    oldJewelleryExchange: "पुराना आभूषण विनिमय",
+    oldJewelleryTotal: "पुराना आभूषण कुल",
+    amountToPay: "देय राशि",
+    totalRemaining: "कुल शेष",
     termsNote: "एक बार बिका हुआ माल वापस या विनिमय नहीं किया जाएगा। स्थानीय क्षेत्राधिकार के अधीन।",
     taxableAmount: "कर योग्य राशि",
     cgst: "सीजीएसटी",

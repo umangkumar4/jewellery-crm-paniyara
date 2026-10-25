@@ -3,6 +3,7 @@ import { dbConnect } from "@/lib/db/mongoose";
 import { requireAuth } from "@/server/auth/session";
 import {
   findInvoiceById,
+  findOldJewelleryExchangeItems,
   deleteInvoiceCascade,
   serializeInvoice,
   InvoiceNotFoundError,
@@ -22,7 +23,14 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     if (!invoice) {
       return Response.json({ error: "No invoice with this id" }, { status: 404 });
     }
-    return Response.json(serializeInvoice(invoice));
+    // A failure here (a real DB error, not "no exchange") still falls
+    // through to the same catch below as findInvoiceById's own failures -
+    // this isn't wrapped in its own try/catch, since there's nothing
+    // different to do for either failure: both are a 500, logged the same
+    // way, and a half-loaded invoice (items but no old jewellery data, or
+    // vice versa) isn't a response worth returning.
+    const old_jewellery_items = await findOldJewelleryExchangeItems(invoice.linkedOldPurchaseId);
+    return Response.json({ ...serializeInvoice(invoice), old_jewellery_items });
   } catch (error) {
     logger.error({ error }, "Failed to fetch invoice");
     return Response.json({ error: "Internal server error" }, { status: 500 });

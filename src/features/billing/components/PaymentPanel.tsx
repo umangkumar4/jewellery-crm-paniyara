@@ -35,19 +35,20 @@ interface PaymentPanelProps {
   // the invoice detail page's "Collect Payment" dialog too, which has
   // nothing to do with the billing page's validation state.
   error?: string;
-  // Independent of `bare` - `bare` only controls the outer panel/heading.
-  // This controls the "Optional - leave the amount at 0..." hint
-  // specifically, since that copy is billing-page-specific ("a fully
-  // on-credit sale") and doesn't fit the invoice detail page's "collect a
-  // payment against an existing invoice" dialog. Defaults to `!bare` so
-  // both pre-existing call sites keep their exact current behavior.
-  showHint?: boolean;
   // Label for the shortcut button that fills the amount field with
   // `grandTotal`. Defaults to "Pay full amount" (billing page: a new sale,
   // `grandTotal` is the full invoice total). The invoice detail page passes
   // "Pay remaining" instead, since there `grandTotal` is actually the
   // invoice's pending balance, not its total.
   payButtonLabel?: string;
+  // True when there's nothing left to collect (grandTotal, i.e. the cap
+  // this panel was given, is already 0 - an old jewellery exchange fully
+  // or more-than-fully covers the bill). Replaces the input entirely with
+  // a plain statement instead of leaving an editable ₹0 field sitting
+  // there - the caller is also responsible for clearing any stale payment
+  // amount once this becomes true, so a value typed before enough old
+  // jewellery was added can't silently ride along to Finalize.
+  disabled?: boolean;
 }
 
 // Reused as-is on the invoice detail page's "Collect Payment" dialog
@@ -60,10 +61,9 @@ export function PaymentPanel({
   grandTotal,
   bare = false,
   error,
-  showHint,
   payButtonLabel = "Pay full amount",
+  disabled = false,
 }: PaymentPanelProps) {
-  const effectiveShowHint = showHint ?? !bare;
   const amount = payment?.amount ?? 0;
   const mode = payment?.mode ?? "cash";
 
@@ -84,63 +84,56 @@ export function PaymentPanel({
     <div className={bare ? undefined : "panel p-6"}>
       {bare ? null : <h3 className="font-display text-xl text-foreground">Payment</h3>}
 
-      <div className={bare ? "grid grid-cols-2 gap-4" : "mt-4 grid grid-cols-2 gap-4"}>
-        <div>
-          <Label htmlFor="payment-amount">Amount Paid Now (₹)</Label>
-          <NumberField
-            id="payment-amount"
-            value={amountField.value}
-            onValueChange={amountField.onValueChange}
-            className={error ? "border-destructive focus-visible:ring-destructive" : undefined}
-          />
-          {/* max isn't enforced by the input itself (NumberField is a plain
-              text field, not type="number" - see numericInput.ts) - shown as
-              a hint instead; the real enforcement is the backend schema plus
-              the fieldErrors `error` message above, if it's ever exceeded.
-              The button stays visible even with an error showing - it sets
-              a known-valid amount (grandTotal), so it doubles as the fix
-              for "you typed too much", not just a shortcut for the first try. */}
-          <div className="mt-1.5 flex items-center justify-between gap-2">
-            {error ? (
-              <p className="text-xs text-destructive">{error}</p>
-            ) : (
-              <p className="text-xs text-muted-foreground">
-                {/* Moved here from a standalone line above the input grid -
-                    that line had no equivalent on TotalsPanel's side of the
-                    billing page's combined panel, so the two columns' label
-                    rows started at different heights. Folding it into this
-                    already-existing below-input hint line keeps both
-                    columns' grids flush with each other. */}
-                {effectiveShowHint ? "Leave at 0 for a fully on-credit sale · " : null}
-                Up to ₹{grandTotal.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-              </p>
-            )}
-            <button
-              type="button"
-              // Goes through amountField.onValueChange, the same path
-              // manual typing uses - keeps the display buffer, lastPushed,
-              // and the store update all in sync via one code path instead
-              // of a second one that could drift from it.
-              onClick={() => amountField.onValueChange(String(grandTotal))}
-              className="shrink-0 text-xs font-medium text-gold hover:underline"
-            >
-              {payButtonLabel}
-            </button>
+      {disabled ? (
+        <p className="mt-4 rounded-lg border border-border bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
+          Fully settled by old jewellery exchange — no payment needed.
+        </p>
+      ) : (
+        <div className={bare ? "grid grid-cols-2 gap-4" : "mt-4 grid grid-cols-2 gap-4"}>
+          <div>
+            <Label htmlFor="payment-amount">Amount Paid Now (₹)</Label>
+            <NumberField
+              id="payment-amount"
+              value={amountField.value}
+              onValueChange={amountField.onValueChange}
+              className={error ? "border-destructive focus-visible:ring-destructive" : undefined}
+            />
+            {/* max isn't enforced by the input itself (NumberField is a plain
+                text field, not type="number" - see numericInput.ts) - shown as
+                a hint instead; the real enforcement is the backend schema plus
+                the fieldErrors `error` message above, if it's ever exceeded.
+                The button stays visible even with an error showing - it sets
+                a known-valid amount (grandTotal), so it doubles as the fix
+                for "you typed too much", not just a shortcut for the first try. */}
+            <div className="mt-1.5 flex items-center justify-between gap-2">
+              {error ? <p className="text-xs text-destructive">{error}</p> : null}
+              <button
+                type="button"
+                // Goes through amountField.onValueChange, the same path
+                // manual typing uses - keeps the display buffer, lastPushed,
+                // and the store update all in sync via one code path instead
+                // of a second one that could drift from it.
+                onClick={() => amountField.onValueChange(String(grandTotal))}
+                className="shrink-0 text-xs font-medium text-gold hover:underline"
+              >
+                {payButtonLabel}
+              </button>
+            </div>
+          </div>
+          <div>
+            <Label htmlFor="payment-mode">Mode</Label>
+            <SelectField
+              inputId="payment-mode"
+              options={PAYMENT_MODE_OPTIONS}
+              value={PAYMENT_MODE_OPTIONS.find((o) => o.value === mode) ?? null}
+              isDisabled={amount <= 0}
+              onChange={(option) =>
+                onChange({ amount, mode: (option?.value ?? "cash") as BillingPaymentMode })
+              }
+            />
           </div>
         </div>
-        <div>
-          <Label htmlFor="payment-mode">Mode</Label>
-          <SelectField
-            inputId="payment-mode"
-            options={PAYMENT_MODE_OPTIONS}
-            value={PAYMENT_MODE_OPTIONS.find((o) => o.value === mode) ?? null}
-            isDisabled={amount <= 0}
-            onChange={(option) =>
-              onChange({ amount, mode: (option?.value ?? "cash") as BillingPaymentMode })
-            }
-          />
-        </div>
-      </div>
+      )}
     </div>
   );
 }

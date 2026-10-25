@@ -15,6 +15,7 @@ import { useAddPayment } from "@/features/billing/hooks/useAddPayment";
 import { calculateNewPending } from "@/features/billing/lib/calculations";
 import { useInvoiceDetail } from "@/features/dashboard/hooks/useInvoiceDetail";
 import type { InvoiceItemDetail } from "@/features/dashboard/hooks/useInvoiceDetail";
+import type { OldPurchaseItemDetail } from "@/features/dashboard/hooks/useOldPurchaseDetail";
 import type { BillingPayment } from "@/store/useBillingStore";
 
 // cgst_amount/sgst_amount are optional at the schema level (see
@@ -84,6 +85,40 @@ export default function InvoiceDetailPage() {
     [],
   );
 
+  // Same ag-grid convention as the main items table above (this page's own
+  // established pattern) rather than copying PrintInvoice.tsx's bordered-
+  // HTML-table style - each page stays internally consistent with itself.
+  // No HSN/Pcs/Making/Stone Charge - don't apply to a buy-back, see
+  // docs/old-jewellery-exchange-plan.md.
+  const oldItemColumnDefs = useMemo<ColDef<OldPurchaseItemDetail>[]>(
+    () => [
+      { field: "sr_no", headerName: "#", width: 60, headerClass: AG_GRID_HEADER_CLASS },
+      { field: "description", headerName: "Description", width: 200, headerClass: AG_GRID_HEADER_CLASS },
+      { field: "metal", headerName: "Metal", width: 90, headerClass: AG_GRID_HEADER_CLASS },
+      { field: "purity", headerName: "Purity", width: 90, headerClass: AG_GRID_HEADER_CLASS },
+      { field: "gross_wt_g", headerName: "Gross Wt (g)", width: 120, headerClass: AG_GRID_HEADER_CLASS },
+      { field: "stone_wt_g", headerName: "Stone Wt (g)", width: 120, headerClass: AG_GRID_HEADER_CLASS },
+      { field: "dust_wt_g", headerName: "Dust Wt (g)", width: 110, headerClass: AG_GRID_HEADER_CLASS },
+      { field: "net_wt_g", headerName: "Net Wt (g)", width: 110, headerClass: AG_GRID_HEADER_CLASS },
+      {
+        field: "applied_rate_per_gram",
+        headerName: "Rate/g",
+        width: 120,
+        headerClass: AG_GRID_HEADER_CLASS,
+        valueFormatter: (p) => (p.value != null ? formatInr(p.value) : ""),
+      },
+      {
+        field: "final_value",
+        headerName: "Value",
+        width: 130,
+        headerClass: AG_GRID_HEADER_CLASS,
+        cellClass: "font-medium! text-foreground!",
+        valueFormatter: (p) => (p.value != null ? formatInr(p.value) : ""),
+      },
+    ],
+    [],
+  );
+
   if (isLoading) {
     return <p className="text-sm text-muted-foreground">Loading…</p>;
   }
@@ -91,10 +126,32 @@ export default function InvoiceDetailPage() {
     return <p className="text-sm text-destructive">Could not load this invoice.</p>;
   }
 
+  // old_jewellery_items is embedded directly on the invoice response now
+  // (invoicesService.ts's findOldJewelleryExchangeItems()) - no second
+  // fetch to GET /api/old-purchases/:id needed just to render this page.
+  const hasExchange = invoice.exchange_applied > 0 && invoice.old_jewellery_items.length > 0;
+  // Same floor as PrintInvoice.tsx - exchange_applied is already correctly
+  // capped at grand_total server-side, so this shouldn't go negative, but
+  // the floor costs nothing and matches the same defensive convention.
+  const amountToPay = Math.max(0, invoice.grand_total - invoice.exchange_applied);
+  // The real, uncapped total - exchange_applied alone under-reports it
+  // whenever old jewellery is worth more than the bill (the excess/refund
+  // case), same fix as PrintInvoice.tsx's oldValueTotal.
+  const oldJewelleryTotal = invoice.old_jewellery_items.reduce((sum, item) => sum + item.final_value, 0);
+
   const handleCollect = () => {
     if (!draftPayment || draftPayment.amount <= 0) return;
     const newPaid = invoice.paid_amount + draftPayment.amount;
-    const { pendingAmount, paymentStatus } = calculateNewPending(invoice.grand_total, newPaid);
+    // invoice.exchange_applied, not a placeholder 0 - wired up in Step 5
+    // (docs/old-jewellery-exchange-plan.md). creditUsed stays 0, reserved
+    // for the deferred Credit phase. 0 for every ordinary invoice, so this
+    // is unchanged for the common case.
+    const { pendingAmount, paymentStatus } = calculateNewPending(
+      invoice.grand_total,
+      invoice.exchange_applied,
+      0,
+      newPaid,
+    );
 
     addPayment.mutate(
       {
@@ -118,7 +175,7 @@ export default function InvoiceDetailPage() {
   };
 
   return (
-    <div className="mx-auto max-w-4xl">
+    <div className="mx-2 max-w-full">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="font-display text-2xl text-foreground">{invoice.invoice_no}</h2>
@@ -161,6 +218,24 @@ export default function InvoiceDetailPage() {
               animateRows={false}
             />
           </div>
+
+          {hasExchange ? (
+            <>
+              <h3 className="mt-6 font-display text-lg text-foreground">Old Jewellery Exchange</h3>
+              <div className="mt-3">
+                <AgGridReact<OldPurchaseItemDetail>
+                  theme={agGridTheme}
+                  defaultColDef={AG_GRID_DEFAULT_COL_DEF}
+                  rowData={invoice.old_jewellery_items}
+                  columnDefs={oldItemColumnDefs}
+                  getRowId={(p) => String(p.data.sr_no)}
+                  domLayout="autoHeight"
+                  suppressCellFocus
+                  animateRows={false}
+                />
+              </div>
+            </>
+          ) : null}
 
           <h3 className="mt-6 font-display text-lg text-foreground">Payments</h3>
           {invoice.payments.length === 0 ? (
@@ -214,6 +289,22 @@ export default function InvoiceDetailPage() {
               <dt className="text-foreground">Grand Total</dt>
               <dd className="gold-text">{formatInr(invoice.grand_total)}</dd>
             </div>
+            {/* Settlement line, not a repricing - the grand total above
+                never changes because of an exchange. Gated on > 0 so every
+                ordinary invoice (the overwhelming majority) renders
+                exactly as it did before this existed. */}
+            {invoice.exchange_applied > 0 ? (
+              <>
+                <div className="flex justify-between">
+                  <dt className="text-muted-foreground">Old Jewellery Total</dt>
+                  <dd className="text-foreground">{formatInr(oldJewelleryTotal)}</dd>
+                </div>
+                <div className="flex justify-between font-medium">
+                  <dt className="text-foreground">Amount to Pay</dt>
+                  <dd className="text-foreground">{formatInr(amountToPay)}</dd>
+                </div>
+              </>
+            ) : null}
             <div className="flex justify-between">
               <dt className="text-muted-foreground">Paid</dt>
               <dd className="text-foreground">{formatInr(invoice.paid_amount)}</dd>

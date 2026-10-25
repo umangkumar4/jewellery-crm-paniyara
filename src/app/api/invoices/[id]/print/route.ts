@@ -1,7 +1,11 @@
 import { logger } from "@/lib/logger";
 import { dbConnect } from "@/lib/db/mongoose";
 import { requireAuth } from "@/server/auth/session";
-import { findInvoiceById, serializeInvoice } from "@/server/services/invoicesService";
+import {
+  findInvoiceById,
+  findOldJewelleryExchangeItems,
+  serializeInvoice,
+} from "@/server/services/invoicesService";
 
 export const dynamic = "force-dynamic";
 
@@ -21,7 +25,8 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     if (!invoice) {
       return Response.json({ error: "No invoice with this id" }, { status: 404 });
     }
-    return Response.json(serializeInvoice(invoice));
+    const old_jewellery_items = await findOldJewelleryExchangeItems(invoice.linkedOldPurchaseId);
+    return Response.json({ ...serializeInvoice(invoice), old_jewellery_items });
   } catch (error) {
     logger.error({ error }, "Failed to fetch invoice for printing");
     return Response.json({ error: "Internal server error" }, { status: 500 });

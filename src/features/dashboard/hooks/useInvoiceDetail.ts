@@ -1,5 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api-client";
+// Same per-item shape the server's serializeOldJewelleryItemLine() produces
+// - reused here rather than redefined, so this type can never silently
+// drift from what GET /api/old-purchases/:id already uses it for.
+import type { OldPurchaseItemDetail } from "@/features/dashboard/hooks/useOldPurchaseDetail";
 
 export interface InvoiceItemDetail {
   sr_no: number;
@@ -47,6 +51,17 @@ export interface InvoiceDetail {
   paid_amount: number;
   pending_amount: number;
   payment_status: "unpaid" | "partial" | "paid";
+  // Required/defaulted at the Mongoose level (0/null, not undefined) -
+  // always present, unlike the GST fields above. 0/null for every ordinary
+  // invoice with no old jewellery exchange.
+  exchange_applied: number;
+  linked_old_purchase_id: string | null;
+  linked_old_purchase_no: string | null;
+  // [] for every ordinary invoice with no old jewellery exchange - embedded
+  // server-side (invoicesService.ts's findOldJewelleryExchangeItems()) so
+  // the detail/print pages don't need a second request to
+  // GET /api/old-purchases/:id just to render this.
+  old_jewellery_items: OldPurchaseItemDetail[];
   created_at: string;
 }
 

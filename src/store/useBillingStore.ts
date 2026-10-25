@@ -1,6 +1,5 @@
 import { create } from "zustand";
 import { calculateItemTotal, calculateOldJewelleryItemValuation, type MakingMethod } from "@/features/billing/lib/calculations";
-import { METALS } from "@/lib/metals";
 
 export interface BillingCustomer {
   name: string;
@@ -76,6 +75,30 @@ export interface BillingPayment {
   mode: BillingPaymentMode;
 }
 
+// Deliberately narrower than BillingPaymentMode (no "card") - both source
+// requirement docs consistently list only Cash/UPI/Bank Transfer for
+// refunds and withdrawals, never card. A shop doesn't pay a customer out
+// over a card network.
+export type RefundMode = "cash" | "upi" | "bank_transfer";
+
+// The refund amount is deliberately NOT a field here - per the confirmed
+// "exact match only" rule it's always exactly the exchange excess, so it's
+// read live from calculateExchangeApplied() wherever it's needed (e.g.
+// RefundSection.tsx) rather than copied into a second number that could
+// drift stale if old jewellery items change after this form is opened.
+// Only the genuinely free-form parts are draft state.
+export interface OldJewelleryRefundDraft {
+  mode: RefundMode | null;
+  reference: string;
+  remarks: string;
+  // "I confirm this refund has been paid to the customer outside the
+  // software" - the software only records a manual payout, never claims to
+  // execute or verify one itself.
+  confirmed: boolean;
+}
+
+const EMPTY_REFUND: OldJewelleryRefundDraft = { mode: null, reference: "", remarks: "", confirmed: false };
+
 const EMPTY_CUSTOMER: BillingCustomer = { name: "", phone: "", email: "", address: "" };
 
 // Keyed by dot-joined Zod issue path for anything outside items[] -
@@ -92,6 +115,10 @@ interface BillingState {
   customer: BillingCustomer;
   items: BillingItem[];
   oldJewelleryItems: OldJewelleryDraftItem[];
+  // Always a plain object, never null - RefundSection only renders while
+  // the exchange excess is > 0 anyway, so there's no need for a nullable
+  // wrapper to represent "not applicable."
+  refund: OldJewelleryRefundDraft;
   discountAmount: number;
   // Independently editable - not forced to a 50/50 split of one GST% field.
   cgstPercent: number;
@@ -105,12 +132,13 @@ interface BillingState {
   updateItem: (index: number, patch: Partial<Omit<BillingItem, "total" | "id">>) => void;
   removeItem: (index: number) => void;
   hasTag: (tagCode: string) => boolean;
-  // addOldJewelleryItem takes no required fields - it seeds a blank row the
-  // admin fills in, same "+ Add" affordance as the main items grid, rather
-  // than a pre-populated item like a tag-linked addItem() call.
-  addOldJewelleryItem: () => void;
+  // Takes the fully-filled item from AddOldJewelleryItemDialog - same
+  // "filled via a modal, then appended" convention as the main items grid's
+  // addItem()/ManualAddForm, not a blank row seeded for inline editing.
+  addOldJewelleryItem: (item: Omit<OldJewelleryDraftItem, "id" | "netWtG" | "calculatedValue">) => void;
   updateOldJewelleryItem: (id: string, patch: Partial<Omit<OldJewelleryDraftItem, "id">>) => void;
   removeOldJewelleryItem: (id: string) => void;
+  updateRefund: (patch: Partial<OldJewelleryRefundDraft>) => void;
   setDiscountAmount: (amount: number) => void;
   setCgstPercent: (percent: number) => void;
   setSgstPercent: (percent: number) => void;
@@ -165,6 +193,7 @@ export const useBillingStore = create<BillingState>((set, get) => ({
   customer: EMPTY_CUSTOMER,
   items: [],
   oldJewelleryItems: [],
+  refund: EMPTY_REFUND,
   discountAmount: 0,
   // Sums to the same 3% the old single gstPercent field defaulted to.
   cgstPercent: 1.5,
@@ -201,25 +230,9 @@ export const useBillingStore = create<BillingState>((set, get) => ({
   hasTag: (tagCode) =>
     get().items.some((item) => item.tagCode?.toUpperCase() === tagCode.toUpperCase()),
 
-  addOldJewelleryItem: () =>
+  addOldJewelleryItem: (item) =>
     set((state) => ({
-      oldJewelleryItems: [
-        ...state.oldJewelleryItems,
-        withValuation({
-          id: crypto.randomUUID(),
-          description: "",
-          metal: METALS[0],
-          purity: "",
-          grossWtG: 0,
-          stoneWtG: 0,
-          dustWtG: 0,
-          otherDeductionWtG: 0,
-          defaultRatePerGram: null,
-          appliedRatePerGram: 0,
-          finalValue: 0,
-          overrideReason: "",
-        }),
-      ],
+      oldJewelleryItems: [...state.oldJewelleryItems, withValuation({ ...item, id: crypto.randomUUID() })],
       ...NO_ERRORS,
     })),
 
@@ -237,6 +250,14 @@ export const useBillingStore = create<BillingState>((set, get) => ({
       ...NO_ERRORS,
     })),
 
+  // Deliberately NOT auto-cleared when the exchange excess drops to 0 (e.g.
+  // an old item is removed) - RefundSection simply stops rendering, and the
+  // leftover mode/reference/remarks sit inert and unused until excess
+  // returns, if it does. Adding reactive reset-on-excess-change logic here
+  // would be a new state-management bug surface guarding against a
+  // scenario that's already harmless - see docs/old-jewellery-exchange-plan.md.
+  updateRefund: (patch) => set((state) => ({ refund: { ...state.refund, ...patch } })),
+
   setDiscountAmount: (discountAmount) => set({ discountAmount, ...NO_ERRORS }),
   setCgstPercent: (cgstPercent) => set({ cgstPercent, ...NO_ERRORS }),
   setSgstPercent: (sgstPercent) => set({ sgstPercent, ...NO_ERRORS }),
@@ -248,6 +269,7 @@ export const useBillingStore = create<BillingState>((set, get) => ({
       customer: EMPTY_CUSTOMER,
       items: [],
       oldJewelleryItems: [],
+      refund: EMPTY_REFUND,
       discountAmount: 0,
       cgstPercent: 1.5,
       sgstPercent: 1.5,

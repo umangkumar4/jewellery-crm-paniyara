@@ -1,4 +1,5 @@
 import { Schema, model, models, Types, type Document, type Model } from "mongoose";
+import type { OldJewelleryPurchaseDocument } from "@/models/OldJewelleryPurchase.model";
 
 export type OldJewelleryItemStatus = "IN_SHOP" | "DISPOSED" | "MELTED";
 
@@ -6,7 +7,10 @@ export interface OldJewelleryStatusChange {
   from: OldJewelleryItemStatus;
   to: OldJewelleryItemStatus;
   reason: string;
-  changedBy: Types.ObjectId;
+  // Nullable - same gap as OldJewelleryPurchase.createdBy (Step 5): no
+  // route in this app threads the authenticated admin's user id through to
+  // a service-layer write, so this can never actually be populated today.
+  changedBy: Types.ObjectId | null;
   changedAt: Date;
 }
 
@@ -15,7 +19,10 @@ export interface OldJewelleryStatusChange {
 // transition (IN_SHOP -> DISPOSED/MELTED) per-item, even though several
 // items share one purchase reference/receipt.
 export interface OldJewelleryItemDocument extends Document {
-  purchaseId: Types.ObjectId;
+  // Union with the populated document, same convention as Tag.model.ts's
+  // purityId - plain ObjectId by default, the real document only after an
+  // explicit .populate("purchaseId", ...) call, checked at the call site.
+  purchaseId: Types.ObjectId | OldJewelleryPurchaseDocument;
   srNo: number;
   description: string;
   metal: string;
@@ -50,7 +57,7 @@ const statusChangeSchema = new Schema<OldJewelleryStatusChange>(
     from: { type: String, enum: ["IN_SHOP", "DISPOSED", "MELTED"], required: true },
     to: { type: String, enum: ["IN_SHOP", "DISPOSED", "MELTED"], required: true },
     reason: { type: String, required: true, trim: true },
-    changedBy: { type: Schema.Types.ObjectId, ref: "User", required: true },
+    changedBy: { type: Schema.Types.ObjectId, ref: "User", default: null },
     changedAt: { type: Date, required: true, default: Date.now },
   },
   { _id: false },

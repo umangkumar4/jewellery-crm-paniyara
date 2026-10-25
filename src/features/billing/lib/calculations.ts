@@ -92,24 +92,74 @@ export function calculateInvoiceTotals(
   };
 }
 
+export interface ExchangeSettlement {
+  // Sum of old jewellery items' finalValue, rounded to a whole rupee here -
+  // finalValue is a free-typed field that can carry decimals (unlike
+  // calculatedValue, which is always Math.round()-ed), and every other
+  // money figure in this app (grandTotal, pendingAmount) is a whole rupee.
+  // Rounding once at this shared boundary stops fractional drift from ever
+  // entering the rest of the settlement math.
+  oldJewelleryTotal: number;
+  // min(oldJewelleryTotal, grandTotal) - what's actually applied to the bill.
+  exchangeApplied: number;
+  // max(0, oldJewelleryTotal - grandTotal) - old jewellery worth more than
+  // the bill. Surfaced here but not settled by this function - the Refund/
+  // Credit choice is a later phase (docs/old-jewellery-exchange-plan.md).
+  excessAmount: number;
+}
+
+// The one shared source of truth for exchange figures - called from every
+// place that needs them (TotalsPanel for live display, billing/page.tsx for
+// the payment cap and eventual submit body), same "the number shown and the
+// number used can never drift apart" principle calculateInvoiceTotals
+// already established for subtotal/GST.
+export function calculateExchangeApplied(
+  oldJewelleryItems: { finalValue: number }[],
+  grandTotal: number,
+): ExchangeSettlement {
+  const oldJewelleryTotal = Math.round(oldJewelleryItems.reduce((sum, item) => sum + item.finalValue, 0));
+  const exchangeApplied = Math.min(oldJewelleryTotal, grandTotal);
+  const excessAmount = Math.max(0, oldJewelleryTotal - grandTotal);
+  return { oldJewelleryTotal, exchangeApplied, excessAmount };
+}
+
 export type PaymentStatus = "unpaid" | "partial" | "paid";
 
 export interface NewPending {
   pendingAmount: number;
   paymentStatus: PaymentStatus;
+  // Amount still due after exchange/credit but before cash/UPI/etc - what
+  // PaymentPanel's "Up to ₹X" cap and "Pay full amount" shortcut should use,
+  // exposed here so every caller reads it from one place instead of each
+  // re-deriving grandTotal - exchangeApplied slightly differently.
+  remainingBeforePayment: number;
 }
 
-export function calculateNewPending(grandTotal: number, paidAmount: number): NewPending {
-  const pendingAmount = Math.max(0, grandTotal - paidAmount);
-  let paymentStatus: PaymentStatus = "unpaid";
+export function calculateNewPending(
+  grandTotal: number,
+  exchangeApplied: number,
+  // Always 0 in Phase 1 - reserved for the deferred Credit phase. No default
+  // value, deliberately - every caller must state it explicitly rather than
+  // silently inherit a hidden 0, so a future caller can't forget it exists.
+  creditUsed: number,
+  paidAmount: number,
+): NewPending {
+  // Defensively clamped, same "never trust a raw input blindly even
+  // internally" rule calculateInvoiceTotals already applies to discountAmount.
+  const safeExchange = Math.min(Math.max(0, exchangeApplied), grandTotal);
+  const safeCredit = Math.min(Math.max(0, creditUsed), grandTotal - safeExchange);
+  const remainingBeforePayment = Math.max(0, grandTotal - safeExchange - safeCredit);
+  const pendingAmount = Math.max(0, remainingBeforePayment - paidAmount);
+  const settled = safeExchange + safeCredit + paidAmount;
 
-  if (paidAmount >= grandTotal) {
+  let paymentStatus: PaymentStatus = "unpaid";
+  if (settled >= grandTotal) {
     paymentStatus = "paid";
-  } else if (paidAmount > 0) {
+  } else if (settled > 0) {
     paymentStatus = "partial";
   }
 
-  return { pendingAmount, paymentStatus };
+  return { pendingAmount, paymentStatus, remainingBeforePayment };
 }
 
 export interface OldJewelleryItemValuationInput {

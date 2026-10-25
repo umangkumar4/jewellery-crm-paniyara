@@ -40,7 +40,27 @@ export interface OldJewelleryPurchaseDocument extends Document {
   // docs/old-jewellery-exchange-plan.md's "Key decisions" §2 (Phase 1
   // technical plan).
   status: OldJewelleryPurchaseStatus;
-  createdBy: Types.ObjectId;
+  // Nullable - no route in this app currently threads the authenticated
+  // admin's user id through to a service-layer write (requireAuth()
+  // verifies the token and discards the payload; every other write here
+  // has the same "no admin attribution" posture). Capturing it properly
+  // would mean changing requireAuth()'s contract across every route, well
+  // beyond this feature's scope - left null until that's done separately.
+  createdBy: Types.ObjectId | null;
+  // Idempotency key for the standalone purchase path only (sell-without-buy,
+  // see docs/old-jewellery-exchange-plan.md) - a double-click/network-retry
+  // of "Record Purchase" returns the original purchase instead of creating
+  // a second one and paying the customer out twice. The billing_exchange
+  // path never writes this (it's already covered by Invoice.operationId,
+  // whose check gates the whole transaction including this document's
+  // creation) - genuinely absent (not set to null) for every billing_exchange
+  // row. No schema `default` here on purpose: a sparse unique index only
+  // excludes documents where the field is truly MISSING, not documents
+  // where it's present with value null - a schema default of null made
+  // every billing_exchange purchase "present" in the index with the same
+  // value, so the second one ever created collided with a duplicate-key
+  // error (the bug this comment is here to prevent reintroducing).
+  operationId: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -74,12 +94,15 @@ const oldJewelleryPurchaseSchema = new Schema<OldJewelleryPurchaseDocument>(
     excessSettlement: { type: String, enum: ["refund", "credit"], default: null },
     refund: { type: refundSchema, default: null },
     status: { type: String, enum: ["active", "cancelled"], required: true, default: "active", index: true },
-    createdBy: { type: Schema.Types.ObjectId, ref: "User", required: true },
+    createdBy: { type: Schema.Types.ObjectId, ref: "User", default: null },
+    // No `default: null` - see the interface field's comment above for why.
+    operationId: { type: String },
   },
   { timestamps: true },
 );
 
 oldJewelleryPurchaseSchema.index({ createdAt: -1 });
+oldJewelleryPurchaseSchema.index({ operationId: 1 }, { unique: true, sparse: true });
 
 export const OldJewelleryPurchaseModel: Model<OldJewelleryPurchaseDocument> =
   (models.OldJewelleryPurchase as Model<OldJewelleryPurchaseDocument>) ??

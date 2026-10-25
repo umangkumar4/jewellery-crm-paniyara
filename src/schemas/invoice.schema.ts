@@ -1,10 +1,16 @@
 import { z } from "zod";
 
 const paymentModeSchema = z.enum(["cash", "upi", "card", "bank_transfer"]);
+// Deliberately narrower than paymentModeSchema (no "card") - matches
+// RefundMode on the client, and both source requirement docs only ever
+// list Cash/UPI/Bank Transfer for refunds/withdrawals.
+const refundModeSchema = z.enum(["cash", "upi", "bank_transfer"]);
 const paymentStatusSchema = z.enum(["unpaid", "partial", "paid"]);
 const makingMethodSchema = z.enum(["fixed", "per_gram", "percent_metal"]);
 
-const invoiceCustomerInputSchema = z.object({
+// Exported for reuse by standaloneOldJewelleryPurchase.schema.ts - same
+// customer shape, no reason to duplicate the field rules.
+export const invoiceCustomerInputSchema = z.object({
   name: z.string().trim().min(1, "Customer name is required"),
   phone: z.string().trim().min(1, "Customer phone is required"),
   email: z.string().trim().toLowerCase().email("Invalid email address").optional(),
@@ -50,6 +56,42 @@ const invoicePaymentInputSchema = z.object({
   mode: paymentModeSchema,
 });
 
+// Old jewellery exchanged during this sale - settlement against the bill
+// (exchange-first), never a discount on the items above. See
+// docs/old-jewellery-exchange-plan.md.
+// Exported for reuse by standaloneOldJewelleryPurchase.schema.ts.
+export const oldJewelleryItemInputSchema = z
+  .object({
+    description: z.string().trim().min(1, "Description is required"),
+    metal: z.string().trim().min(1, "Metal is required"),
+    // Optional end-to-end, same decision as new-jewellery items' purity.
+    purity: z.string().trim(),
+    gross_wt_g: z.number().positive("Gross weight is required"),
+    stone_wt_g: z.number().min(0, "Stone weight must be 0 or more").default(0),
+    dust_wt_g: z.number().min(0, "Dust weight must be 0 or more").default(0),
+    other_deduction_wt_g: z.number().min(0, "Other deduction must be 0 or more").default(0),
+    net_wt_g: z.number().min(0, "Net weight cannot be negative"),
+    // null - this purity had no default purchase rate configured in
+    // Settings yet, so the admin typed applied_rate_per_gram manually.
+    default_rate_per_gram: z.number().min(0).nullable(),
+    applied_rate_per_gram: z.number().positive("Rate is required"),
+    calculated_value: z.number().min(0, "Calculated value cannot be negative"),
+    final_value: z.number().min(0, "Final value cannot be negative"),
+    override_reason: z.string().trim().optional(),
+  })
+  .refine((item) => item.stone_wt_g + item.dust_wt_g + item.other_deduction_wt_g <= item.gross_wt_g, {
+    message: "Deductions cannot exceed gross weight",
+    path: ["gross_wt_g"],
+  });
+
+// Exported for reuse by standaloneOldJewelleryPurchase.schema.ts.
+export const oldJewelleryRefundInputSchema = z.object({
+  amount: z.number().positive("Refund amount must be greater than 0"),
+  mode: refundModeSchema,
+  reference: z.string().trim().optional(),
+  remarks: z.string().trim().optional(),
+});
+
 // Cross-field checks here are structural guards, not a recomputation of the
 // client's GST/pricing math (that's an explicit project rule - see
 // docs/billing-plan.md decision 7). Each .refine() carries a top-level field
@@ -81,11 +123,50 @@ export const createInvoiceSchema = z
     paid_amount: z.number().min(0, "Paid amount cannot be negative"),
     pending_amount: z.number().min(0, "Pending amount cannot be negative"),
     payment_status: paymentStatusSchema,
+    // Empty array for the overwhelming majority of ordinary sales - every
+    // new refine/field below that touches this is a no-op when it's empty,
+    // see the refines' own comments.
+    old_jewellery_items: z.array(oldJewelleryItemInputSchema).default([]),
+    // Only "refund" exists - Customer Credit was built and then explicitly
+    // removed from this app's scope, see docs/old-jewellery-exchange-plan.md.
+    excess_settlement: z.enum(["refund"]).nullable().default(null),
+    refund: oldJewelleryRefundInputSchema.optional(),
+    // Idempotency key, exchange path only (see docs/old-jewellery-exchange-plan.md's
+    // Step 5 scoping decision) - optional because ordinary sales don't send one.
+    operation_id: z.string().uuid("Invalid operation id").optional(),
   })
   .refine((data) => data.paid_amount <= data.grand_total, {
     message: "Paid amount cannot exceed the grand total",
     path: ["paid_amount"],
   })
+  // Mandatory exchange-first rule's excess side: if the old jewellery total
+  // exceeds the bill, the admin must have chosen Refund and the refund
+  // amount must match the excess exactly (±₹1 tolerance, same style as the
+  // grand_total check below). A structural guard, not a recomputation of
+  // the service layer's own authoritative exchangeApplied/excessAmount
+  // (decision 20's deliberate exception to "client math is authoritative") -
+  // that happens again, independently, inside the transaction itself.
+  .refine(
+    (data) => {
+      const oldJewelleryTotal = data.old_jewellery_items.reduce((sum, item) => sum + item.final_value, 0);
+      const excessAmount = Math.max(0, Math.round(oldJewelleryTotal) - data.grand_total);
+      if (excessAmount <= 0) return true;
+      return data.excess_settlement === "refund" && !!data.refund && Math.abs(data.refund.amount - excessAmount) <= 1;
+    },
+    { message: "Refund amount does not match the exchange excess", path: ["refund"] },
+  )
+  // The reverse case - no excess, so there's nothing to settle. Defensive:
+  // shouldn't be reachable from the UI (RefundSection only renders while
+  // excess is positive), rejected here anyway rather than silently accepted.
+  .refine(
+    (data) => {
+      const oldJewelleryTotal = data.old_jewellery_items.reduce((sum, item) => sum + item.final_value, 0);
+      const excessAmount = Math.max(0, Math.round(oldJewelleryTotal) - data.grand_total);
+      if (excessAmount > 0) return true;
+      return data.excess_settlement === null && !data.refund;
+    },
+    { message: "No excess to settle - remove the refund/settlement choice", path: ["excess_settlement"] },
+  )
   .refine(
     (data) =>
       Math.abs(data.grand_total - (data.subtotal - data.discount_amount + data.gst_amount)) <= 1,

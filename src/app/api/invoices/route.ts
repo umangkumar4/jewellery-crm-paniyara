@@ -8,6 +8,8 @@ import {
   serializeInvoiceListItem,
   TagNotFoundError,
   TagAlreadySoldError,
+  RefundMismatchError,
+  PaymentExceedsBalanceError,
 } from "@/server/services/invoicesService";
 import { validationErrorResponse } from "@/server/validation";
 
@@ -79,7 +81,21 @@ export async function POST(request: Request) {
         { status: 409 },
       );
     }
-    logger.error({ error }, "Failed to create invoice");
+    // Duplicate operation_id (exchange path) isn't handled here - it's not
+    // an error at all, createInvoice() returns the original invoice and
+    // this same success path above runs normally.
+    if (error instanceof RefundMismatchError) {
+      return Response.json({ error: error.message }, { status: 422 });
+    }
+    if (error instanceof PaymentExceedsBalanceError) {
+      return Response.json({ error: error.message }, { status: 422 });
+    }
+    // `err` (not `error`) is pino's special key - only under that key does
+    // it apply its built-in serializer (message, stack, type). Logged under
+    // a plain key, a bare Error instance has no enumerable own properties
+    // and serializes to an unhelpful `{}`, which is exactly what made this
+    // one impossible to diagnose from the terminal output alone.
+    logger.error({ err: error }, "Failed to create invoice");
     return Response.json({ error: "Internal server error" }, { status: 500 });
   }
 }

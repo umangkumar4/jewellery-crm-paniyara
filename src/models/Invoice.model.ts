@@ -68,6 +68,18 @@ export interface InvoiceDocument extends Document {
   exchangeApplied: number;
   linkedOldPurchaseId: Types.ObjectId | null;
   linkedOldPurchaseNo: string | null;
+  // Idempotency key for the exchange path only (see docs/old-jewellery-exchange-plan.md's
+  // Step 5 scoping decision) - genuinely absent (not set to null) for every
+  // ordinary sale, which doesn't set or check this at all. No schema
+  // `default` here on purpose: a sparse unique index only excludes
+  // documents where the field is truly MISSING, not documents where it's
+  // present with value null - a schema default of null (or explicitly
+  // writing null in a .create() call) would make every such invoice
+  // "present" in the index with the same value, and the second one would
+  // collide with a duplicate-key error. invoicesService.ts's createInvoice()
+  // only ever includes this key in the object it creates when there's a
+  // real value.
+  operationId: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -142,9 +154,13 @@ const invoiceSchema = new Schema<InvoiceDocument>(
     exchangeApplied: { type: Number, required: true, min: 0, default: 0 },
     linkedOldPurchaseId: { type: Schema.Types.ObjectId, ref: "OldJewelleryPurchase", default: null },
     linkedOldPurchaseNo: { type: String, default: null },
+    // No `default: null` - see the interface field's comment above for why.
+    operationId: { type: String },
   },
   { timestamps: true },
 );
+
+invoiceSchema.index({ operationId: 1 }, { unique: true, sparse: true });
 
 invoiceSchema.index({ createdAt: -1 });
 

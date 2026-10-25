@@ -61,6 +61,23 @@ const COL_WIDTHS = {
   amount: "9%",
 };
 
+// Old Jewellery Exchange table - no HSN/Pcs/Making/Stone Charge (don't
+// apply to a buy-back, see docs/old-jewellery-exchange-plan.md's Step 6
+// scope decision), metal/purity are their own columns instead of folded
+// into Description, and dust weight is unique to this table.
+const OLD_COL_WIDTHS = {
+  sr: "4%",
+  description: "20%",
+  metal: "9%",
+  purity: "9%",
+  grossWt: "9%",
+  stoneWt: "9%",
+  dustWt: "9%",
+  netWt: "9%",
+  rate: "11%",
+  value: "11%",
+};
+
 // No vertical column dividers - a single light row-separator per cell
 // (bottom edge only), not a boxed spreadsheet grid. The table already sits
 // inside the document's own outer border, so it doesn't need a second frame.
@@ -124,6 +141,24 @@ export function PrintInvoice({ id }: PrintInvoiceProps) {
   const makingTotal = invoice.items.reduce((sum, item) => sum + item.making_charge, 0);
   const stoneChargeTotal = invoice.items.reduce((sum, item) => sum + item.stone_charge, 0);
   const amountTotal = invoice.items.reduce((sum, item) => sum + item.total, 0);
+
+  // Settlement against the bill, not a repricing - grand_total itself never
+  // changes because of an exchange. exchange_applied (not the raw old
+  // jewellery total) is what's actually subtracted here, since it's
+  // already correctly capped at grand_total server-side
+  // (min(oldJewelleryTotal, grandTotal)) - using the raw total instead
+  // could go negative if the old jewellery was worth more than the bill
+  // (the excess/refund case, settled separately, not shown here).
+  // old_jewellery_items is embedded directly on the invoice response now
+  // (invoicesService.ts's findOldJewelleryExchangeItems()) - no second
+  // fetch to GET /api/old-purchases/:id needed just to render this table.
+  const hasExchange = invoice.exchange_applied > 0 && invoice.old_jewellery_items.length > 0;
+  const amountToPay = Math.max(0, invoice.grand_total - invoice.exchange_applied);
+  const oldGrossWtTotal = invoice.old_jewellery_items.reduce((sum, item) => sum + item.gross_wt_g, 0);
+  const oldStoneWtTotal = invoice.old_jewellery_items.reduce((sum, item) => sum + item.stone_wt_g, 0);
+  const oldDustWtTotal = invoice.old_jewellery_items.reduce((sum, item) => sum + item.dust_wt_g, 0);
+  const oldNetWtTotal = invoice.old_jewellery_items.reduce((sum, item) => sum + item.net_wt_g, 0);
+  const oldValueTotal = invoice.old_jewellery_items.reduce((sum, item) => sum + item.final_value, 0);
 
   return (
     <>
@@ -330,17 +365,20 @@ export function PrintInvoice({ id }: PrintInvoiceProps) {
                   <div className="grid grid-cols-[110px_1fr] gap-y-1.5 text-[11.5px]">
                     <div className="text-muted-foreground">{t.paymentMode}</div>
                     <div className="font-semibold">{paymentModeText}</div>
-                    <div className="text-muted-foreground">{t.amountPaid}</div>
-                    <div className="font-semibold tabular-nums">{formatInr(invoice.paid_amount)}</div>
-                    <div className="text-muted-foreground">{t.balanceDue}</div>
-                    <div className="font-bold tabular-nums" style={{ color: "#8a3129" }}>
-                      {formatInr(invoice.pending_amount)}
-                    </div>
                   </div>
                 </div>
                 <div className="mt-2.5 text-[9.5px] italic text-muted-foreground">{t.termsNote}</div>
               </div>
+              {/* Discount moved above Taxable Amount - previously sat after
+                  CGST/SGST, so the taxable figure appeared before the line
+                  explaining why it's lower than Subtotal. */}
               <div className="grid grid-cols-[1fr_auto] text-[11.5px]">
+                <div className="border-b border-[#c9beac] bg-[#fdf4df] px-4 py-1.5 text-muted-foreground">
+                  {t.discount}
+                </div>
+                <div className="border-b border-[#c9beac] bg-[#fdf4df] px-4 py-1.5 text-right font-semibold tabular-nums">
+                  − {formatInr(invoice.discount_amount)}
+                </div>
                 <div className="border-b border-[#c9beac] px-4 py-1.5 text-muted-foreground">{t.taxableAmount}</div>
                 <div className="border-b border-[#c9beac] px-4 py-1.5 text-right font-semibold tabular-nums">
                   {formatInr(taxableAmount)}
@@ -349,17 +387,13 @@ export function PrintInvoice({ id }: PrintInvoiceProps) {
                   {t.cgst} ({invoice.cgst_percent ?? "—"}%)
                 </div>
                 <div className="border-b border-[#c9beac] px-4 py-1.5 text-right font-semibold tabular-nums">
-                  {formatInr(invoice.cgst_amount)}
+                  + {formatInr(invoice.cgst_amount)}
                 </div>
                 <div className="border-b border-[#c9beac] px-4 py-1.5 text-muted-foreground">
                   {t.sgst} ({invoice.sgst_percent ?? "—"}%)
                 </div>
                 <div className="border-b border-[#c9beac] px-4 py-1.5 text-right font-semibold tabular-nums">
-                  {formatInr(invoice.sgst_amount)}
-                </div>
-                <div className="border-b border-[#c9beac] px-4 py-1.5 text-muted-foreground">{t.discount}</div>
-                <div className="border-b border-[#c9beac] px-4 py-1.5 text-right font-semibold tabular-nums">
-                  − {formatInr(invoice.discount_amount)}
+                  + {formatInr(invoice.sgst_amount)}
                 </div>
                 <div className="border-b-[1.5px] border-[#1f1a12] px-4 py-1.5 text-muted-foreground">
                   {t.roundOff}
@@ -375,6 +409,117 @@ export function PrintInvoice({ id }: PrintInvoiceProps) {
                   style={{ background: "#f1e9d8" }}
                 >
                   {formatInr(invoice.grand_total)}
+                </div>
+              </div>
+            </div>
+
+            {/* Settlement - shown below Grand Total, which itself never
+                changes because of an exchange (this is a settlement line
+                against it, not a repricing). The Old Jewellery Exchange
+                table only renders when this invoice actually has one;
+                Amount Paid/Total Remaining always render, same as every
+                ordinary invoice already needs them. */}
+            <div className="border-t-[1.5px] border-[#1f1a12] px-7 py-4">
+              {hasExchange ? (
+                <div className="mb-4">
+                  <div className="mb-2 text-[10.5px] font-bold">{t.oldJewelleryExchange}</div>
+                  <table className="w-full table-fixed border-collapse">
+                    <colgroup>
+                      <col style={{ width: OLD_COL_WIDTHS.sr }} />
+                      <col style={{ width: OLD_COL_WIDTHS.description }} />
+                      <col style={{ width: OLD_COL_WIDTHS.metal }} />
+                      <col style={{ width: OLD_COL_WIDTHS.purity }} />
+                      <col style={{ width: OLD_COL_WIDTHS.grossWt }} />
+                      <col style={{ width: OLD_COL_WIDTHS.stoneWt }} />
+                      <col style={{ width: OLD_COL_WIDTHS.dustWt }} />
+                      <col style={{ width: OLD_COL_WIDTHS.netWt }} />
+                      <col style={{ width: OLD_COL_WIDTHS.rate }} />
+                      <col style={{ width: OLD_COL_WIDTHS.value }} />
+                    </colgroup>
+                    <thead>
+                      <tr style={{ background: "#f1e9d8" }}>
+                        <th className={headBase}>{t.tableHeaders.sr}</th>
+                        <th className={headBase}>{t.tableHeaders.description}</th>
+                        <th className={headBase}>{t.tableHeaders.metal}</th>
+                        <th className={headBase}>{t.tableHeaders.purity}</th>
+                        <th className={`${headBase} text-right`}>{t.tableHeaders.grossWt}</th>
+                        <th className={`${headBase} text-right`}>{t.tableHeaders.stoneWt}</th>
+                        <th className={`${headBase} text-right`}>{t.tableHeaders.dustWt}</th>
+                        <th className={`${headBase} text-right`}>{t.tableHeaders.netWt}</th>
+                        <th className={`${headBase} text-right`}>{t.tableHeaders.ratePerGram}</th>
+                        <th className={`${headBase} text-right`}>{t.tableHeaders.value}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {invoice.old_jewellery_items.map((item) => (
+                        <tr key={item.sr_no}>
+                          <td className={cellBase}>{item.sr_no}</td>
+                          <td className={cellBase}>{item.description}</td>
+                          <td className={cellBase}>{item.metal}</td>
+                          <td className={cellBase}>{item.purity || "—"}</td>
+                          <td className={`${cellBase} text-right tabular-nums`}>{formatWt(item.gross_wt_g)}</td>
+                          <td className={`${cellBase} text-right tabular-nums`}>{formatWt(item.stone_wt_g)}</td>
+                          <td className={`${cellBase} text-right tabular-nums`}>{formatWt(item.dust_wt_g)}</td>
+                          <td className={`${cellBase} text-right tabular-nums`}>{formatWt(item.net_wt_g)}</td>
+                          <td className={`${cellBase} text-right tabular-nums`}>
+                            {formatInr(item.applied_rate_per_gram)}
+                          </td>
+                          <td className={`${cellBase} text-right font-semibold tabular-nums`}>
+                            {formatInr(item.final_value)}
+                          </td>
+                        </tr>
+                      ))}
+                      <tr style={{ background: "#f1e9d8" }}>
+                        <td colSpan={4} className={`${cellBase} border-t-[1.5px] border-t-[#1f1a12] font-bold`}>
+                          {t.subTotal}
+                        </td>
+                        <td className={`${cellBase} border-t-[1.5px] border-t-[#1f1a12] text-right font-bold tabular-nums`}>
+                          {formatWt(oldGrossWtTotal)}
+                        </td>
+                        <td className={`${cellBase} border-t-[1.5px] border-t-[#1f1a12] text-right font-bold tabular-nums`}>
+                          {formatWt(oldStoneWtTotal)}
+                        </td>
+                        <td className={`${cellBase} border-t-[1.5px] border-t-[#1f1a12] text-right font-bold tabular-nums`}>
+                          {formatWt(oldDustWtTotal)}
+                        </td>
+                        <td className={`${cellBase} border-t-[1.5px] border-t-[#1f1a12] text-right font-bold tabular-nums`}>
+                          {formatWt(oldNetWtTotal)}
+                        </td>
+                        <td className={`${cellBase} border-t-[1.5px] border-t-[#1f1a12]`}></td>
+                        <td className={`${cellBase} border-t-[1.5px] border-t-[#1f1a12] text-right font-bold tabular-nums`}>
+                          {formatInr(oldValueTotal)}
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                  <div className="ml-auto mt-2 grid grid-cols-[1fr_auto] text-[11.5px]" style={{ maxWidth: 360 }}>
+                    <div className="px-4 py-1.5 text-muted-foreground">{t.oldJewelleryTotal}</div>
+                    <div className="px-4 py-1.5 text-right font-semibold tabular-nums">
+                      {formatInr(oldValueTotal)}
+                    </div>
+                    <div className="px-4 py-2 text-[13px] font-bold" style={{ background: "#f1e9d8" }}>
+                      {t.amountToPay}
+                    </div>
+                    <div
+                      className="px-4 py-2 text-right text-[13px] font-bold tabular-nums"
+                      style={{ background: "#f1e9d8" }}
+                    >
+                      {formatInr(amountToPay)}
+                    </div>
+                  </div>
+                </div>
+              ) : null}
+
+              <div className="ml-auto grid grid-cols-[1fr_auto] text-[11.5px]" style={{ maxWidth: 360 }}>
+                <div className="px-4 py-1.5 text-muted-foreground">{t.amountPaid}</div>
+                <div className="px-4 py-1.5 text-right font-semibold tabular-nums">
+                  {formatInr(invoice.paid_amount)}
+                </div>
+                <div className="px-4 py-2 text-[13px] font-bold" style={{ color: "#8a3129" }}>
+                  {t.totalRemaining}
+                </div>
+                <div className="px-4 py-2 text-right text-[13px] font-bold tabular-nums" style={{ color: "#8a3129" }}>
+                  {formatInr(invoice.pending_amount)}
                 </div>
               </div>
             </div>
