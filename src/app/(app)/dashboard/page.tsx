@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { DashboardWelcomeBanner } from "@/features/dashboard/components/DashboardWelcomeBanner";
 import { DateRangeFilter, rangeForPreset } from "@/features/dashboard/components/DateRangeFilter";
 import type { DateRange } from "@/features/dashboard/components/DateRangeFilter";
 import { KpiTiles } from "@/features/dashboard/components/KpiTiles";
@@ -18,6 +19,8 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6">
+      <DashboardWelcomeBanner />
+
       <MetalRateCarousel />
 
       <div className="flex justify-end">
