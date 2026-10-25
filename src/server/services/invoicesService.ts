@@ -524,6 +524,60 @@ export async function findOldJewelleryExchangeItems(
   return items.map(serializeOldJewelleryItemLine);
 }
 
+// Mirrors findOldJewelleryExchangeItems()'s shape/semantics: reads the one
+// OldJewelleryPurchase document this invoice is linked to (if any) and
+// returns only the two fields the detail/print pages need. null for every
+// ordinary invoice (no linkedOldPurchaseId) and for every exchange that
+// didn't exceed the bill (excessAmount <= 0) - both collapse to the same
+// null so callers only ever need one branch, same reasoning as
+// old_jewellery_items collapsing to []. A real DB failure still throws and
+// propagates to the route handler's existing try/catch.
+export async function findOldJewelleryExcessRefund(linkedOldPurchaseId: Types.ObjectId | null) {
+  if (!linkedOldPurchaseId) {
+    return null;
+  }
+
+  const purchase = await OldJewelleryPurchaseModel.findById(linkedOldPurchaseId).select("excessAmount refund");
+  if (!purchase || purchase.excessAmount <= 0) {
+    return null;
+  }
+
+  return {
+    amount: purchase.excessAmount,
+    refund: purchase.refund
+      ? {
+          amount: purchase.refund.amount,
+          mode: purchase.refund.mode,
+          reference: purchase.refund.reference ?? null,
+          remarks: purchase.refund.remarks ?? null,
+          confirmed_at: purchase.refund.confirmedAt.toISOString(),
+        }
+      : null,
+  };
+}
+
+export type ExchangeSettlementType = "none" | "partial" | "exact" | "excess";
+
+// Pure function, no DB access, cannot throw - a straightforward arithmetic
+// classification over numbers the caller already has. Computed once here
+// (not duplicated client-side in two different page components) so the
+// detail page and print page can never classify the same invoice
+// differently. exchangeApplied is capped at grandTotal server-side
+// (min(oldJewelleryTotal, grandTotal)), so "exactly covers the bill" and
+// "exceeds the bill" both show exchangeApplied === grandTotal - hasExcess
+// (derived from findOldJewelleryExcessRefund's result) is what actually
+// tells those two cases apart.
+export function classifyExchangeSettlement(
+  exchangeApplied: number,
+  grandTotal: number,
+  hasExcess: boolean,
+): ExchangeSettlementType {
+  if (exchangeApplied <= 0) return "none";
+  if (hasExcess) return "excess";
+  if (exchangeApplied < grandTotal) return "partial";
+  return "exact";
+}
+
 export function serializeInvoice(invoice: InvoiceDocument) {
   return {
     id: invoice._id.toString(),

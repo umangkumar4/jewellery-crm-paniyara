@@ -61,6 +61,20 @@ export interface InvoicePrintLabels {
   forShop: string;
   printButton: string;
   noPayments: string;
+  // Shown only when old jewellery exceeded the bill (excess/refund case) -
+  // composed from fragments (static label + inline interpolated amounts),
+  // same convention every other dynamic line on this page already uses,
+  // not a single placeholder-based sentence template.
+  excess: {
+    intro: string;
+    exceededBy: string;
+    // Hindi needs a trailing verb word after the second amount
+    // (verb-final word order) - English's exceededBy already ends the
+    // clause before the number, so this is "" for en.
+    exceededBySuffix: string;
+    refundedVia: string;
+    referenceLabel: string;
+  };
 }
 
 export const invoicePrintLabels: Record<PrintLang, InvoicePrintLabels> = {
@@ -111,6 +125,13 @@ export const invoicePrintLabels: Record<PrintLang, InvoicePrintLabels> = {
     forShop: "For",
     printButton: "Print Invoice",
     noPayments: "—",
+    excess: {
+      intro: "The value of your old jewellery",
+      exceededBy: "exceeded this bill by",
+      exceededBySuffix: "",
+      refundedVia: "This amount has been refunded to you via",
+      referenceLabel: "Ref",
+    },
   },
   hi: {
     taxInvoice: "कर चालान",
@@ -159,6 +180,13 @@ export const invoicePrintLabels: Record<PrintLang, InvoicePrintLabels> = {
     forShop: "की ओर से",
     printButton: "बीजक प्रिंट करें",
     noPayments: "—",
+    excess: {
+      intro: "आपके पुराने आभूषण का मूल्य",
+      exceededBy: "इस बिल से",
+      exceededBySuffix: "अधिक था",
+      refundedVia: "यह राशि आपको वापस कर दी गई है, माध्यम:",
+      referenceLabel: "संदर्भ",
+    },
   },
 };
 

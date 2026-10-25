@@ -6,6 +6,7 @@ import { Receipt } from "lucide-react";
 import { toast } from "sonner";
 import { AgGridReact } from "ag-grid-react";
 import type { ColDef, ICellRendererParams } from "ag-grid-community";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/Button";
 import { Dialog } from "@/components/ui/Dialog";
 import { agGridTheme, AG_GRID_HEADER_CLASS, AG_GRID_DEFAULT_COL_DEF } from "@/lib/ag-grid";
@@ -14,9 +15,33 @@ import { PaymentPanel } from "@/features/billing/components/PaymentPanel";
 import { useAddPayment } from "@/features/billing/hooks/useAddPayment";
 import { calculateNewPending } from "@/features/billing/lib/calculations";
 import { useInvoiceDetail } from "@/features/dashboard/hooks/useInvoiceDetail";
-import type { InvoiceItemDetail } from "@/features/dashboard/hooks/useInvoiceDetail";
+import type { InvoiceDetail, InvoiceItemDetail, ExchangeSettlementType } from "@/features/dashboard/hooks/useInvoiceDetail";
 import type { OldPurchaseItemDetail } from "@/features/dashboard/hooks/useOldPurchaseDetail";
 import type { BillingPayment } from "@/store/useBillingStore";
+
+// Same per-component local-color-map convention InvoiceGrid.tsx and
+// PrintInvoice.tsx already each use for their own STATUS_BADGE, rather than
+// a shared constant.
+const PAYMENT_STATUS_BADGE: Record<InvoiceDetail["payment_status"], string> = {
+  unpaid: "bg-destructive/10 text-destructive",
+  partial: "bg-gold/20 text-gold-foreground",
+  paid: "bg-emerald-ink/10 text-emerald-ink",
+};
+
+// "none" deliberately has no entry - the badge is never rendered for an
+// ordinary invoice, so there's nothing to look up.
+const EXCHANGE_BADGE: Record<Exclude<ExchangeSettlementType, "none">, string> = {
+  partial: "bg-gold/20 text-gold-foreground",
+  exact: "bg-emerald-ink/10 text-emerald-ink",
+  // Informational, not a problem state - reuses the same "notable" tone as
+  // partial, deliberately not the destructive/red used for unpaid.
+  excess: "bg-gold/20 text-gold-foreground",
+};
+const EXCHANGE_LABEL: Record<Exclude<ExchangeSettlementType, "none">, string> = {
+  partial: "Partial Exchange",
+  exact: "Exact Exchange",
+  excess: "Excess / Refund",
+};
 
 // cgst_amount/sgst_amount are optional at the schema level (see
 // Invoice.model.ts) - nullish here means a document written outside the
@@ -266,7 +291,20 @@ export default function InvoiceDetailPage() {
         </div>
 
         <div className="panel p-6">
-          <h3 className="font-display text-lg text-foreground">Totals</h3>
+          <div className="flex items-center justify-between">
+            <h3 className="font-display text-lg text-foreground">Totals</h3>
+            {/* Only when there's actually an exchange to flag - an
+                ordinary invoice (the overwhelming majority) shows no
+                badge at all, same as today. */}
+            {invoice.exchange_settlement_type !== "none" ? (
+              <Badge
+                variant="outline"
+                className={`border-transparent font-medium ${EXCHANGE_BADGE[invoice.exchange_settlement_type]}`}
+              >
+                {EXCHANGE_LABEL[invoice.exchange_settlement_type]}
+              </Badge>
+            ) : null}
+          </div>
           <dl className="mt-3 space-y-2 text-sm">
             <div className="flex justify-between">
               <dt className="text-muted-foreground">Subtotal</dt>
@@ -292,7 +330,12 @@ export default function InvoiceDetailPage() {
             {/* Settlement line, not a repricing - the grand total above
                 never changes because of an exchange. Gated on > 0 so every
                 ordinary invoice (the overwhelming majority) renders
-                exactly as it did before this existed. */}
+                exactly as it did before this existed. Paid/Pending nest
+                under Amount to Pay here (indented, with a connecting
+                marker) so they read as its breakdown instead of two
+                disconnected rows the reader has to reconcile by hand -
+                only done in the exchange case, since without an exchange
+                Paid/Pending already unambiguously relate to Grand Total. */}
             {invoice.exchange_applied > 0 ? (
               <>
                 <div className="flex justify-between">
@@ -303,16 +346,77 @@ export default function InvoiceDetailPage() {
                   <dt className="text-foreground">Amount to Pay</dt>
                   <dd className="text-foreground">{formatInr(amountToPay)}</dd>
                 </div>
+                <div className="flex justify-between pl-4 text-xs">
+                  <dt className="text-muted-foreground">↳ Paid</dt>
+                  <dd className="text-muted-foreground">{formatInr(invoice.paid_amount)}</dd>
+                </div>
+                <div className="flex items-center justify-between pl-4 text-xs">
+                  <dt className="text-muted-foreground">↳ Pending</dt>
+                  <dd className="flex items-center gap-1.5">
+                    <span className="text-muted-foreground">{formatInr(invoice.pending_amount)}</span>
+                    <Badge
+                      variant="outline"
+                      className={`border-transparent font-medium capitalize ${PAYMENT_STATUS_BADGE[invoice.payment_status]}`}
+                    >
+                      {invoice.payment_status}
+                    </Badge>
+                  </dd>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="flex justify-between">
+                  <dt className="text-muted-foreground">Paid</dt>
+                  <dd className="text-foreground">{formatInr(invoice.paid_amount)}</dd>
+                </div>
+                <div className="flex items-center justify-between">
+                  <dt className="text-muted-foreground">Pending</dt>
+                  <dd className="flex items-center gap-1.5">
+                    <span className="text-foreground">{formatInr(invoice.pending_amount)}</span>
+                    <Badge
+                      variant="outline"
+                      className={`border-transparent font-medium capitalize ${PAYMENT_STATUS_BADGE[invoice.payment_status]}`}
+                    >
+                      {invoice.payment_status}
+                    </Badge>
+                  </dd>
+                </div>
+              </>
+            )}
+            {/* Excess/refund details - gated on old_jewellery_excess, which
+                is only non-null when old jewellery exceeded the bill.
+                Remarks are included deliberately - since the old-purchase
+                receipt link was removed from this page earlier, this is
+                currently the only place an admin can see that internal
+                note from the invoice screen. */}
+            {invoice.old_jewellery_excess ? (
+              <>
+                <div className="flex justify-between border-t border-border pt-2">
+                  <dt className="text-muted-foreground">Excess Refunded</dt>
+                  <dd className="text-foreground">{formatInr(invoice.old_jewellery_excess.amount)}</dd>
+                </div>
+                {invoice.old_jewellery_excess.refund ? (
+                  <>
+                    <div className="flex justify-between">
+                      <dt className="text-muted-foreground">Refund Mode</dt>
+                      <dd className="text-foreground">{invoice.old_jewellery_excess.refund.mode}</dd>
+                    </div>
+                    {invoice.old_jewellery_excess.refund.reference ? (
+                      <div className="flex justify-between">
+                        <dt className="text-muted-foreground">Refund Reference</dt>
+                        <dd className="text-foreground">{invoice.old_jewellery_excess.refund.reference}</dd>
+                      </div>
+                    ) : null}
+                    {invoice.old_jewellery_excess.refund.remarks ? (
+                      <div className="flex justify-between">
+                        <dt className="text-muted-foreground">Refund Notes</dt>
+                        <dd className="text-foreground">{invoice.old_jewellery_excess.refund.remarks}</dd>
+                      </div>
+                    ) : null}
+                  </>
+                ) : null}
               </>
             ) : null}
-            <div className="flex justify-between">
-              <dt className="text-muted-foreground">Paid</dt>
-              <dd className="text-foreground">{formatInr(invoice.paid_amount)}</dd>
-            </div>
-            <div className="flex justify-between">
-              <dt className="text-muted-foreground">Pending</dt>
-              <dd className="text-foreground">{formatInr(invoice.pending_amount)}</dd>
-            </div>
           </dl>
         </div>
       </div>

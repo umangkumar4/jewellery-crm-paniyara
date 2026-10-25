@@ -507,6 +507,28 @@ export function PrintInvoice({ id }: PrintInvoiceProps) {
                       {formatInr(amountToPay)}
                     </div>
                   </div>
+                  {/* Only when old jewellery exceeded the bill - plain-
+                      English (or Hindi) explanation for the customer, not
+                      a terse badge/label. remarks is deliberately never
+                      rendered here - internal shop notes, not customer-
+                      facing. reference only appears when present. */}
+                  {invoice.old_jewellery_excess ? (
+                    <div className="mt-2 text-[10px] leading-snug text-muted-foreground">
+                      {t.excess.intro} ({formatInr(oldValueTotal)}) {t.excess.exceededBy}{" "}
+                      {formatInr(invoice.old_jewellery_excess.amount)}
+                      {t.excess.exceededBySuffix ? ` ${t.excess.exceededBySuffix}` : ""}.
+                      {invoice.old_jewellery_excess.refund ? (
+                        <>
+                          {" "}
+                          {t.excess.refundedVia}{" "}
+                          {paymentModeLabels[lang][invoice.old_jewellery_excess.refund.mode]}.
+                          {invoice.old_jewellery_excess.refund.reference
+                            ? ` (${t.excess.referenceLabel}: ${invoice.old_jewellery_excess.refund.reference})`
+                            : ""}
+                        </>
+                      ) : null}
+                    </div>
+                  ) : null}
                 </div>
               ) : null}
 

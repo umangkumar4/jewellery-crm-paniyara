@@ -28,6 +28,23 @@ export interface InvoicePaymentDetail {
   paid_at: string;
 }
 
+export interface InvoiceOldJewelleryExcess {
+  amount: number;
+  refund: {
+    amount: number;
+    mode: "cash" | "upi" | "bank_transfer";
+    reference: string | null;
+    remarks: string | null;
+    confirmed_at: string;
+  } | null;
+}
+
+// "none"/"partial"/"exact"/"excess" - see invoicesService.ts's
+// classifyExchangeSettlement() for the authoritative logic (computed once,
+// server-side, so this page and the print page can never classify the same
+// invoice differently).
+export type ExchangeSettlementType = "none" | "partial" | "exact" | "excess";
+
 export interface InvoiceDetail {
   id: string;
   invoice_no: string;
@@ -62,6 +79,13 @@ export interface InvoiceDetail {
   // the detail/print pages don't need a second request to
   // GET /api/old-purchases/:id just to render this.
   old_jewellery_items: OldPurchaseItemDetail[];
+  // null for every ordinary invoice and for every exchange that didn't
+  // exceed the bill - composed server-side from the linked
+  // OldJewelleryPurchase document (invoicesService.ts's
+  // findOldJewelleryExcessRefund()), same pattern as old_jewellery_items.
+  old_jewellery_excess: InvoiceOldJewelleryExcess | null;
+  // Always present - the server always computes and includes it.
+  exchange_settlement_type: ExchangeSettlementType;
   created_at: string;
 }
 

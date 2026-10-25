@@ -4,6 +4,8 @@ import { requireAuth } from "@/server/auth/session";
 import {
   findInvoiceById,
   findOldJewelleryExchangeItems,
+  findOldJewelleryExcessRefund,
+  classifyExchangeSettlement,
   serializeInvoice,
 } from "@/server/services/invoicesService";
 
@@ -25,10 +27,23 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     if (!invoice) {
       return Response.json({ error: "No invoice with this id" }, { status: 404 });
     }
-    const old_jewellery_items = await findOldJewelleryExchangeItems(invoice.linkedOldPurchaseId);
-    return Response.json({ ...serializeInvoice(invoice), old_jewellery_items });
+    const [old_jewellery_items, old_jewellery_excess] = await Promise.all([
+      findOldJewelleryExchangeItems(invoice.linkedOldPurchaseId),
+      findOldJewelleryExcessRefund(invoice.linkedOldPurchaseId),
+    ]);
+    const exchange_settlement_type = classifyExchangeSettlement(
+      invoice.exchangeApplied,
+      invoice.grandTotal,
+      !!old_jewellery_excess,
+    );
+    return Response.json({
+      ...serializeInvoice(invoice),
+      old_jewellery_items,
+      old_jewellery_excess,
+      exchange_settlement_type,
+    });
   } catch (error) {
-    logger.error({ error }, "Failed to fetch invoice for printing");
+    logger.error({ err: error }, "Failed to fetch invoice for printing");
     return Response.json({ error: "Internal server error" }, { status: 500 });
   }
 }
