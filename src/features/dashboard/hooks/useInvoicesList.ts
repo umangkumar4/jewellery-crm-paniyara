@@ -18,6 +18,8 @@ export interface InvoicesListParams {
   page: number;
   limit: number;
   date?: string;
+  from?: string;
+  to?: string;
   customerId?: string;
   status?: "unpaid" | "partial" | "paid";
 }
@@ -31,6 +33,10 @@ export interface InvoicesListResponse {
 export function useInvoicesList(params: InvoicesListParams) {
   const searchParams = new URLSearchParams({ page: String(params.page), limit: String(params.limit) });
   if (params.date) searchParams.set("date", params.date);
+  if (params.from && params.to) {
+    searchParams.set("from", params.from);
+    searchParams.set("to", params.to);
+  }
   if (params.customerId) searchParams.set("customerId", params.customerId);
   if (params.status) searchParams.set("status", params.status);
 

@@ -378,13 +378,20 @@ export interface ListInvoicesParams {
   page: number;
   limit: number;
   date?: string;
+  from?: string;
+  to?: string;
   customerId?: string;
   status?: "unpaid" | "partial" | "paid";
 }
 
-export async function listInvoices({ page, limit, date, customerId, status }: ListInvoicesParams) {
+export async function listInvoices({ page, limit, date, from, to, customerId, status }: ListInvoicesParams) {
   const filter: QueryFilter<InvoiceDocument> = {};
-  if (date) {
+  if (from && to) {
+    filter.createdAt = {
+      $gte: businessDayStart(from),
+      $lte: businessDayEnd(to),
+    };
+  } else if (date) {
     filter.createdAt = {
       $gte: businessDayStart(date),
       $lte: businessDayEnd(date),

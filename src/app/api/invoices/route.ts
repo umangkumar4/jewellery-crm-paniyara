@@ -34,6 +34,13 @@ export async function GET(request: Request) {
   const dateParam = searchParams.get("date");
   const date = dateParam && DATE_PARAM_PATTERN.test(dateParam) ? dateParam : undefined;
 
+  const fromParam = searchParams.get("from");
+  const toParam = searchParams.get("to");
+  const hasValidRange =
+    fromParam && toParam && DATE_PARAM_PATTERN.test(fromParam) && DATE_PARAM_PATTERN.test(toParam);
+  const from = hasValidRange ? fromParam : undefined;
+  const to = hasValidRange ? toParam : undefined;
+
   const customerId = searchParams.get("customerId") ?? undefined;
 
   const statusParam = searchParams.get("status");
@@ -45,7 +52,7 @@ export async function GET(request: Request) {
   await dbConnect();
 
   try {
-    const { items, total } = await listInvoices({ page, limit, date, customerId, status });
+    const { items, total } = await listInvoices({ page, limit, date, from, to, customerId, status });
     return Response.json({ data: items.map(serializeInvoiceListItem), total, page });
   } catch (error) {
     logger.error({ error }, "Failed to list invoices");

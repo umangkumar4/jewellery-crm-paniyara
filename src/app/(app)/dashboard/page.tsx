@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { DateRangeFilter, rangeForPreset, DEFAULT_PRESET } from "@/features/dashboard/components/DateRangeFilter";
+import { DateRangeFilter, rangeForPreset } from "@/features/dashboard/components/DateRangeFilter";
 import type { DateRange } from "@/features/dashboard/components/DateRangeFilter";
 import { KpiTiles } from "@/features/dashboard/components/KpiTiles";
 import { SalesTrendChart } from "@/features/dashboard/components/SalesTrendChart";
@@ -11,7 +11,7 @@ import { useDashboardSummary } from "@/features/dashboard/hooks/useDashboardSumm
 import { useSalesTrend } from "@/features/dashboard/hooks/useSalesTrend";
 
 export default function DashboardPage() {
-  const [range, setRange] = useState<DateRange>(() => rangeForPreset(DEFAULT_PRESET)!);
+  const [range, setRange] = useState<DateRange>(() => rangeForPreset("today"));
 
   const summaryQuery = useDashboardSummary(range);
   const trendQuery = useSalesTrend(range);
@@ -21,7 +21,7 @@ export default function DashboardPage() {
       <MetalRateCarousel />
 
       <div className="flex justify-end">
-        <DateRangeFilter onChange={setRange} />
+        <DateRangeFilter onChange={setRange} defaultPresetKey="today" />
       </div>
 
       <KpiTiles
@@ -32,7 +32,10 @@ export default function DashboardPage() {
 
       <SalesTrendChart data={trendQuery.data} isLoading={trendQuery.isLoading} isError={trendQuery.isError} />
 
-      <InvoiceGrid />
+      {/* Reuses the page's own top-level date filter instead of showing a
+          second, separate one inside the ledger - see InvoiceGrid's
+          `dateRange` prop doc. */}
+      <InvoiceGrid dateRange={range} />
     </div>
   );
 }
