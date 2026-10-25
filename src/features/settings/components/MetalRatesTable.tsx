@@ -20,7 +20,7 @@ function formatUpdatedAt(iso: string) {
 function EditCell({ data, onEdit }: ICellRendererParams<MetalPurity> & { onEdit: (purity: MetalPurity) => void }) {
   if (!data) return null;
   return (
-    <div className="flex h-full items-center justify-end">
+    <div className="flex h-full items-center">
       <Button type="button" variant="outline" size="icon" onClick={() => onEdit(data)}>
         <Pencil className="h-4 w-4" />
       </Button>
@@ -44,6 +44,7 @@ export function MetalRatesTable({ onEdit }: { onEdit: (purity: MetalPurity) => v
         field: "rate_per_gram",
         headerName: "Sell Rate/g",
         width: 110,
+        flex: 1,
         headerClass: AG_GRID_HEADER_CLASS,
         valueFormatter: (p) => (p.value != null ? `₹${p.value}` : ""),
       },
@@ -51,6 +52,7 @@ export function MetalRatesTable({ onEdit }: { onEdit: (purity: MetalPurity) => v
         field: "purchase_rate_per_gram",
         headerName: "Purchase Rate/g",
         width: 130,
+        flex: 1,
         headerClass: AG_GRID_HEADER_CLASS,
         valueFormatter: (p) => (p.value != null ? `₹${p.value}` : "—"),
       },
@@ -58,12 +60,14 @@ export function MetalRatesTable({ onEdit }: { onEdit: (purity: MetalPurity) => v
         field: "updated_at",
         headerName: "Updated",
         width: 190,
+        flex: 1,
         headerClass: AG_GRID_HEADER_CLASS,
         valueFormatter: (p) => (p.value ? formatUpdatedAt(p.value) : ""),
       },
       {
         headerName: "Action",
         width: 90,
+        flex: 1,
         headerClass: `${AG_GRID_HEADER_CLASS} text-right!`,
         cellRenderer: EditCell,
         cellRendererParams: { onEdit },

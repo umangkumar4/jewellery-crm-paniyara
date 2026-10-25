@@ -1,11 +1,12 @@
 "use client";
 
 import { useCallback, useMemo, useState } from "react";
-import { ArchiveRestore, Archive as ArchiveIcon, Check, Pencil, Trash2, X } from "lucide-react";
+import { Check, Pencil, Trash2, X } from "lucide-react";
 import { AgGridReact } from "ag-grid-react";
 import type { ColDef, ICellRendererParams, RowClassParams } from "ag-grid-community";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/Button";
+import { Dialog } from "@/components/ui/Dialog";
 import { Input } from "@/components/ui/Input";
 import { agGridTheme, AG_GRID_HEADER_CLASS, AG_GRID_DEFAULT_COL_DEF } from "@/lib/ag-grid";
 import { ApiError } from "@/lib/api-client";
@@ -70,18 +71,20 @@ function ActionsCell({
   data,
   renamingId,
   startRename,
-  toggleActive,
   remove,
 }: ICellRendererParams<MetalPurity> & PurityCellExtra) {
   if (!data) return null;
   const isRenaming = renamingId === data.id;
   return (
-    <div className="flex h-full items-center justify-end gap-2">
+    <div className="flex h-full items-center gap-2">
       {!isRenaming ? (
         <Button type="button" variant="outline" size="icon" onClick={() => startRename(data)} aria-label="Rename">
           <Pencil className="h-4 w-4" />
         </Button>
       ) : null}
+      {/* Archive/Restore temporarily disabled - underlying toggleActive/
+          useSetPurityActive wiring is untouched below, just not exposed as
+          a button right now. Re-add this to re-enable:
       <Button
         type="button"
         variant="outline"
@@ -91,6 +94,9 @@ function ActionsCell({
       >
         {data.active ? <ArchiveIcon className="h-4 w-4" /> : <ArchiveRestore className="h-4 w-4" />}
       </Button>
+      (also re-add `toggleActive` to this component's destructured props,
+      and `ArchiveRestore, Archive as ArchiveIcon` to the lucide-react
+      import at the top of this file) */}
       <Button type="button" variant="outline" size="icon" onClick={() => remove(data)} aria-label="Delete">
         <Trash2 className="h-4 w-4" />
       </Button>
@@ -106,6 +112,7 @@ export function PurityList() {
 
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
+  const [deleteTarget, setDeleteTarget] = useState<MetalPurity | null>(null);
 
   const startRename = useCallback((purity: MetalPurity) => {
     setRenamingId(purity.id);
@@ -154,19 +161,27 @@ export function PurityList() {
     [setPurityActive],
   );
 
-  const remove = useCallback(
-    (purity: MetalPurity) => {
-      deletePurity.mutate(purity.id, {
-        onSuccess: () => {
-          toast.success("Purity deleted");
-        },
-        onError: (err) => {
-          toast.error(err instanceof ApiError ? err.message : "Failed to delete purity");
-        },
-      });
-    },
-    [deletePurity],
-  );
+  // Opens the confirm dialog rather than deleting immediately - the actual
+  // mutation happens in confirmDelete, triggered from the dialog's Delete
+  // button.
+  const remove = useCallback((purity: MetalPurity) => {
+    setDeleteTarget(purity);
+  }, []);
+
+  const confirmDelete = useCallback(() => {
+    if (!deleteTarget) return;
+    const purity = deleteTarget;
+    deletePurity.mutate(purity.id, {
+      onSuccess: () => {
+        toast.success("Purity deleted");
+        setDeleteTarget(null);
+      },
+      onError: (err) => {
+        toast.error(err instanceof ApiError ? err.message : "Failed to delete purity");
+        setDeleteTarget(null);
+      },
+    });
+  }, [deleteTarget, deletePurity]);
 
   // cellRendererParams carries the inline-rename state/handlers through to
   // the cell renderers. The handler functions below are plain declarations
@@ -190,10 +205,11 @@ export function PurityList() {
 
   const columnDefs = useMemo<ColDef<MetalPurity>[]>(
     () => [
-      { field: "metal", headerName: "Metal", width: 110, headerClass: AG_GRID_HEADER_CLASS },
+      { field: "metal", headerName: "Metal", width: 110, flex: 1, headerClass: AG_GRID_HEADER_CLASS },
       {
         headerName: "Purity",
         width: 150,
+        flex: 1,
         headerClass: AG_GRID_HEADER_CLASS,
         cellRenderer: PurityCell,
         cellRendererParams: cellExtra,
@@ -201,6 +217,7 @@ export function PurityList() {
       {
         headerName: "Status",
         width: 120,
+        flex: 1,
         headerClass: AG_GRID_HEADER_CLASS,
         cellRenderer: StatusCell,
         valueGetter: (p) => p.data?.active,
@@ -208,6 +225,7 @@ export function PurityList() {
       {
         headerName: "Actions",
         width: 170,
+        flex: 1,
         headerClass: `${AG_GRID_HEADER_CLASS} text-right!`,
         cellRenderer: ActionsCell,
         cellRendererParams: cellExtra,
@@ -247,6 +265,35 @@ export function PurityList() {
           />
         )}
       </div>
+
+      <Dialog open={!!deleteTarget} onClose={() => setDeleteTarget(null)} title="Delete purity?">
+        <p className="text-sm text-muted-foreground">
+          Delete{" "}
+          <span className="font-medium text-foreground">
+            {deleteTarget?.metal} {deleteTarget?.purity}
+          </span>
+          ? This can&apos;t be undone.
+        </p>
+        <div className="mt-6 flex justify-end gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => setDeleteTarget(null)}
+            disabled={deletePurity.isPending}
+          >
+            Cancel
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            className="border-destructive text-destructive hover:bg-destructive/10"
+            disabled={deletePurity.isPending}
+            onClick={confirmDelete}
+          >
+            {deletePurity.isPending ? "Deleting…" : "Delete"}
+          </Button>
+        </div>
+      </Dialog>
     </div>
   );
 }

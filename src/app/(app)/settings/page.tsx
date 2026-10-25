@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { cn } from "@/lib/utils";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { MetalRateForm } from "@/features/settings/components/MetalRateForm";
 import { MetalRatesTable } from "@/features/settings/components/MetalRatesTable";
 import { AddPurityForm } from "@/features/settings/components/AddPurityForm";
@@ -19,32 +19,16 @@ export default function SettingsPage() {
       <h2 className="font-display text-2xl text-foreground">Settings</h2>
       <p className="mt-1 text-sm text-muted-foreground">Manage purities and today&apos;s metal rates.</p>
 
-      <div className="mt-6 flex gap-2">
-        <button
-          type="button"
-          onClick={() => setActiveTab("rates")}
-          className={cn(
-            "rounded-full px-4 py-2 text-sm font-medium transition-colors",
-            activeTab === "rates"
-              ? "bg-primary text-primary-foreground"
-              : "bg-muted text-muted-foreground hover:text-foreground",
-          )}
-        >
-          Set Metal Rate
-        </button>
-        <button
-          type="button"
-          onClick={() => setActiveTab("purities")}
-          className={cn(
-            "rounded-full px-4 py-2 text-sm font-medium transition-colors",
-            activeTab === "purities"
-              ? "bg-primary text-primary-foreground"
-              : "bg-muted text-muted-foreground hover:text-foreground",
-          )}
-        >
-          Add Purity
-        </button>
-      </div>
+      <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as SettingsTab)} className="mt-6">
+        <TabsList variant="line">
+          <TabsTrigger variant="line" value="rates">
+            Set Metal Rate
+          </TabsTrigger>
+          <TabsTrigger variant="line" value="purities">
+            Add Purity
+          </TabsTrigger>
+        </TabsList>
+      </Tabs>
 
       {activeTab === "rates" ? (
         <div className="mt-6">
