@@ -1,15 +1,18 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { ChevronLeft, ChevronRight, Printer, Search } from "lucide-react";
+import { ChevronLeft, ChevronRight, Printer, Search, Trash2 } from "lucide-react";
 import { AgGridReact } from "ag-grid-react";
 import type { ColDef, ICellRendererParams } from "ag-grid-community";
+import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/Button";
+import { Dialog } from "@/components/ui/Dialog";
 import { Input } from "@/components/ui/Input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { agGridTheme, AG_GRID_HEADER_CLASS, AG_GRID_DEFAULT_COL_DEF } from "@/lib/ag-grid";
 import { ApiError } from "@/lib/api-client";
+import { useDeleteTag } from "@/features/tagging/hooks/useDeleteTag";
 import { useTags } from "@/features/tagging/hooks/useTags";
 import type { Tag } from "@/features/tagging/hooks/useCreateTag";
 
@@ -49,25 +52,46 @@ function StatusCell({ data }: ICellRendererParams<Tag>) {
   );
 }
 
-// onReprint isn't part of ICellRendererParams - passed through per-column
-// via colDef.cellRendererParams instead, since it comes from a prop on
-// TagsTable, not from the row data itself.
-function ReprintCell({ data, onReprint }: ICellRendererParams<Tag> & { onReprint: (tag: Tag) => void }) {
+// onReprint/onDelete aren't part of ICellRendererParams - passed through
+// per-column via colDef.cellRendererParams instead, since they come from
+// props/state on TagsTable, not from the row data itself.
+function ActionsCell({
+  data,
+  onReprint,
+  onDelete,
+}: ICellRendererParams<Tag> & { onReprint: (tag: Tag) => void; onDelete: (tag: Tag) => void }) {
   if (!data) return null;
   return (
-    <div className="flex h-full items-center">
-      <Button type="button" variant="outline" size="icon" onClick={() => onReprint(data)}>
+    <div className="flex h-full items-center gap-1">
+      <Button type="button" variant="outline" size="icon" onClick={() => onReprint(data)} aria-label="Reprint label">
         <Printer className="h-4 w-4" />
       </Button>
+      {/* Sold tags can't be deleted (backend enforces this too) - no button
+          offered for an action that would just fail with a 409. */}
+      {data.status === "tagged" ? (
+        <Button type="button" variant="outline" size="icon" onClick={() => onDelete(data)} aria-label="Delete tag">
+          <Trash2 className="h-4 w-4" />
+        </Button>
+      ) : null}
     </div>
   );
 }
 
-export function TagsTable({ onReprint }: { onReprint: (tag: Tag) => void }) {
+export function TagsTable({
+  onReprint,
+  onDeleted,
+}: {
+  onReprint: (tag: Tag) => void;
+  // Called after a tag is successfully deleted - lets the parent page clear
+  // any state (e.g. a label preview) referencing that tag's code.
+  onDeleted?: (code: string) => void;
+}) {
   const [searchInput, setSearchInput] = useState("");
   const [q, setQ] = useState("");
   const [status, setStatus] = useState<StatusFilter>("tagged");
   const [page, setPage] = useState(1);
+  const [deleteTarget, setDeleteTarget] = useState<Tag | null>(null);
+  const deleteTag = useDeleteTag();
 
   useEffect(() => {
     const timer = setTimeout(() => setQ(searchInput.trim()), 300);
@@ -131,8 +155,8 @@ const columnDefs = useMemo<ColDef<Tag>[]>(
       headerName: "Action",
       flex: 1,
       headerClass: `${AG_GRID_HEADER_CLASS}`,
-      cellRenderer: ReprintCell,
-      cellRendererParams: { onReprint },
+      cellRenderer: ActionsCell,
+      cellRendererParams: { onReprint, onDelete: setDeleteTarget },
       sortable: false,
       filter: false,
     },
@@ -216,6 +240,46 @@ const columnDefs = useMemo<ColDef<Tag>[]>(
           </Button>
         </div>
       </div>
+
+      <Dialog open={!!deleteTarget} onClose={() => setDeleteTarget(null)} title="Delete tag?">
+        <p className="text-sm text-muted-foreground">
+          Delete tag <span className="font-medium text-foreground">{deleteTarget?.code}</span>? This can&apos;t be
+          undone.
+        </p>
+        <div className="mt-6 flex justify-end gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => setDeleteTarget(null)}
+            disabled={deleteTag.isPending}
+          >
+            Cancel
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            className="border-destructive text-destructive hover:bg-destructive/10"
+            disabled={deleteTag.isPending}
+            onClick={() => {
+              if (!deleteTarget) return;
+              const { code } = deleteTarget;
+              deleteTag.mutate(code, {
+                onSuccess: () => {
+                  toast.success(`Tag ${code} deleted`);
+                  setDeleteTarget(null);
+                  onDeleted?.(code);
+                },
+                onError: (err) => {
+                  toast.error(err instanceof ApiError ? err.message : "Failed to delete tag");
+                  setDeleteTarget(null);
+                },
+              });
+            }}
+          >
+            {deleteTag.isPending ? "Deleting…" : "Delete"}
+          </Button>
+        </div>
+      </Dialog>
     </div>
   );
 }

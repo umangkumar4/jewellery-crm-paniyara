@@ -79,6 +79,25 @@ export async function listTags({ page, limit, q, status }: ListTagsParams) {
   return { items, total };
 }
 
+// Atomic find+delete, gated to "tagged" status inside the same Mongo
+// operation - not a separate find-then-delete - so a tag can never be
+// deleted in the narrow window between being sold and this request
+// landing. Returns a discriminated result rather than throwing: the "not
+// found" vs "already sold" distinction mirrors GET /api/tags/[code]'s own
+// inline check (see that route), and avoids a second, differently-shaped
+// TagNotFoundError/TagAlreadySoldError colliding in name with the ones
+// invoicesService.ts already defines for a different domain.
+export async function deleteTagByCode(code: string) {
+  const normalizedCode = code.toUpperCase();
+  const deleted = await TagModel.findOneAndDelete({ code: normalizedCode, status: "tagged" });
+  if (deleted) return { deleted: true as const };
+
+  // Delete already definitively didn't happen above - this lookup is only
+  // to give the caller an accurate 404 vs 409, not a correctness step.
+  const existing = await TagModel.findOne({ code: normalizedCode }).select("_id").lean();
+  return { deleted: false as const, reason: existing ? ("sold" as const) : ("not_found" as const) };
+}
+
 export function serializeTag(tag: TagDocument) {
   const purity = tag.purityId;
   if (!purity || !(purity instanceof Object) || !("metal" in purity)) {
