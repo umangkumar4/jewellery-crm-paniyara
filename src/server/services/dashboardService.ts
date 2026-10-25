@@ -1,7 +1,7 @@
 import { InvoiceModel } from "@/models/Invoice.model";
 import { CustomerModel } from "@/models/Customer.model";
 import { TagModel } from "@/models/Tag.model";
-import { daysBetween } from "@/schemas/dashboard.schema";
+import { OldJewelleryPurchaseModel } from "@/models/OldJewelleryPurchase.model";
 import { businessDayStart, businessDayEnd } from "@/lib/business-time";
 
 export interface DashboardRangeParams {
@@ -15,13 +15,9 @@ export interface DashboardSummary {
   total_sales: number;
   invoice_count: number;
   items_sold: number;
-  net_weight_sold_g: number;
-  avg_invoice_value: number;
   new_customers: number;
-  vs_previous_period: {
-    total_sales_pct: number | null;
-    invoice_count_pct: number | null;
-  };
+  old_jewellery_purchase_count: number;
+  old_jewellery_purchased_value: number;
   pending_amount: number;
   stock_on_hand: {
     count: number;
@@ -39,68 +35,28 @@ function roundTo(value: number, decimals: number): number {
   return Math.round(value * factor) / factor;
 }
 
-// null (not Infinity/NaN) when the previous period had nothing to compare
-// against - the frontend renders that as "-"/"new" rather than a bogus
-// percentage.
-function percentChange(current: number, previous: number): number | null {
-  if (previous === 0) return null;
-  return roundTo(((current - previous) / previous) * 100, 1);
-}
-
 interface CurrentPeriodFacetRow {
   total_sales: number;
   invoice_count: number;
   items_sold: number;
-  net_weight_sold_g: number;
-}
-
-interface PreviousPeriodFacetRow {
-  total_sales: number;
-  invoice_count: number;
 }
 
 export async function getDashboardSummary({ from, to }: DashboardRangeParams): Promise<DashboardSummary> {
-  const rangeDays = daysBetween(from, to);
   const currentFrom = businessDayStart(from);
   const currentTo = businessDayEnd(to);
-  // Previous period = the same number of days immediately before `from`,
-  // so a 7-day selection compares against the 7 days before it, not a
-  // hardcoded "yesterday."
-  const previousTo = new Date(currentFrom.getTime() - 1);
-  const previousFrom = new Date(currentFrom.getTime() - rangeDays * 24 * 60 * 60 * 1000);
 
-  const [facetResult, pendingResult, stockResult, newCustomers] = await Promise.all([
-    InvoiceModel.aggregate<{
-      current: CurrentPeriodFacetRow[];
-      previous: PreviousPeriodFacetRow[];
-    }>([
+  const [facetResult, pendingResult, stockResult, newCustomers, oldPurchaseResult] = await Promise.all([
+    InvoiceModel.aggregate<CurrentPeriodFacetRow>([
+      { $match: { createdAt: { $gte: currentFrom, $lte: currentTo } } },
       {
-        $facet: {
-          current: [
-            { $match: { createdAt: { $gte: currentFrom, $lte: currentTo } } },
-            {
-              $group: {
-                _id: null,
-                total_sales: { $sum: "$grandTotal" },
-                invoice_count: { $sum: 1 },
-                // Inner $sum is the array-reduce operator (sums items[].pieces
-                // per invoice); outer $sum is the $group accumulator (sums
-                // that across every matched invoice). Two different $sum's.
-                items_sold: { $sum: { $sum: "$items.pieces" } },
-                net_weight_sold_g: { $sum: { $sum: "$items.netWtG" } },
-              },
-            },
-          ],
-          previous: [
-            { $match: { createdAt: { $gte: previousFrom, $lte: previousTo } } },
-            {
-              $group: {
-                _id: null,
-                total_sales: { $sum: "$grandTotal" },
-                invoice_count: { $sum: 1 },
-              },
-            },
-          ],
+        $group: {
+          _id: null,
+          total_sales: { $sum: "$grandTotal" },
+          invoice_count: { $sum: 1 },
+          // Inner $sum is the array-reduce operator (sums items[].pieces
+          // per invoice); outer $sum is the $group accumulator (sums
+          // that across every matched invoice). Two different $sum's.
+          items_sold: { $sum: { $sum: "$items.pieces" } },
         },
       },
     ]),
@@ -113,16 +69,19 @@ export async function getDashboardSummary({ from, to }: DashboardRangeParams): P
       { $group: { _id: null, count: { $sum: 1 }, net_weight_g: { $sum: "$netWtG" } } },
     ]),
     CustomerModel.countDocuments({ createdAt: { $gte: currentFrom, $lte: currentTo } }),
+    // status: "active" excludes cancelled purchases - nothing writes
+    // "cancelled" yet (reserved for a deferred cancel-and-recreate feature),
+    // but filtering now means this KPI stays correct the day that ships.
+    // No `source` filter - combines billing_exchange + standalone purchases.
+    OldJewelleryPurchaseModel.aggregate<{ count: number; total_value: number }>([
+      { $match: { status: "active", createdAt: { $gte: currentFrom, $lte: currentTo } } },
+      { $group: { _id: null, count: { $sum: 1 }, total_value: { $sum: "$totalPurchaseValue" } } },
+    ]),
   ]);
-  const current = facetResult[0]?.current[0] ?? {
-    total_sales: 0,
-    invoice_count: 0,
-    items_sold: 0,
-    net_weight_sold_g: 0,
-  };
-  const previous = facetResult[0]?.previous[0] ?? { total_sales: 0, invoice_count: 0 };
+  const current = facetResult[0] ?? { total_sales: 0, invoice_count: 0, items_sold: 0 };
   const pendingAmount = pendingResult[0]?.pending_amount ?? 0;
   const stock = stockResult[0] ?? { count: 0, net_weight_g: 0 };
+  const oldPurchase = oldPurchaseResult[0] ?? { count: 0, total_value: 0 };
 
   return {
     from,
@@ -130,13 +89,9 @@ export async function getDashboardSummary({ from, to }: DashboardRangeParams): P
     total_sales: current.total_sales,
     invoice_count: current.invoice_count,
     items_sold: current.items_sold,
-    net_weight_sold_g: roundTo(current.net_weight_sold_g, 3),
-    avg_invoice_value: current.invoice_count > 0 ? roundTo(current.total_sales / current.invoice_count, 2) : 0,
     new_customers: newCustomers,
-    vs_previous_period: {
-      total_sales_pct: percentChange(current.total_sales, previous.total_sales),
-      invoice_count_pct: percentChange(current.invoice_count, previous.invoice_count),
-    },
+    old_jewellery_purchase_count: oldPurchase.count,
+    old_jewellery_purchased_value: oldPurchase.total_value,
     pending_amount: pendingAmount,
     stock_on_hand: {
       count: stock.count,

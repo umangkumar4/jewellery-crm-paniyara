@@ -8,13 +8,9 @@ export interface DashboardSummary {
   total_sales: number;
   invoice_count: number;
   items_sold: number;
-  net_weight_sold_g: number;
-  avg_invoice_value: number;
   new_customers: number;
-  vs_previous_period: {
-    total_sales_pct: number | null;
-    invoice_count_pct: number | null;
-  };
+  old_jewellery_purchase_count: number;
+  old_jewellery_purchased_value: number;
   pending_amount: number;
   stock_on_hand: {
     count: number;
