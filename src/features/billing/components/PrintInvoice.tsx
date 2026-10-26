@@ -419,7 +419,7 @@ export function PrintInvoice({ id }: PrintInvoiceProps) {
                 table only renders when this invoice actually has one;
                 Amount Paid/Total Remaining always render, same as every
                 ordinary invoice already needs them. */}
-            <div className="border-t-[1.5px] border-[#1f1a12]">
+            <div className="border-t-[1.5px] border-[#1f1a12]"> 
               {hasExchange ? (
                 <div className="mb-4">
                   {/* <div className="mb-2 text-[10.5px] font-bold">{t.oldJewelleryExchange}</div> */}
