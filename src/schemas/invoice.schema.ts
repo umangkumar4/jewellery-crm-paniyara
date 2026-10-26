@@ -48,7 +48,11 @@ const invoiceItemInputSchema = z.object({
   stone_charge: z.number().min(0, "Stone charge must be 0 or more").default(0),
   // Optional - a manually-added line (no scanned/browsed tag behind it) has none.
   tag_code: z.string().trim().toUpperCase().optional(),
-  total: z.number().min(0, "Total must be 0 or more"),
+  // Positive, not min(0) - a line that contributes nothing to the bill is
+  // always either an incomplete entry (rate not set yet, or a net weight so
+  // small the metal value rounds to ₹0) or a mistake, never a real sellable
+  // line - this app has no concept of a free/complimentary item.
+  total: z.number().positive("Total must be greater than 0"),
 });
 
 const invoicePaymentInputSchema = z.object({

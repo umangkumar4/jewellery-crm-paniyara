@@ -20,7 +20,7 @@ import { ScanInput } from "@/features/billing/components/ScanInput";
 import { MakingChargeDialog } from "@/features/billing/components/MakingChargeDialog";
 import { sanitizeNumericInput, isValidNumericInput, isValidWeightInput } from "@/features/billing/lib/numericInput";
 import { useNumericStoreField } from "@/features/billing/lib/useNumericStoreField";
-import { calculateMakingCharge, type MakingMethod } from "@/features/billing/lib/calculations";
+import { calculateItemTotal, calculateMakingCharge, type MakingMethod } from "@/features/billing/lib/calculations";
 import { useBillingStore, type BillingItem } from "@/store/useBillingStore";
 
 // Mirrors createInvoiceSchema's mandatory checks for description/gross
@@ -39,6 +39,11 @@ function getLiveItemErrors(item: BillingItem): Record<string, string> {
   if (!(item.pieces > 0) || !Number.isInteger(item.pieces)) {
     errors.pieces = "Pieces must be a whole number, at least 1";
   }
+  // Mirrors createInvoiceSchema's total: z.number().positive(...) - a line
+  // that contributes ₹0 to the bill is always incomplete or a mistake
+  // (unset rate, or a net weight so small the metal value rounds to ₹0),
+  // never an intentional free item - this app has no concept of one.
+  if (!(item.total > 0)) errors.total = "Total must be greater than 0";
   return errors;
 }
 
@@ -172,6 +177,29 @@ function ItemFieldCell({ data, node, field, onFieldChange }: ICellRendererParams
       className={cn(
         "w-full min-w-0 rounded-md border border-transparent bg-transparent px-2 py-1 text-sm text-foreground hover:border-border focus-visible:border-input focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
         hasError && "border-destructive focus-visible:ring-destructive",
+      )}
+    />
+  );
+}
+
+// Locked, not an ItemFieldCell - net weight is always derived from gross -
+// stone (handleFieldChange below recomputes patch.netWtG whenever either
+// changes), never typed directly in the grid either. Keeps net structurally
+// consistent with gross/stone instead of letting someone type an
+// inconsistent, even physically impossible, value (net > gross) straight
+// onto a real invoice line - mirrors ManualAddForm's read-only net field.
+function NetWeightCell({ data }: ICellRendererParams<BillingItem>) {
+  if (!data) return null;
+  const hasError = !(data.netWtG > 0);
+  return (
+    <input
+      type="text"
+      readOnly
+      tabIndex={-1}
+      value={data.netWtG.toFixed(3)}
+      className={cn(
+        "w-full min-w-0 cursor-default rounded-md border border-transparent bg-transparent px-2 py-1 text-sm text-foreground",
+        hasError && "text-destructive",
       )}
     />
   );
@@ -318,7 +346,19 @@ function ManualAddForm({ onDone }: { onDone: () => void }) {
   const hasNetWt = Number(netWtG) > 0;
   const hasRate = Number(ratePerGram) > 0;
   const hasPieces = Number(pieces) > 0 && Number.isInteger(Number(pieces));
-  const canAdd = hasDescription && hasGrossWt && hasNetWt && hasRate && hasPieces;
+  // Mirrors createInvoiceSchema's total: z.number().positive(...) - computed
+  // the same way withTotal() in useBillingStore.ts computes the real stored
+  // total, so this preview can never drift from what addItem() below would
+  // actually produce.
+  const previewTotal = calculateItemTotal({
+    netWtG: Number(netWtG) || 0,
+    ratePerGram: Number(ratePerGram) || 0,
+    makingCharge,
+    stoneCharge: Number(stoneCharge) || 0,
+    pieces: Number(pieces) || 0,
+  });
+  const hasTotal = previewTotal > 0;
+  const canAdd = hasDescription && hasGrossWt && hasNetWt && hasRate && hasPieces && hasTotal;
 
   const handleAdd = () => {
     if (!canAdd) return;
@@ -423,7 +463,13 @@ function ManualAddForm({ onDone }: { onDone: () => void }) {
         </div>
         <div>
           <Label htmlFor="manual-net">Net Wt (g) *</Label>
-          <WeightField id="manual-net" value={netWtG} onValueChange={setNetWtG} />
+          {/* Read-only, same reasoning as TagForm.tsx's net field - always
+              derived from gross - stone (the useState-diff block above),
+              never typed directly. Letting it be freely overridden let a
+              line ship with an inconsistent, even physically impossible,
+              net weight (e.g. bigger than gross) straight onto an invoice. */}
+          <Input id="manual-net" readOnly value={netWtG} />
+          <p className="mt-1.5 text-xs text-muted-foreground">Auto-calculated: gross − stone weight.</p>
           {!hasNetWt ? <p className="mt-1.5 text-xs text-destructive">Net weight is required</p> : null}
         </div>
         <div />
@@ -449,6 +495,12 @@ function ManualAddForm({ onDone }: { onDone: () => void }) {
           <NumberField id="manual-stone-charge" value={stoneCharge} onValueChange={setStoneCharge} />
         </div>
       </div>
+
+      {hasDescription && hasGrossWt && hasNetWt && hasRate && hasPieces && !hasTotal ? (
+        <p className="mt-4 text-xs text-destructive">
+          This item&apos;s total comes to ₹0 - check the net weight and rate before adding it.
+        </p>
+      ) : null}
 
       <div className="mt-4 flex justify-end gap-2">
         <Button type="button" variant="outline" onClick={onDone}>
@@ -578,7 +630,12 @@ export function ItemTable({ onBrowseTags }: { onBrowseTags: () => void }) {
       },
       editable("grossWtG", "Gross Wt (g) *", 140),
       editable("stoneWtG", "Stone Wt (g)", 130),
-      editable("netWtG", "Net Wt (g) *", 130),
+      {
+        headerName: "Net Wt (g) *",
+        width: 130,
+        headerClass: AG_GRID_HEADER_CLASS,
+        cellRenderer: NetWeightCell,
+      },
       editable("ratePerGram", "Rate/g *", 150),
       {
         headerName: "Making Charge",
@@ -593,7 +650,7 @@ export function ItemTable({ onBrowseTags }: { onBrowseTags: () => void }) {
         headerName: "Total",
         width: 170,
         headerClass: AG_GRID_HEADER_CLASS,
-        cellClass: "font-semibold! text-foreground!",
+        cellClass: (p) => cn("font-semibold!", p.data && p.data.total > 0 ? "text-foreground!" : "text-destructive!"),
         valueFormatter: (p) => (p.value != null ? `₹${p.value.toLocaleString("en-IN")}` : ""),
       },
       {
