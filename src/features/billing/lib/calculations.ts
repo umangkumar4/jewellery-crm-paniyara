@@ -191,3 +191,13 @@ export function calculateOldJewelleryItemValuation({
   const calculatedValue = Math.round(netWtG * ratePerGram);
   return { netWtG, calculatedValue };
 }
+
+// Single source of truth for "has this old-jewellery item's value been
+// overridden" - a final value counts as overridden whenever it differs from
+// the formula-calculated one. Deliberately NOT a stored field: it's fully
+// derivable from finalValue/calculatedValue, which are both already the
+// real source of truth, so this stays a cheap live check reused by every
+// caller instead of a third field that could drift out of sync with them.
+export function isValueOverridden(finalValue: number, calculatedValue: number): boolean {
+  return finalValue !== calculatedValue;
+}

@@ -13,7 +13,7 @@ import { agGridTheme, AG_GRID_HEADER_CLASS, AG_GRID_DEFAULT_COL_DEF } from "@/li
 import { ApiError } from "@/lib/api-client";
 import { PaymentPanel } from "@/features/billing/components/PaymentPanel";
 import { useAddPayment } from "@/features/billing/hooks/useAddPayment";
-import { calculateNewPending } from "@/features/billing/lib/calculations";
+import { calculateNewPending, isValueOverridden } from "@/features/billing/lib/calculations";
 import { useInvoiceDetail } from "@/features/dashboard/hooks/useInvoiceDetail";
 import type { InvoiceDetail, InvoiceItemDetail, ExchangeSettlementType } from "@/features/dashboard/hooks/useInvoiceDetail";
 import type { OldPurchaseItemDetail } from "@/features/dashboard/hooks/useOldPurchaseDetail";
@@ -139,6 +139,18 @@ export default function InvoiceDetailPage() {
         headerClass: AG_GRID_HEADER_CLASS,
         cellClass: "font-medium! text-foreground!",
         valueFormatter: (p) => (p.value != null ? formatInr(p.value) : ""),
+      },
+      {
+        headerName: "Override Reason",
+        width: 200,
+        headerClass: AG_GRID_HEADER_CLASS,
+        // Plain field, not a stacked cell under Value - ag-grid cells don't
+        // support multi-line content the way a plain HTML <td> does (what
+        // OldJewelleryExchangeSection.tsx/StandaloneItemsSection.tsx use),
+        // so a dedicated single-line column is the reliable way to show
+        // this here instead of fighting row-height/overflow on the cell.
+        valueGetter: (p) =>
+          p.data && isValueOverridden(p.data.final_value, p.data.calculated_value) ? p.data.override_reason : "—",
       },
     ],
     [],

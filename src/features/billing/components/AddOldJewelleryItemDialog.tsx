@@ -11,7 +11,7 @@ import { METALS, type Metal } from "@/lib/metals";
 import { useMetalPurities } from "@/features/settings/hooks/useMetalPurities";
 import { NumberField } from "@/features/billing/components/NumberField";
 import { WeightField } from "@/components/ui/WeightField";
-import { calculateOldJewelleryItemValuation } from "@/features/billing/lib/calculations";
+import { calculateOldJewelleryItemValuation, isValueOverridden } from "@/features/billing/lib/calculations";
 import type { OldJewelleryDraftItem } from "@/store/useBillingStore";
 
 const METAL_OPTIONS = toOptions(METALS);
@@ -98,12 +98,18 @@ export function AddOldJewelleryItemDialog({ onClose, initialItem, onSave }: AddO
     setFinalValue(String(calculatedValue));
   }
 
-  const isOverridden = (Number(finalValue) || 0) !== calculatedValue;
+  const isOverridden = isValueOverridden(Number(finalValue) || 0, calculatedValue);
+  // Mandatory whenever the final value has been pushed away from the
+  // calculated one - this is real cash paid out to a customer for old
+  // jewellery, so an override with no explanation on record is a fraud/
+  // mistake risk, not a convenience. Mirrors oldJewelleryItemInputSchema's
+  // matching refine.
+  const hasReason = overrideReason.trim().length > 0;
 
   const hasDescription = description.trim().length > 0;
   const hasGrossWt = Number(grossWtG) > 0;
   const hasRate = Number(appliedRatePerGram) > 0;
-  const canSave = hasDescription && hasGrossWt && hasRate;
+  const canSave = hasDescription && hasGrossWt && hasRate && (!isOverridden || hasReason);
 
   const handleSave = () => {
     if (!canSave) return;
@@ -211,13 +217,16 @@ export function AddOldJewelleryItemDialog({ onClose, initialItem, onSave }: AddO
           ) : null}
         </div>
         <div>
-          <Label htmlFor="old-item-reason">Override Reason</Label>
+          <Label htmlFor="old-item-reason">Override Reason{isOverridden ? " *" : ""}</Label>
           <Input
             id="old-item-reason"
             value={overrideReason}
             onChange={(e) => setOverrideReason(e.target.value)}
             placeholder={isOverridden ? "Why this value?" : "—"}
           />
+          {isOverridden && !hasReason ? (
+            <p className="mt-1.5 text-xs text-destructive">A reason is required when overriding the calculated value</p>
+          ) : null}
         </div>
       </div>
 

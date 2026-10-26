@@ -86,7 +86,19 @@ export const oldJewelleryItemInputSchema = z
   .refine((item) => item.stone_wt_g + item.dust_wt_g + item.other_deduction_wt_g <= item.gross_wt_g, {
     message: "Deductions cannot exceed gross weight",
     path: ["gross_wt_g"],
-  });
+  })
+  // final_value is real cash paid out to a customer for old jewellery - an
+  // override with no explanation on record is a fraud/mistake risk, not a
+  // convenience, so a reason is mandatory whenever it's been pushed away
+  // from the calculated value. Mirrors AddOldJewelleryItemDialog.tsx's
+  // matching UI gate.
+  .refine(
+    (item) => item.final_value === item.calculated_value || item.override_reason?.trim().length,
+    {
+      message: "A reason is required when overriding the calculated value",
+      path: ["override_reason"],
+    },
+  );
 
 // Exported for reuse by standaloneOldJewelleryPurchase.schema.ts.
 export const oldJewelleryRefundInputSchema = z.object({

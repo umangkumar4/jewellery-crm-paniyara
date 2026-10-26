@@ -8,6 +8,7 @@ import {
   AddOldJewelleryItemDialog,
   type OldJewelleryItemFormValues,
 } from "@/features/billing/components/AddOldJewelleryItemDialog";
+import { isValueOverridden } from "@/features/billing/lib/calculations";
 import { useOldPurchaseStore, type OldJewelleryDraftItem } from "@/store/useOldPurchaseStore";
 
 function formatInr(value: number): string {
@@ -39,7 +40,19 @@ function OldJewelleryItemRow({
       <td className={cn(CELL_CLASS, "text-right tabular-nums")}>{item.otherDeductionWtG.toFixed(3)}</td>
       <td className={cn(CELL_CLASS, "text-right tabular-nums font-medium")}>{item.netWtG.toFixed(3)}</td>
       <td className={cn(CELL_CLASS, "text-right tabular-nums")}>{item.appliedRatePerGram.toLocaleString("en-IN")}</td>
-      <td className={cn(CELL_CLASS, "text-right font-semibold whitespace-nowrap")}>{formatInr(item.finalValue)}</td>
+      <td className={cn(CELL_CLASS, "text-right font-semibold whitespace-nowrap")}>
+        <div className="flex flex-col items-end">
+          <span>{formatInr(item.finalValue)}</span>
+          {/* Visible whenever the value's been overridden - a reason is
+              mandatory for this case (AddOldJewelleryItemDialog.tsx), so
+              it's always present here, not just stored out of sight. */}
+          {isValueOverridden(item.finalValue, item.calculatedValue) ? (
+            <span className="max-w-[160px] truncate text-[10px] font-normal text-muted-foreground" title={item.overrideReason}>
+              {item.overrideReason}
+            </span>
+          ) : null}
+        </div>
+      </td>
       <td className={cn(CELL_CLASS, "w-16 text-right")}>
         <div className="flex items-center justify-end gap-1">
           <button
