@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useMemo, useState } from "react";
-import { Check, Pencil, Trash2, X } from "lucide-react";
+import { Archive as ArchiveIcon, ArchiveRestore, Check, Pencil, Trash2, X } from "lucide-react";
 import { AgGridReact } from "ag-grid-react";
 import type { ColDef, ICellRendererParams, RowClassParams } from "ag-grid-community";
 import { Badge } from "@/components/ui/badge";
@@ -71,6 +71,7 @@ function ActionsCell({
   data,
   renamingId,
   startRename,
+  toggleActive,
   remove,
 }: ICellRendererParams<MetalPurity> & PurityCellExtra) {
   if (!data) return null;
@@ -82,9 +83,6 @@ function ActionsCell({
           <Pencil className="h-4 w-4" />
         </Button>
       ) : null}
-      {/* Archive/Restore temporarily disabled - underlying toggleActive/
-          useSetPurityActive wiring is untouched below, just not exposed as
-          a button right now. Re-add this to re-enable:
       <Button
         type="button"
         variant="outline"
@@ -94,9 +92,6 @@ function ActionsCell({
       >
         {data.active ? <ArchiveIcon className="h-4 w-4" /> : <ArchiveRestore className="h-4 w-4" />}
       </Button>
-      (also re-add `toggleActive` to this component's destructured props,
-      and `ArchiveRestore, Archive as ArchiveIcon` to the lucide-react
-      import at the top of this file) */}
       <Button type="button" variant="outline" size="icon" onClick={() => remove(data)} aria-label="Delete">
         <Trash2 className="h-4 w-4" />
       </Button>
@@ -113,6 +108,7 @@ export function PurityList() {
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<MetalPurity | null>(null);
+  const [archiveTarget, setArchiveTarget] = useState<MetalPurity | null>(null);
 
   const startRename = useCallback((purity: MetalPurity) => {
     setRenamingId(purity.id);
@@ -144,22 +140,31 @@ export function PurityList() {
     [renameValue, renamePurity, cancelRename],
   );
 
-  const toggleActive = useCallback(
-    (purity: MetalPurity) => {
-      setPurityActive.mutate(
-        { id: purity.id, active: !purity.active },
-        {
-          onSuccess: () => {
-            toast.success(purity.active ? "Purity archived" : "Purity restored");
-          },
-          onError: (err) => {
-            toast.error(err instanceof ApiError ? err.message : "Failed to update purity");
-          },
+  // Opens the confirm dialog rather than archiving/restoring immediately -
+  // same pattern as remove/confirmDelete below. The actual mutation happens
+  // in confirmToggleActive, triggered from the dialog's Archive/Restore
+  // button.
+  const toggleActive = useCallback((purity: MetalPurity) => {
+    setArchiveTarget(purity);
+  }, []);
+
+  const confirmToggleActive = useCallback(() => {
+    if (!archiveTarget) return;
+    const purity = archiveTarget;
+    setPurityActive.mutate(
+      { id: purity.id, active: !purity.active },
+      {
+        onSuccess: () => {
+          toast.success(purity.active ? "Purity archived" : "Purity restored");
+          setArchiveTarget(null);
         },
-      );
-    },
-    [setPurityActive],
-  );
+        onError: (err) => {
+          toast.error(err instanceof ApiError ? err.message : "Failed to update purity");
+          setArchiveTarget(null);
+        },
+      },
+    );
+  }, [archiveTarget, setPurityActive]);
 
   // Opens the confirm dialog rather than deleting immediately - the actual
   // mutation happens in confirmDelete, triggered from the dialog's Delete
@@ -291,6 +296,53 @@ export function PurityList() {
             onClick={confirmDelete}
           >
             {deletePurity.isPending ? "Deleting…" : "Delete"}
+          </Button>
+        </div>
+      </Dialog>
+
+      <Dialog
+        open={!!archiveTarget}
+        onClose={() => setArchiveTarget(null)}
+        title={archiveTarget?.active ? "Archive purity?" : "Restore purity?"}
+      >
+        <p className="text-sm text-muted-foreground">
+          {archiveTarget?.active ? (
+            <>
+              Archiving{" "}
+              <span className="font-medium text-foreground">
+                {archiveTarget?.metal} {archiveTarget?.purity}
+              </span>{" "}
+              hides it from the purity dropdowns used when creating new tags or setting rates. Tags and bills
+              that already use it keep working as before - archiving doesn&apos;t delete anything or block
+              billing.
+            </>
+          ) : (
+            <>
+              Restoring{" "}
+              <span className="font-medium text-foreground">
+                {archiveTarget?.metal} {archiveTarget?.purity}
+              </span>{" "}
+              makes it selectable again in the purity dropdowns for new tags and rates.
+            </>
+          )}
+        </p>
+        <div className="mt-6 flex justify-end gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => setArchiveTarget(null)}
+            disabled={setPurityActive.isPending}
+          >
+            Cancel
+          </Button>
+          <Button type="button" disabled={setPurityActive.isPending} onClick={confirmToggleActive}>
+            {setPurityActive.isPending
+              ? archiveTarget?.active
+                ? "Archiving…"
+                : "Restoring…"
+              : archiveTarget?.active
+                ? "Archive"
+                : "Restore"}
           </Button>
         </div>
       </Dialog>
