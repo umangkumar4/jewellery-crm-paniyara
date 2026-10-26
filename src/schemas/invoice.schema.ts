@@ -80,7 +80,11 @@ export const oldJewelleryItemInputSchema = z
     default_rate_per_gram: z.number().min(0).nullable(),
     applied_rate_per_gram: z.number().positive("Rate is required"),
     calculated_value: z.number().min(0, "Calculated value cannot be negative"),
-    final_value: z.number().min(0, "Final value cannot be negative"),
+    // Positive, not min(0) - real cash paid out for nothing (whether from
+    // an override or deductions landing exactly equal to gross) isn't a
+    // valid old-jewellery item. Mirrors createInvoiceSchema's matching
+    // total: z.number().positive(...) for new-jewellery items.
+    final_value: z.number().positive("Final value must be greater than 0"),
     override_reason: z.string().trim().optional(),
   })
   .refine((item) => item.stone_wt_g + item.dust_wt_g + item.other_deduction_wt_g <= item.gross_wt_g, {

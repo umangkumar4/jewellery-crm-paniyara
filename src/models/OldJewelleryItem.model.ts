@@ -69,7 +69,12 @@ const oldJewelleryItemSchema = new Schema<OldJewelleryItemDocument>(
     srNo: { type: Number, required: true },
     description: { type: String, required: true, trim: true },
     metal: { type: String, required: true, trim: true },
-    purity: { type: String, required: true, trim: true },
+    // Not required - purity is optional end-to-end (explicit product
+    // decision, same as Invoice.model.ts's own items[].purity), but this
+    // field was wrongly marked required here, which Mongoose enforces on
+    // "" as well as undefined - crashed every save where the admin left
+    // purity unpicked (oldJewelleryItemInputSchema already allows that).
+    purity: { type: String, default: "", trim: true },
     grossWtG: { type: Number, required: true, min: 0 },
     stoneWtG: { type: Number, required: true, min: 0, default: 0 },
     dustWtG: { type: Number, required: true, min: 0, default: 0 },

@@ -109,7 +109,30 @@ export function AddOldJewelleryItemDialog({ onClose, initialItem, onSave }: AddO
   const hasDescription = description.trim().length > 0;
   const hasGrossWt = Number(grossWtG) > 0;
   const hasRate = Number(appliedRatePerGram) > 0;
-  const canSave = hasDescription && hasGrossWt && hasRate && (!isOverridden || hasReason);
+  // Mirrors oldJewelleryItemInputSchema's matching refine
+  // (stone_wt_g + dust_wt_g + other_deduction_wt_g <= gross_wt_g) - catches
+  // it live here instead of only at Finalize Sale/Record Purchase, after
+  // the rest of the bill is already filled in. The server-side refine is
+  // the one still doing the actual enforcing; this is purely an earlier,
+  // friendlier surface for the same rule.
+  const deductionsExceedGross =
+    (Number(stoneWtG) || 0) + (Number(dustWtG) || 0) + (Number(otherDeductionWtG) || 0) >
+    (Number(grossWtG) || 0);
+  // Mirrors oldJewelleryItemInputSchema's final_value: z.number().positive()
+  // - a ₹0 item is real cash paid out for nothing, whether it got there by
+  // an override or just by deductions landing exactly equal to gross (net
+  // weight 0, same underlying symptom deductionsExceedGross doesn't catch
+  // since equality is allowed there). Checked independently of isOverridden
+  // so it also catches the "auto-computed, never touched, lands at 0"
+  // case, not just an explicit override down to 0.
+  const hasFinalValue = Number(finalValue) > 0;
+  const canSave =
+    hasDescription &&
+    hasGrossWt &&
+    hasRate &&
+    (!isOverridden || hasReason) &&
+    !deductionsExceedGross &&
+    hasFinalValue;
 
   const handleSave = () => {
     if (!canSave) return;
@@ -201,6 +224,11 @@ export function AddOldJewelleryItemDialog({ onClose, initialItem, onSave }: AddO
         <div>
           <Label>Net Wt (g)</Label>
           <p className="flex h-12 items-center px-1 text-sm text-muted-foreground">{netWtG.toFixed(3)} g</p>
+          {deductionsExceedGross ? (
+            <p className="mt-1.5 text-xs text-destructive">
+              Stone + Dust + Other Deduction exceed Gross weight
+            </p>
+          ) : null}
         </div>
         <div>
           <Label htmlFor="old-item-rate">Rate/g (₹) *</Label>
@@ -214,6 +242,9 @@ export function AddOldJewelleryItemDialog({ onClose, initialItem, onSave }: AddO
             <p className="mt-1.5 text-xs text-muted-foreground">
               Calculated: ₹{calculatedValue.toLocaleString("en-IN")}
             </p>
+          ) : null}
+          {!hasFinalValue ? (
+            <p className="mt-1.5 text-xs text-destructive">Final value must be greater than 0</p>
           ) : null}
         </div>
         <div>
