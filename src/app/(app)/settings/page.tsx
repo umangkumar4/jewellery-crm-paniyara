@@ -6,13 +6,11 @@ import { MetalRateForm } from "@/features/settings/components/MetalRateForm";
 import { MetalRatesTable } from "@/features/settings/components/MetalRatesTable";
 import { AddPurityForm } from "@/features/settings/components/AddPurityForm";
 import { PurityList } from "@/features/settings/components/PurityList";
-import type { MetalPurity } from "@/features/settings/hooks/useMetalPurities";
 
 type SettingsTab = "rates" | "purities";
 
 export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState<SettingsTab>("rates");
-  const [editingPurity, setEditingPurity] = useState<MetalPurity | null>(null);
 
   return (
     <div className="mx-auto max-w-full">
@@ -33,9 +31,9 @@ export default function SettingsPage() {
       {activeTab === "rates" ? (
         <div className="mt-6">
           <div className="panel p-6">
-            <MetalRateForm editingPurity={editingPurity} onSaved={() => setEditingPurity(null)} />
+            <MetalRateForm />
           </div>
-          <MetalRatesTable onEdit={setEditingPurity} />
+          <MetalRatesTable />
         </div>
       ) : (
         <div className="mt-6">
