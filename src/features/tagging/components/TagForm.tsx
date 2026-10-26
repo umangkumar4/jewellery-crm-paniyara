@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
 import { SelectField } from "@/components/ui/SelectField";
 import { toOptions } from "@/components/ui/react-select-styles";
-import { NumberField } from "@/features/billing/components/NumberField";
+import { WeightField } from "@/components/ui/WeightField";
 import { ApiError } from "@/lib/api-client";
 import { METALS } from "@/lib/metals";
 
@@ -175,7 +175,7 @@ export function TagForm({ onCreated }: { onCreated: (tag: Tag) => void }) {
       <div className="grid grid-cols-3 gap-4">
         <div>
           <Label htmlFor="gross_wt_g">Gross Wt (g)</Label>
-          <NumberField
+          <WeightField
             id="gross_wt_g"
             value={grossDisplay}
             onValueChange={(raw) => {
@@ -190,7 +190,7 @@ export function TagForm({ onCreated }: { onCreated: (tag: Tag) => void }) {
 
         <div>
           <Label htmlFor="stone_wt_g">Stone Wt (g)</Label>
-          <NumberField
+          <WeightField
             id="stone_wt_g"
             value={stoneDisplay}
             onValueChange={(raw) => {

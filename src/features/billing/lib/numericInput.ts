@@ -34,3 +34,16 @@ export function sanitizeNumericInput(raw: string): string {
 export function isValidNumericInput(raw: string): boolean {
   return raw === "" || /^\d*\.?\d*$/.test(raw);
 }
+
+// For weight fields specifically (gross/stone/net/dust/other-deduction, in
+// grams) - same character set as isValidNumericInput, but caps digits after
+// the decimal point at 3. Jewellery scales don't resolve finer than 1mg, so
+// a 4th decimal is never a real measurement, just keystroke noise - this
+// rejects it the instant it's typed (same mechanism already used to reject
+// a stray letter or a second decimal point), rather than letting it through
+// and only losing it later when net weight gets rounded. sanitizeNumericInput
+// (the leading-zero fix) is reused as-is for weight fields - that part of
+// the logic doesn't depend on decimal count.
+export function isValidWeightInput(raw: string): boolean {
+  return raw === "" || /^\d*\.?\d{0,3}$/.test(raw);
+}

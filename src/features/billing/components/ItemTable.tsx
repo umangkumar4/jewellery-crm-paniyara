@@ -15,9 +15,10 @@ import { cn } from "@/lib/utils";
 import { METALS, type Metal } from "@/lib/metals";
 import { useMetalPurities } from "@/features/settings/hooks/useMetalPurities";
 import { NumberField } from "@/features/billing/components/NumberField";
+import { WeightField } from "@/components/ui/WeightField";
 import { ScanInput } from "@/features/billing/components/ScanInput";
 import { MakingChargeDialog } from "@/features/billing/components/MakingChargeDialog";
-import { sanitizeNumericInput, isValidNumericInput } from "@/features/billing/lib/numericInput";
+import { sanitizeNumericInput, isValidNumericInput, isValidWeightInput } from "@/features/billing/lib/numericInput";
 import { useNumericStoreField } from "@/features/billing/lib/useNumericStoreField";
 import { calculateMakingCharge, type MakingMethod } from "@/features/billing/lib/calculations";
 import { useBillingStore, type BillingItem } from "@/store/useBillingStore";
@@ -69,6 +70,12 @@ const NUMERIC_FIELDS = new Set<EditableField>([
   "ratePerGram",
   "stoneCharge",
 ]);
+
+// Subset of NUMERIC_FIELDS that are gram weights, not money/count - these
+// get the 3-decimal cap (isValidWeightInput) in ItemFieldCell below instead
+// of the unrestricted isValidNumericInput, same rule WeightField applies to
+// the standalone forms (ManualAddForm, TagForm, AddOldJewelleryItemDialog).
+const WEIGHT_FIELDS = new Set<EditableField>(["grossWtG", "stoneWtG", "netWtG"]);
 
 // Maps this component's camelCase field names to the Zod schema's
 // snake_case field names, so a validation issue's path (e.g. "rate_per_gram")
@@ -149,7 +156,8 @@ function ItemFieldCell({ data, node, field, onFieldChange }: ICellRendererParams
           onFieldChange(rowIndex, field, raw);
           return;
         }
-        if (!isValidNumericInput(raw)) return;
+        const isValid = WEIGHT_FIELDS.has(field) ? isValidWeightInput(raw) : isValidNumericInput(raw);
+        if (!isValid) return;
         numericField.onValueChange(sanitizeNumericInput(raw));
       }}
       onBlur={() => {
@@ -406,16 +414,16 @@ function ManualAddForm({ onDone }: { onDone: () => void }) {
 
         <div>
           <Label htmlFor="manual-gross">Gross Wt (g) *</Label>
-          <NumberField id="manual-gross" value={grossWtG} onValueChange={setGrossWtG} />
+          <WeightField id="manual-gross" value={grossWtG} onValueChange={setGrossWtG} />
           {!hasGrossWt ? <p className="mt-1.5 text-xs text-destructive">Gross weight is required</p> : null}
         </div>
         <div>
           <Label htmlFor="manual-stone-wt">Stone Wt (g)</Label>
-          <NumberField id="manual-stone-wt" value={stoneWtG} onValueChange={setStoneWtG} />
+          <WeightField id="manual-stone-wt" value={stoneWtG} onValueChange={setStoneWtG} />
         </div>
         <div>
           <Label htmlFor="manual-net">Net Wt (g) *</Label>
-          <NumberField id="manual-net" value={netWtG} onValueChange={setNetWtG} />
+          <WeightField id="manual-net" value={netWtG} onValueChange={setNetWtG} />
           {!hasNetWt ? <p className="mt-1.5 text-xs text-destructive">Net weight is required</p> : null}
         </div>
         <div />

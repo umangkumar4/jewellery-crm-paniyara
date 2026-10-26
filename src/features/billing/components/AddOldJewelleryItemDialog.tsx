@@ -10,6 +10,7 @@ import { toOptions } from "@/components/ui/react-select-styles";
 import { METALS, type Metal } from "@/lib/metals";
 import { useMetalPurities } from "@/features/settings/hooks/useMetalPurities";
 import { NumberField } from "@/features/billing/components/NumberField";
+import { WeightField } from "@/components/ui/WeightField";
 import { calculateOldJewelleryItemValuation } from "@/features/billing/lib/calculations";
 import type { OldJewelleryDraftItem } from "@/store/useBillingStore";
 
@@ -175,20 +176,20 @@ export function AddOldJewelleryItemDialog({ onClose, initialItem, onSave }: AddO
 
         <div>
           <Label htmlFor="old-item-gross">Gross Wt (g) *</Label>
-          <NumberField id="old-item-gross" value={grossWtG} onValueChange={setGrossWtG} />
+          <WeightField id="old-item-gross" value={grossWtG} onValueChange={setGrossWtG} />
           {!hasGrossWt ? <p className="mt-1.5 text-xs text-destructive">Gross weight is required</p> : null}
         </div>
         <div>
           <Label htmlFor="old-item-stone">Stone Wt (g)</Label>
-          <NumberField id="old-item-stone" value={stoneWtG} onValueChange={setStoneWtG} />
+          <WeightField id="old-item-stone" value={stoneWtG} onValueChange={setStoneWtG} />
         </div>
         <div>
           <Label htmlFor="old-item-dust">Dust Wt (g)</Label>
-          <NumberField id="old-item-dust" value={dustWtG} onValueChange={setDustWtG} />
+          <WeightField id="old-item-dust" value={dustWtG} onValueChange={setDustWtG} />
         </div>
         <div>
           <Label htmlFor="old-item-other">Other Deduction (g)</Label>
-          <NumberField id="old-item-other" value={otherDeductionWtG} onValueChange={setOtherDeductionWtG} />
+          <WeightField id="old-item-other" value={otherDeductionWtG} onValueChange={setOtherDeductionWtG} />
         </div>
 
         <div>
