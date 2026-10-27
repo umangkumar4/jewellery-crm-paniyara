@@ -47,3 +47,25 @@ export function isValidNumericInput(raw: string): boolean {
 export function isValidWeightInput(raw: string): boolean {
   return raw === "" || /^\d*\.?\d{0,3}$/.test(raw);
 }
+
+// For money fields that may carry paise (Discount, Stone Charge, Making
+// Charge value) - same character set as isValidNumericInput, but caps
+// digits after the decimal point at 2, matching how rupees are actually
+// denominated. Same reasoning as isValidWeightInput's 3dp cap for gram
+// weights: reject a 3rd decimal the instant it's typed, rather than
+// accepting it and only losing/mismatching it later during calculation
+// (this was the exact root cause of Discount accepting ₹100.555 while the
+// display rounded it to ₹100.56 - the two disagreed because nothing
+// stopped the 3rd decimal from being entered in the first place).
+export function isValidMoneyInput(raw: string): boolean {
+  return raw === "" || /^\d*\.?\d{0,2}$/.test(raw);
+}
+
+// For money fields that must stay in whole rupees (Payment Amount) -
+// rejects a decimal point entirely. grandTotal and old-jewellery value are
+// both whole rupees by convention, so restricting payments to whole
+// rupees too guarantees the pending balance can never carry paise, with
+// no extra rounding logic needed anywhere downstream.
+export function isValidWholeRupeeInput(raw: string): boolean {
+  return raw === "" || /^\d*$/.test(raw);
+}

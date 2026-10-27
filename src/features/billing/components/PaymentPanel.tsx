@@ -3,7 +3,7 @@
 import { Label } from "@/components/ui/Label";
 import { SelectField } from "@/components/ui/SelectField";
 import type { SelectOption } from "@/components/ui/react-select-styles";
-import { NumberField } from "@/features/billing/components/NumberField";
+import { WholeRupeeField } from "@/components/ui/WholeRupeeField";
 import { useNumericStoreField } from "@/features/billing/lib/useNumericStoreField";
 import type { BillingPayment, BillingPaymentMode } from "@/store/useBillingStore";
 
@@ -92,7 +92,7 @@ export function PaymentPanel({
         <div className={bare ? "grid grid-cols-2 gap-4" : "mt-4 grid grid-cols-2 gap-4"}>
           <div>
             <Label htmlFor="payment-amount">Amount Paid Now (₹)</Label>
-            <NumberField
+            <WholeRupeeField
               id="payment-amount"
               value={amountField.value}
               onValueChange={amountField.onValueChange}
@@ -112,8 +112,16 @@ export function PaymentPanel({
                 // Goes through amountField.onValueChange, the same path
                 // manual typing uses - keeps the display buffer, lastPushed,
                 // and the store update all in sync via one code path instead
-                // of a second one that could drift from it.
-                onClick={() => amountField.onValueChange(String(grandTotal))}
+                // of a second one that could drift from it. Rounded here
+                // (not just trusting grandTotal is already whole) because
+                // this call bypasses WholeRupeeField's own validation gate
+                // entirely - that gate only runs on typed input, not on a
+                // direct onValueChange call like this one. grandTotal is
+                // always whole for a new sale, but on the invoice detail
+                // page's "Collect Payment" dialog this prop is actually the
+                // pending balance, which could still be fractional for a
+                // legacy invoice with pre-fix fractional payments recorded.
+                onClick={() => amountField.onValueChange(String(Math.round(grandTotal)))}
                 className="shrink-0 text-xs font-medium text-gold hover:underline"
               >
                 {payButtonLabel}

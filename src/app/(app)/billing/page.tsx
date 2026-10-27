@@ -323,7 +323,16 @@ export default function BillingPage() {
                   // amount" fills in, same way a prior payment already would.
                   grandTotal={remainingBeforePayment}
                   payButtonLabel={exchangeSettlement.exchangeApplied > 0 ? "Pay remaining" : "Pay full amount"}
-                  error={fieldErrors["paid_amount"] ?? fieldErrors["payment.amount"] ?? fieldErrors["payment.mode"]}
+                  error={
+                    fieldErrors["paid_amount"] ??
+                    fieldErrors["payment.amount"] ??
+                    fieldErrors["payment.mode"] ??
+                    // Plain "payment" - the key this schema's own whole-
+                    // rupee refine on the payment object actually produces
+                    // (path: ["payment"], not ["payment", "amount"] - see
+                    // invoice.schema.ts's comment on why).
+                    fieldErrors["payment"]
+                  }
                   disabled={isFullySettled}
                 />
               </div>

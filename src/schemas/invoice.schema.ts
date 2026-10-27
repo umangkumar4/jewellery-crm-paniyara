@@ -8,6 +8,13 @@ const refundModeSchema = z.enum(["cash", "upi", "bank_transfer"]);
 const paymentStatusSchema = z.enum(["unpaid", "partial", "paid"]);
 const makingMethodSchema = z.enum(["fixed", "per_gram", "percent_metal"]);
 
+// Used by createInvoiceSchema's discount_amount refine below.
+function hasAtMostTwoDecimals(n: number): boolean {
+  const str = String(n);
+  const dotIndex = str.indexOf(".");
+  return dotIndex === -1 || str.length - dotIndex - 1 <= 2;
+}
+
 // Exported for reuse by standaloneOldJewelleryPurchase.schema.ts - same
 // customer shape, no reason to duplicate the field rules.
 export const invoiceCustomerInputSchema = z.object({
@@ -214,7 +221,33 @@ export const createInvoiceSchema = z
   .refine(
     (data) => Math.abs(data.cgst_amount + data.sgst_amount - data.gst_amount) <= 1,
     { message: "CGST + SGST amount does not match the GST amount", path: ["cgst_amount"] },
-  );
+  )
+  // Mirrors MoneyField's 2-decimal cap on the Discount input - a string
+  // check (how many decimal digits does this literal have), not a
+  // tolerance-based float comparison, since this is a precision question,
+  // not a rounding one. String(n) reliably round-trips a directly-typed
+  // decimal like 100.56 (JS's shortest-round-trip number->string
+  // algorithm), unlike a value produced by multiplication/division, so
+  // this is safe for a field that's always typed, never computed.
+  .refine((data) => hasAtMostTwoDecimals(data.discount_amount), {
+    message: "Discount must have at most 2 decimal places",
+    path: ["discount_amount"],
+  })
+  // Mirrors WholeRupeeField's restriction on the Payment Amount input -
+  // grandTotal and old-jewellery value are both whole rupees, so keeping
+  // payments whole too guarantees the pending balance never carries paise.
+  // path: ["payment"], not ["payment", "amount"] - a refine path deeper
+  // than one level is silently dropped from validationErrorResponse's
+  // z.flattenError().fieldErrors (top-level keys only), same constraint
+  // noted on tag.schema.ts's refines.
+  .refine((data) => !data.payment || Number.isInteger(data.payment.amount), {
+    message: "Payment amount must be a whole rupee",
+    path: ["payment"],
+  })
+  .refine((data) => !data.refund || Number.isInteger(data.refund.amount), {
+    message: "Refund amount must be a whole rupee",
+    path: ["refund"],
+  });
 
 export type CreateInvoiceInput = z.output<typeof createInvoiceSchema>;
 export type CreateInvoiceFormValues = z.input<typeof createInvoiceSchema>;
@@ -224,12 +257,21 @@ export type CreateInvoiceFormValues = z.input<typeof createInvoiceSchema>;
 // this request body. That check happens in invoicesService.addPayment()
 // once the invoice has been loaded. This schema only validates the shape of
 // what was actually sent.
-export const addInvoicePaymentSchema = z.object({
-  amount: z.number().positive("Payment amount must be greater than 0"),
-  mode: paymentModeSchema,
-  paid_amount: z.number().min(0, "Paid amount cannot be negative"),
-  pending_amount: z.number().min(0, "Pending amount cannot be negative"),
-  payment_status: paymentStatusSchema,
-});
+export const addInvoicePaymentSchema = z
+  .object({
+    amount: z.number().positive("Payment amount must be greater than 0"),
+    mode: paymentModeSchema,
+    paid_amount: z.number().min(0, "Paid amount cannot be negative"),
+    pending_amount: z.number().min(0, "Pending amount cannot be negative"),
+    payment_status: paymentStatusSchema,
+  })
+  // Same whole-rupee rule createInvoiceSchema's initial payment refine
+  // enforces - grandTotal is always a whole rupee, so a later payment on
+  // this same invoice (via "Collect Payment") must stay whole too, or the
+  // pending balance ends up carrying paise.
+  .refine((data) => Number.isInteger(data.amount), {
+    message: "Payment amount must be a whole rupee",
+    path: ["amount"],
+  });
 
 export type AddInvoicePaymentInput = z.infer<typeof addInvoicePaymentSchema>;

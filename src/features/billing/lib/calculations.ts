@@ -1,3 +1,24 @@
+// Rounds a monetary value to `decimals` places, "round half up" -
+// deliberately NOT Math.round(value * 10**decimals) / 10**decimals, which
+// is unsafe: that pattern silently rounds the wrong way whenever the
+// scaled intermediate value lands just short of a .5 boundary due to
+// floating-point representation error (confirmed concretely - taxable
+// ₹1,60,373 × 1.5% should round to ₹2,405.60, but the naive pattern scales
+// to 240559.49999999997, one ulp short of 240559.5, and rounds down to
+// ₹2,405.59 instead). toFixed() has the identical flaw (same
+// representation error, just hit at a different step), so it isn't a fix
+// either - confirmed by testing both against the same real computation.
+// A small fixed epsilon nudges only values that are genuinely at (or
+// meant to be at) a rounding boundary back onto the correct side, without
+// affecting values nowhere near one - verified against the GST case above
+// plus the standard set of known JS rounding traps (1.005, 2.675, 100.555,
+// 0.1+0.2) and negative values (print's Round Off can be negative).
+export function roundMoney(value: number, decimals = 2): number {
+  const factor = 10 ** decimals;
+  const sign = value < 0 ? -1 : 1;
+  return (sign * Math.round(Math.abs(value) * factor + 1e-9)) / factor;
+}
+
 export type MakingMethod = "fixed" | "per_gram" | "percent_metal";
 
 export interface MakingChargeCalculationInput {
@@ -14,18 +35,20 @@ export interface MakingChargeCalculationInput {
 // Mirrors calculateItemTotal's own metalValue rounding exactly, so a
 // "percent_metal" making charge is computed against the same number that
 // line's total calculation actually uses - never a second, slightly
-// different metal value that could quietly drift from it.
+// different metal value that could quietly drift from it. Rounded to
+// paise (2dp), not a whole rupee - see calculateItemTotal's comment for
+// why line-level figures no longer round to the rupee.
 export function calculateMakingCharge({ method, value, netWtG, ratePerGram }: MakingChargeCalculationInput): number {
   switch (method) {
     case "per_gram":
-      return Math.round(value * netWtG);
+      return roundMoney(value * netWtG);
     case "percent_metal": {
-      const metalValue = Math.round(netWtG * ratePerGram);
-      return Math.round((value / 100) * metalValue);
+      const metalValue = roundMoney(netWtG * ratePerGram);
+      return roundMoney((value / 100) * metalValue);
     }
     case "fixed":
     default:
-      return Math.round(value);
+      return roundMoney(value);
   }
 }
 
@@ -42,10 +65,19 @@ export interface LineItemCalculationInput {
   pieces: number;
 }
 
+// Kept at paise (2dp) throughout, not rounded to a whole rupee per line -
+// the previous per-line whole-rupee rounding was the root cause of the
+// invoice-level rounding bug: summing already-rounded lines before the
+// subtotal/GST/grand-total stage compounds rounding error (each line can
+// be off by up to 50 paise; across several items that drifts the printed
+// taxable value by more than a rupee). The industry-standard shape is:
+// round each component to paise, sum to paise, and round to a whole
+// rupee exactly once, at the very end (calculateInvoiceTotals's
+// grandTotal) - see docs note in that function.
 export function calculateItemTotal(item: LineItemCalculationInput): number {
-  const metalValue = Math.round(item.netWtG * item.ratePerGram);
-  const perPieceTotal = metalValue + Math.round(item.makingCharge) + Math.round(item.stoneCharge);
-  return perPieceTotal * item.pieces;
+  const metalValue = roundMoney(item.netWtG * item.ratePerGram);
+  const perPieceTotal = roundMoney(metalValue + roundMoney(item.makingCharge) + roundMoney(item.stoneCharge));
+  return roundMoney(perPieceTotal * item.pieces);
 }
 
 export interface InvoiceTotals {
@@ -57,6 +89,12 @@ export interface InvoiceTotals {
   gstAmount: number;
   gstPercent: number;
   grandTotal: number;
+  // grandTotal - exactTotal (taxableAmount + gstAmount, the last
+  // paise-precise figure before the one whole-rupee round) - always
+  // between -0.50 and +0.50. Exposed here so every consumer (TotalsPanel,
+  // PrintInvoice) reads the one authoritative figure instead of each
+  // re-deriving it slightly differently.
+  roundOff: number;
 }
 
 // CGST%/SGST% are independently editable by the cashier (not forced to a
@@ -71,14 +109,23 @@ export function calculateInvoiceTotals(
   cgstPercent: number = 1.5,
   sgstPercent: number = 1.5,
 ): InvoiceTotals {
-  const subtotal = items.reduce((sum, item) => sum + item.total, 0);
-  const safeDiscount = Math.min(discountAmount, subtotal);
-  const taxableAmount = Math.max(0, subtotal - safeDiscount);
-  const cgstAmount = Math.round(((taxableAmount * cgstPercent) / 100) * 100) / 100;
-  const sgstAmount = Math.round(((taxableAmount * sgstPercent) / 100) * 100) / 100;
-  const gstAmount = Math.round((cgstAmount + sgstAmount) * 100) / 100;
-  const gstPercent = Math.round((cgstPercent + sgstPercent) * 100) / 100;
-  const grandTotal = Math.round(taxableAmount + gstAmount);
+  // Subtotal/taxable/CGST/SGST/GST all stay paise-precise (2dp) - nothing
+  // here rounds to a whole rupee. grandTotal below is the one and only
+  // place a whole-rupee round happens, matching standard GST-invoice
+  // practice (Tally/Marg/jewellery ERPs round once, on the grand total).
+  const subtotal = roundMoney(items.reduce((sum, item) => sum + item.total, 0));
+  const safeDiscount = roundMoney(Math.min(discountAmount, subtotal));
+  const taxableAmount = roundMoney(Math.max(0, subtotal - safeDiscount));
+  const cgstAmount = roundMoney((taxableAmount * cgstPercent) / 100);
+  const sgstAmount = roundMoney((taxableAmount * sgstPercent) / 100);
+  const gstAmount = roundMoney(cgstAmount + sgstAmount);
+  const gstPercent = roundMoney(cgstPercent + sgstPercent);
+  // exactTotal is the last paise-precise figure - grandTotal is its only
+  // rounding, and roundOff is exactly the residual that rounding left
+  // behind (always between -0.50 and +0.50).
+  const exactTotal = roundMoney(taxableAmount + gstAmount);
+  const grandTotal = Math.round(exactTotal);
+  const roundOff = roundMoney(grandTotal - exactTotal);
 
   return {
     subtotal,
@@ -89,6 +136,7 @@ export function calculateInvoiceTotals(
     gstAmount,
     gstPercent,
     grandTotal,
+    roundOff,
   };
 }
 
@@ -117,7 +165,10 @@ export function calculateExchangeApplied(
   oldJewelleryItems: { finalValue: number }[],
   grandTotal: number,
 ): ExchangeSettlement {
-  const oldJewelleryTotal = Math.round(oldJewelleryItems.reduce((sum, item) => sum + item.finalValue, 0));
+  const oldJewelleryTotal = roundMoney(
+    oldJewelleryItems.reduce((sum, item) => sum + item.finalValue, 0),
+    0,
+  );
   const exchangeApplied = Math.min(oldJewelleryTotal, grandTotal);
   const excessAmount = Math.max(0, oldJewelleryTotal - grandTotal);
   return { oldJewelleryTotal, exchangeApplied, excessAmount };

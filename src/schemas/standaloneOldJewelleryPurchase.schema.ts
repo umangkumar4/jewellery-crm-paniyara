@@ -28,7 +28,14 @@ export const createStandaloneOldJewelleryPurchaseSchema = z
       return Math.abs(data.refund.amount - total) <= 1;
     },
     { message: "Refund amount does not match the total item value", path: ["refund"] },
-  );
+  )
+  // Every rupee of old-jewellery value here is paid out as cash - same
+  // whole-rupee rule createInvoiceSchema's payment/refund refines enforce,
+  // since the item values being summed above are already whole rupees.
+  .refine((data) => Number.isInteger(data.refund.amount), {
+    message: "Refund amount must be a whole rupee",
+    path: ["refund"],
+  });
 
 export type CreateStandaloneOldJewelleryPurchaseInput = z.output<
   typeof createStandaloneOldJewelleryPurchaseSchema

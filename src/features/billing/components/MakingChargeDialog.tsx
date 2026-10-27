@@ -6,7 +6,13 @@ import { Dialog } from "@/components/ui/Dialog";
 import { Label } from "@/components/ui/Label";
 import { NumberField } from "@/features/billing/components/NumberField";
 import { cn } from "@/lib/utils";
-import { calculateMakingCharge, type MakingMethod } from "@/features/billing/lib/calculations";
+import { calculateMakingCharge, roundMoney, type MakingMethod } from "@/features/billing/lib/calculations";
+
+// Same 2dp convention every other money display in this app uses - Metal
+// Value and the making-charge preview can both carry paise now.
+function formatInr(value: number): string {
+  return `₹${value.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
 
 const METHODS: { value: MakingMethod; label: string }[] = [
   { value: "fixed", label: "Fixed ₹" },
@@ -70,7 +76,10 @@ export function MakingChargeDialog({
     onClose();
   };
 
-  const metalValue = Math.round(netWtG * ratePerGram);
+  // Mirrors calculateItemTotal's own metalValue exactly (paise, not a
+  // whole rupee) - this is only a preview label, but it should never show
+  // a figure that disagrees with what the line's real total is built from.
+  const metalValue = roundMoney(netWtG * ratePerGram);
 
   return (
     <Dialog open onClose={onClose} title="Making Charge" className="max-w-md" dimBackground={false}>
@@ -82,7 +91,7 @@ export function MakingChargeDialog({
         <p className="mt-1 text-xs text-muted-foreground">
           {[metal, purity].filter(Boolean).join(" · ") || "—"} · Net Wt {netWtG.toLocaleString("en-IN")}g · Rate/g ₹
           {ratePerGram.toLocaleString("en-IN")}
-          {metalValue > 0 ? ` · Metal Value ₹${metalValue.toLocaleString("en-IN")}` : ""}
+          {metalValue > 0 ? ` · Metal Value ${formatInr(metalValue)}` : ""}
         </p>
       </div>
 
@@ -114,7 +123,7 @@ export function MakingChargeDialog({
         />
         {method !== "fixed" ? (
           <p className="mt-1.5 text-xs text-muted-foreground">
-            = ₹{preview.toLocaleString("en-IN")} on this line
+            = {formatInr(preview)} on this line
           </p>
         ) : null}
       </div>

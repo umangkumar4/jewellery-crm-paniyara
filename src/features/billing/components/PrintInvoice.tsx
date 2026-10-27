@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useInvoicePrintData } from "@/features/dashboard/hooks/useInvoiceDetail";
+import { roundMoney } from "@/features/billing/lib/calculations";
 import { shopConfig } from "@/lib/shop-config";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/badge";
@@ -19,6 +20,16 @@ import {
 function formatInr(value: number | null | undefined): string {
   if (value == null) return "—";
   return `₹${value.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+// Same explicit "− "/"+ " sign convention the Discount/CGST/SGST rows in
+// this file already use, applied to Round Off too - plain formatInr on a
+// negative number produces the literal "₹-0.14" (toLocaleString puts the
+// minus sign against the digits, formatInr just string-prefixes "₹" in
+// front of that), not the "− ₹0.14" / "+ ₹0.23" a printed GST invoice
+// should show.
+function formatRoundOff(value: number): string {
+  return `${value < 0 ? "−" : "+"} ${formatInr(Math.abs(value))}`;
 }
 
 function formatWt(value: number): string {
@@ -132,8 +143,11 @@ export function PrintInvoice({ id }: PrintInvoiceProps) {
   // gst_amount is optional at the schema level (Invoice.model.ts) - guarded
   // with ?? 0 so a document missing it still produces a real number here
   // instead of NaN, same reasoning as formatInr's own null guard below.
-  const roundOff =
-    Math.round((invoice.grand_total - (taxableAmount + (invoice.gst_amount ?? 0))) * 100) / 100;
+  // roundMoney, not Math.round(x * 100) / 100 - that pattern is unsafe
+  // (confirmed concretely in calculations.ts's own comment: it silently
+  // rounds the wrong way whenever the scaled value lands just short of a
+  // .5 boundary due to floating-point representation error).
+  const roundOff = roundMoney(invoice.grand_total - (taxableAmount + (invoice.gst_amount ?? 0)));
 
   const grossWtTotal = invoice.items.reduce((sum, item) => sum + item.gross_wt_g, 0);
   const stoneWtTotal = invoice.items.reduce((sum, item) => sum + item.stone_wt_g, 0);
@@ -399,7 +413,7 @@ export function PrintInvoice({ id }: PrintInvoiceProps) {
                   {t.roundOff}
                 </div>
                 <div className="border-b-[1.5px] border-[#1f1a12] px-4 py-1.5 text-right font-semibold tabular-nums">
-                  {formatInr(roundOff)}
+                  {formatRoundOff(roundOff)}
                 </div>
                 <div className="px-4 py-2.5 text-[14px] font-bold" style={{ background: "#f1e9d8" }}>
                   {t.grandTotal}

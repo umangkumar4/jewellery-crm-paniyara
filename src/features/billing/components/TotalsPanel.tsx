@@ -1,6 +1,7 @@
 "use client";
 
 import { Label } from "@/components/ui/Label";
+import { MoneyField } from "@/components/ui/MoneyField";
 import { NumberField } from "@/features/billing/components/NumberField";
 import { calculateExchangeApplied, calculateInvoiceTotals } from "@/features/billing/lib/calculations";
 import { useNumericStoreField } from "@/features/billing/lib/useNumericStoreField";
@@ -54,7 +55,7 @@ export function TotalsPanel({ bare = false }: TotalsPanelProps) {
       <div className={bare ? "grid grid-cols-3 gap-4" : "mt-4 grid grid-cols-3 gap-4"}>
         <div>
           <Label htmlFor="discount-amount">Discount (₹)</Label>
-          <NumberField
+          <MoneyField
             id="discount-amount"
             value={discountField.value}
             onValueChange={discountField.onValueChange}

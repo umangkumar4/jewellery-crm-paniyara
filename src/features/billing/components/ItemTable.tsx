@@ -23,6 +23,14 @@ import { useNumericStoreField } from "@/features/billing/lib/useNumericStoreFiel
 import { calculateItemTotal, calculateMakingCharge, type MakingMethod } from "@/features/billing/lib/calculations";
 import { useBillingStore, type BillingItem } from "@/store/useBillingStore";
 
+// Same 2dp convention every other money display in this app uses
+// (TotalsPanel, PrintInvoice, invoice detail page) - Making Charge and
+// line Total can both carry paise now that calculateItemTotal/
+// calculateMakingCharge no longer round to a whole rupee per line.
+function formatInr(value: number): string {
+  return `₹${value.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
 // Mirrors createInvoiceSchema's mandatory checks for description/gross
 // weight/net weight/rate per gram - computed live, straight from the item,
 // so a row shows red the instant a mandatory field is 0/empty rather than
@@ -238,7 +246,7 @@ function MakingChargeCell({ data, node, onOpen }: ICellRendererParams<BillingIte
       onClick={() => onOpen(rowIndex)}
       className="flex h-full w-full items-center justify-between gap-1.5 px-2 text-sm text-foreground hover:bg-muted/50"
     >
-      <span>₹{data.makingCharge.toLocaleString("en-IN")}</span>
+      <span>{formatInr(data.makingCharge)}</span>
       {badge ? (
         <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
           {badge}
@@ -482,7 +490,7 @@ function ManualAddForm({ onDone }: { onDone: () => void }) {
             onClick={() => setShowMakingDialog(true)}
             className="flex h-12 w-full items-center justify-between rounded-lg border border-input bg-card px-4 text-sm text-foreground hover:bg-muted/50"
           >
-            <span>₹{makingCharge.toLocaleString("en-IN")}</span>
+            <span>{formatInr(makingCharge)}</span>
             {MAKING_METHOD_BADGE[makingMethod] ? (
               <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
                 {MAKING_METHOD_BADGE[makingMethod]}
@@ -651,7 +659,7 @@ export function ItemTable({ onBrowseTags }: { onBrowseTags: () => void }) {
         width: 170,
         headerClass: AG_GRID_HEADER_CLASS,
         cellClass: (p) => cn("font-semibold!", p.data && p.data.total > 0 ? "text-foreground!" : "text-destructive!"),
-        valueFormatter: (p) => (p.value != null ? `₹${p.value.toLocaleString("en-IN")}` : ""),
+        valueFormatter: (p) => (p.value != null ? formatInr(p.value) : ""),
       },
       {
         headerName: "Action",
