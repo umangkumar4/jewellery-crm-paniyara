@@ -136,7 +136,11 @@ export async function listOldJewelleryItems({
   page,
   limit,
 }: ListOldJewelleryItemsOptions): Promise<ListOldJewelleryItemsResult> {
-  const filter = status ? { status } : {};
+  // isDeleted: { $ne: true } always applied, regardless of the optional
+  // status filter - an item returned to the customer (because the invoice
+  // that exchanged it in got deleted) should never show up in the shop's
+  // active inventory grid, even if its physical status still says IN_SHOP.
+  const filter = status ? { status, isDeleted: { $ne: true } } : { isDeleted: { $ne: true } };
 
   const [items, total] = await Promise.all([
     OldJewelleryItemModel.find(filter)

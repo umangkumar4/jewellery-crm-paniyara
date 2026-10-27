@@ -47,7 +47,12 @@ export async function getDashboardSummary({ from, to }: DashboardRangeParams): P
 
   const [facetResult, pendingResult, stockResult, newCustomers, oldPurchaseResult] = await Promise.all([
     InvoiceModel.aggregate<CurrentPeriodFacetRow>([
-      { $match: { createdAt: { $gte: currentFrom, $lte: currentTo } } },
+      // isDeleted: { $ne: true } - excludes a deleted invoice from every
+      // dashboard figure. Not { isDeleted: false }, same reasoning as the
+      // OldJewelleryPurchase match just below: a plain equality match
+      // doesn't match documents where the field is simply absent, and
+      // every invoice created before this field existed has none stored.
+      { $match: { isDeleted: { $ne: true }, createdAt: { $gte: currentFrom, $lte: currentTo } } },
       {
         $group: {
           _id: null,
@@ -61,7 +66,7 @@ export async function getDashboardSummary({ from, to }: DashboardRangeParams): P
       },
     ]),
     InvoiceModel.aggregate<{ pending_amount: number }>([
-      { $match: { paymentStatus: { $ne: "paid" } } },
+      { $match: { isDeleted: { $ne: true }, paymentStatus: { $ne: "paid" } } },
       { $group: { _id: null, pending_amount: { $sum: "$pendingAmount" } } },
     ]),
     TagModel.aggregate<{ count: number; net_weight_g: number }>([
@@ -108,7 +113,7 @@ export async function getSalesTrend({ from, to }: DashboardRangeParams): Promise
   const matchTo = businessDayEnd(to);
 
   const results = await InvoiceModel.aggregate<{ _id: string; total_sales: number }>([
-    { $match: { createdAt: { $gte: matchFrom, $lte: matchTo } } },
+    { $match: { isDeleted: { $ne: true }, createdAt: { $gte: matchFrom, $lte: matchTo } } },
     {
       $group: {
         _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt", timezone: "Asia/Kolkata" } },

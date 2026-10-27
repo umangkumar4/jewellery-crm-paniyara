@@ -280,3 +280,13 @@ export const addInvoicePaymentSchema = z
   });
 
 export type AddInvoicePaymentInput = z.infer<typeof addInvoicePaymentSchema>;
+
+// A reason is mandatory, not optional - deleting an invoice is a soft
+// delete (isDeleted: true, record kept, never a hard DeleteOne), and the
+// entire value of keeping the record for audit purposes depends on it
+// being explainable later, not just flagged.
+export const deleteInvoiceSchema = z.object({
+  reason: z.string().trim().min(1, "A reason is required to delete an invoice"),
+});
+
+export type DeleteInvoiceInput = z.infer<typeof deleteInvoiceSchema>;

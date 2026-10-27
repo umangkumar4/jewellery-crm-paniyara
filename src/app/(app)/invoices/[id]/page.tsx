@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { Receipt } from "lucide-react";
 import { toast } from "sonner";
 import { AgGridReact } from "ag-grid-react";
@@ -9,10 +9,13 @@ import type { ColDef, ICellRendererParams } from "ag-grid-community";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/Button";
 import { Dialog } from "@/components/ui/Dialog";
+import { Label } from "@/components/ui/Label";
+import { Input } from "@/components/ui/Input";
 import { agGridTheme, AG_GRID_HEADER_CLASS, AG_GRID_DEFAULT_COL_DEF } from "@/lib/ag-grid";
 import { ApiError } from "@/lib/api-client";
 import { PaymentPanel } from "@/features/billing/components/PaymentPanel";
 import { useAddPayment } from "@/features/billing/hooks/useAddPayment";
+import { useDeleteInvoice } from "@/features/dashboard/hooks/useDeleteInvoice";
 import { calculateNewPending, isValueOverridden } from "@/features/billing/lib/calculations";
 import { useInvoiceDetail } from "@/features/dashboard/hooks/useInvoiceDetail";
 import type { InvoiceDetail, InvoiceItemDetail, ExchangeSettlementType } from "@/features/dashboard/hooks/useInvoiceDetail";
@@ -63,12 +66,16 @@ function DescriptionCell({ data }: ICellRendererParams<InvoiceItemDetail>) {
 }
 
 export default function InvoiceDetailPage() {
+  const router = useRouter();
   const params = useParams<{ id: string }>();
   const id = params.id;
   const { data: invoice, isLoading, isError } = useInvoiceDetail(id);
   const [collectOpen, setCollectOpen] = useState(false);
   const [draftPayment, setDraftPayment] = useState<BillingPayment | null>(null);
   const addPayment = useAddPayment(id);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteReason, setDeleteReason] = useState("");
+  const deleteInvoice = useDeleteInvoice(id);
 
   const itemColumnDefs = useMemo<ColDef<InvoiceItemDetail>[]>(
     // Fixed widths, not flex - with 10 columns, flex forces every column to
@@ -211,6 +218,23 @@ export default function InvoiceDetailPage() {
     );
   };
 
+  const handleDelete = () => {
+    const reason = deleteReason.trim();
+    if (!reason) return;
+    deleteInvoice.mutate(reason, {
+      onSuccess: () => {
+        toast.success("Invoice deleted");
+        // Redirect, not just close the dialog - this page would otherwise
+        // 404 on its own next refetch (findInvoiceById now excludes a
+        // deleted invoice), so staying here would be a dead end.
+        router.push("/invoices");
+      },
+      onError: (error) => {
+        toast.error(error instanceof ApiError ? error.message : "Could not delete this invoice.");
+      },
+    });
+  };
+
   return (
     <div className="mx-2 max-w-full">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -227,6 +251,13 @@ export default function InvoiceDetailPage() {
           {invoice.payment_status !== "paid" ? (
             <Button onClick={() => setCollectOpen(true)}>Collect Payment</Button>
           ) : null}
+          <Button
+            variant="outline"
+            className="border-destructive text-destructive hover:bg-destructive/10"
+            onClick={() => setDeleteOpen(true)}
+          >
+            Delete Invoice
+          </Button>
         </div>
       </div>
 
@@ -470,6 +501,64 @@ export default function InvoiceDetailPage() {
             }
           >
             {addPayment.isPending ? "Saving…" : "Save Payment"}
+          </Button>
+        </div>
+      </Dialog>
+
+      <Dialog
+        open={deleteOpen}
+        onClose={() => {
+          setDeleteOpen(false);
+          setDeleteReason("");
+        }}
+        title="Delete invoice?"
+      >
+        <p className="text-sm text-muted-foreground">
+          Delete <span className="font-medium text-foreground">{invoice.invoice_no}</span>? This can&apos;t be
+          undone from here. Any tag-linked items become sellable again, and the invoice is hidden from every
+          list, dashboard figure, and customer history - but the record itself is kept, not erased, along with
+          the reason below.
+          {hasExchange ? (
+            <>
+              {" "}
+              The linked old jewellery exchange will also be undone, as long as every item is still in the shop
+              - if any item has already been disposed or melted, this delete will be blocked instead.
+            </>
+          ) : null}
+          {invoice.paid_amount > 0 ? (
+            <> Payments already recorded on this invoice are kept as-is - no refund is tracked automatically.</>
+          ) : null}
+        </p>
+        <div className="mt-4">
+          <Label htmlFor="delete-reason">Reason *</Label>
+          <Input
+            id="delete-reason"
+            autoFocus
+            value={deleteReason}
+            onChange={(e) => setDeleteReason(e.target.value)}
+            placeholder="Why is this invoice being deleted?"
+          />
+        </div>
+        <div className="mt-6 flex justify-end gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => {
+              setDeleteOpen(false);
+              setDeleteReason("");
+            }}
+            disabled={deleteInvoice.isPending}
+          >
+            Cancel
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            className="border-destructive text-destructive hover:bg-destructive/10"
+            onClick={handleDelete}
+            disabled={!deleteReason.trim() || deleteInvoice.isPending}
+          >
+            {deleteInvoice.isPending ? "Deleting…" : "Delete"}
           </Button>
         </div>
       </Dialog>

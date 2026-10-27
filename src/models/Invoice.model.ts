@@ -80,6 +80,14 @@ export interface InvoiceDocument extends Document {
   // only ever includes this key in the object it creates when there's a
   // real value.
   operationId: string | null;
+  // Soft delete, not a true removal - same isDeleted convention as
+  // OldJewelleryPurchase/OldJewelleryItem. deleteReason is mandatory
+  // whenever isDeleted is true (enforced at the service/schema layer, not
+  // here) so a deleted invoice's record always explains why, not just that
+  // it happened.
+  isDeleted: boolean;
+  deleteReason: string | null;
+  deletedAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -156,6 +164,9 @@ const invoiceSchema = new Schema<InvoiceDocument>(
     linkedOldPurchaseNo: { type: String, default: null },
     // No `default: null` - see the interface field's comment above for why.
     operationId: { type: String },
+    isDeleted: { type: Boolean, default: false, index: true },
+    deleteReason: { type: String, default: null },
+    deletedAt: { type: Date, default: null },
   },
   { timestamps: true },
 );
