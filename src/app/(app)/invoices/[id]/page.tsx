@@ -86,6 +86,13 @@ export default function InvoiceDetailPage() {
     () => [
       { field: "sr_no", headerName: "#", width: 60, headerClass: AG_GRID_HEADER_CLASS },
       { headerName: "Description", width: 220, headerClass: AG_GRID_HEADER_CLASS, cellRenderer: DescriptionCell },
+      {
+        field: "buyer_code",
+        headerName: "Buyer Code",
+        width: 130,
+        headerClass: AG_GRID_HEADER_CLASS,
+        valueFormatter: (p) => (p.value ? p.value : "—"),
+      },
       { field: "hsn_code", headerName: "HSN", width: 90, headerClass: AG_GRID_HEADER_CLASS },
       { field: "pieces", headerName: "Pcs", width: 70, headerClass: AG_GRID_HEADER_CLASS },
       { field: "gross_wt_g", headerName: "Gross Wt (g)", width: 130, headerClass: AG_GRID_HEADER_CLASS },
@@ -518,7 +525,14 @@ export default function InvoiceDetailPage() {
           undone from here. Any tag-linked items become sellable again, and the invoice is hidden from every
           list, dashboard figure, and customer history - but the record itself is kept, not erased, along with
           the reason below.
-          {hasExchange ? (
+          {/* invoice.old_jewellery_items.length > 0, not hasExchange - the
+              server's own check (deleteInvoiceCascade) is based on
+              linkedOldPurchaseId, not exchange_applied, so this warning
+              must match that: a 100%-excess exchange (exchange_applied 0,
+              everything settled as refund) still has linked old jewellery
+              items the server will act on, even though hasExchange would
+              be false for it. */}
+          {invoice.old_jewellery_items.length > 0 ? (
             <>
               {" "}
               The linked old jewellery exchange will also be undone, as long as every item is still in the shop

@@ -21,6 +21,11 @@ export interface InvoiceItem {
   makingValue: number;
   stoneCharge: number;
   total: number;
+  // Free text, optional, never read by any pricing/weight calculation - a
+  // reference code the cashier can record to remember which buyer this
+  // item was lent/sold against, for later complaint lookup. Same
+  // "optional end-to-end, default empty string" shape as purity.
+  buyerCode: string;
 }
 
 export interface InvoicePayment {
@@ -117,6 +122,7 @@ const invoiceItemSchema = new Schema<InvoiceItem>(
     makingValue: { type: Number, required: true, min: 0, default: 0 },
     stoneCharge: { type: Number, required: true, min: 0, default: 0 },
     total: { type: Number, required: true, min: 0 },
+    buyerCode: { type: String, default: "", trim: true },
   },
   { _id: false },
 );

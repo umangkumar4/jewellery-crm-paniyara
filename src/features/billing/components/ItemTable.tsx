@@ -65,7 +65,8 @@ type EditableField =
   | "stoneWtG"
   | "netWtG"
   | "ratePerGram"
-  | "stoneCharge";
+  | "stoneCharge"
+  | "buyerCode";
 
 const METAL_OPTIONS = toOptions(METALS);
 
@@ -104,6 +105,7 @@ const SCHEMA_FIELD_NAMES: Record<EditableField, string> = {
   netWtG: "net_wt_g",
   ratePerGram: "rate_per_gram",
   stoneCharge: "stone_charge",
+  buyerCode: "buyer_code",
 };
 
 const FIELD_LABELS: Record<string, string> = {
@@ -119,6 +121,7 @@ const FIELD_LABELS: Record<string, string> = {
   making_charge: "Making charge",
   stone_charge: "Stone charge",
   tag_code: "Tag code",
+  buyer_code: "Buyer Code",
   total: "Total",
   _item: "This item",
 };
@@ -290,6 +293,7 @@ function ManualAddForm({ onDone }: { onDone: () => void }) {
   const [makingCharge, setMakingCharge] = useState(0);
   const [showMakingDialog, setShowMakingDialog] = useState(false);
   const [stoneCharge, setStoneCharge] = useState("0");
+  const [buyerCode, setBuyerCode] = useState("");
 
   const { data: purities } = useMetalPurities({ metal });
   const hasPurities = !!purities && purities.length > 0;
@@ -385,6 +389,7 @@ function ManualAddForm({ onDone }: { onDone: () => void }) {
       makingMethod,
       makingValue,
       stoneCharge: Number(stoneCharge) || 0,
+      buyerCode: buyerCode.trim(),
     });
     onDone();
   };
@@ -410,6 +415,16 @@ function ManualAddForm({ onDone }: { onDone: () => void }) {
           <Label htmlFor="manual-pieces">Pieces *</Label>
           <NumberField id="manual-pieces" value={pieces} onValueChange={setPieces} />
           {!hasPieces ? <p className="mt-1.5 text-xs text-destructive">Pieces must be a whole number, at least 1</p> : null}
+        </div>
+        <div>
+          <Label htmlFor="manual-buyer-code">Buyer Code</Label>
+          <Input
+            id="manual-buyer-code"
+            value={buyerCode}
+            onChange={(e) => setBuyerCode(e.target.value)}
+            maxLength={30}
+            placeholder="Optional"
+          />
         </div>
 
         <div>
@@ -627,6 +642,7 @@ export function ItemTable({ onBrowseTags }: { onBrowseTags: () => void }) {
         headerClass: AG_GRID_HEADER_CLASS,
         valueGetter: (p) => p.data?.tagCode ?? "—",
       },
+      editable("buyerCode", "Buyer Code", 140),
       { field: "metal", headerName: "Metal", width: 110, headerClass: AG_GRID_HEADER_CLASS },
       { field: "purity", headerName: "Purity", width: 100, headerClass: AG_GRID_HEADER_CLASS },
       {

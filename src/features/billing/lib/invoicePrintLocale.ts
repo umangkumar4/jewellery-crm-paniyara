@@ -29,9 +29,10 @@ export interface InvoicePrintLabels {
     makingCharge: string;
     stoneCharge: string;
     amount: string;
-    // Old Jewellery Exchange table only - metal/dustWt/value have no
-    // equivalent in the new-jewellery tableHeaders above (that table folds
-    // metal into Description's subtext and has no dust/value concept).
+    // metal is shared by both the new-jewellery and Old Jewellery Exchange
+    // tables (both now show it as its own column). dustWt/value stay
+    // Old Jewellery Exchange-only - no equivalent concept in the
+    // new-jewellery table.
     metal: string;
     dustWt: string;
     value: string;

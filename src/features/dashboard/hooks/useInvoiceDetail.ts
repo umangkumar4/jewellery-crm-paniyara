@@ -20,6 +20,7 @@ export interface InvoiceItemDetail {
   making_charge: number;
   stone_charge: number;
   total: number;
+  buyer_code: string;
 }
 
 export interface InvoicePaymentDetail {

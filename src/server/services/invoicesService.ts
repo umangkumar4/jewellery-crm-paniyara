@@ -329,6 +329,7 @@ export async function createInvoice(input: CreateInvoiceInput): Promise<InvoiceD
               makingValue: item.making_value,
               stoneCharge: item.stone_charge,
               total: item.total,
+              buyerCode: item.buyer_code ?? "",
             })),
             payments,
             subtotal: input.subtotal,
@@ -690,6 +691,7 @@ export function serializeInvoice(invoice: InvoiceDocument) {
       making_value: item.makingValue,
       stone_charge: item.stoneCharge,
       total: item.total,
+      buyer_code: item.buyerCode ?? "",
     })),
     payments: invoice.payments.map((payment) => ({
       amount: payment.amount,

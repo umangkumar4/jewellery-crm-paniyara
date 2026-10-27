@@ -159,6 +159,7 @@ export default function BillingPage() {
         making_value: item.makingValue,
         stone_charge: item.stoneCharge,
         tag_code: item.tagCode ?? undefined,
+        buyer_code: item.buyerCode?.trim() || undefined,
         total: item.total,
       })),
       discount_amount: totals.discountAmount,

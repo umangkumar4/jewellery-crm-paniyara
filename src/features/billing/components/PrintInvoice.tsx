@@ -59,7 +59,8 @@ const PAGE_WIDTH = "277mm";
 // (already fully stored), never computed per row.
 const COL_WIDTHS = {
   sr: "3%",
-  description: "15%",
+  description: "12%",
+  metal: "7%",
   hsn: "6%",
   purity: "7%",
   pcs: "5%",
@@ -290,6 +291,7 @@ export function PrintInvoice({ id }: PrintInvoiceProps) {
                 <colgroup>
                   <col style={{ width: COL_WIDTHS.sr }} />
                   <col style={{ width: COL_WIDTHS.description }} />
+                  <col style={{ width: COL_WIDTHS.metal }} />
                   <col style={{ width: COL_WIDTHS.hsn }} />
                   <col style={{ width: COL_WIDTHS.purity }} />
                   <col style={{ width: COL_WIDTHS.pcs }} />
@@ -305,6 +307,7 @@ export function PrintInvoice({ id }: PrintInvoiceProps) {
                   <tr style={{ background: "#f1e9d8" }}>
                     <th className={headBase}>{t.tableHeaders.sr}</th>
                     <th className={headBase}>{t.tableHeaders.description}</th>
+                    <th className={headBase}>{t.tableHeaders.metal}</th>
                     <th className={headBase}>{t.tableHeaders.hsn}</th>
                     <th className={headBase}>{t.tableHeaders.purity}</th>
                     <th className={`${headBase} text-center`}>{t.tableHeaders.pcs}</th>
@@ -323,8 +326,11 @@ export function PrintInvoice({ id }: PrintInvoiceProps) {
                       <td className={cellBase}>{item.sr_no}</td>
                       <td className={cellBase}>
                         <div className="font-medium">{item.description}</div>
-                        <div className="text-[9.5px] text-muted-foreground">{item.metal}</div>
+                        {item.buyer_code ? (
+                          <div className="text-[9.5px] text-muted-foreground">{item.buyer_code}</div>
+                        ) : null}
                       </td>
+                      <td className={cellBase}>{item.metal}</td>
                       <td className={cellBase}>{item.hsn_code}</td>
                       <td className={cellBase}>{item.purity || "—"}</td>
                       <td className={`${cellBase} text-center`}>{item.pieces}</td>
@@ -340,7 +346,7 @@ export function PrintInvoice({ id }: PrintInvoiceProps) {
                     </tr>
                   ))}
                   <tr style={{ background: "#f1e9d8" }}>
-                    <td colSpan={5} className={`${cellBase} border-t-[1.5px] border-t-[#1f1a12] font-bold`}>
+                    <td colSpan={6} className={`${cellBase} border-t-[1.5px] border-t-[#1f1a12] font-bold`}>
                       {t.subTotal}
                     </td>
                     <td className={`${cellBase} border-t-[1.5px] border-t-[#1f1a12] text-right font-bold tabular-nums`}>
