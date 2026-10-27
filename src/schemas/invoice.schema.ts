@@ -19,7 +19,12 @@ function hasAtMostTwoDecimals(n: number): boolean {
 // customer shape, no reason to duplicate the field rules.
 export const invoiceCustomerInputSchema = z.object({
   name: z.string().trim().min(1, "Customer name is required"),
-  phone: z.string().trim().min(1, "Customer phone is required"),
+  // Exactly 10 digits - matches CustomerFields.tsx/StandaloneCustomerFields.tsx's
+  // own PHONE_PATTERN, which already gates their phone-lookup feature (a
+  // number that isn't exactly 10 digits never triggers a lookup there) -
+  // this was previously never actually enforced at save time, so a number
+  // the UI already treated as "incomplete" could still be submitted.
+  phone: z.string().trim().regex(/^\d{10}$/, "Phone must be a valid 10-digit number"),
   email: z.string().trim().toLowerCase().email("Invalid email address").optional(),
   address: z.string().trim().optional(),
 });

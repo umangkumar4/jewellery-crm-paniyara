@@ -32,7 +32,13 @@ function PurityCell({ data, renamingId, renameValue, setRenameValue, saveRename,
   if (renamingId !== data.id) return <span>{data.purity}</span>;
   return (
     <div className="flex items-center gap-2">
-      <Input autoFocus value={renameValue} onChange={(e) => setRenameValue(e.target.value)} className="h-9 w-28" />
+      <Input
+        autoFocus
+        value={renameValue}
+        onChange={(e) => setRenameValue(e.target.value)}
+        maxLength={20}
+        className="h-9 w-28"
+      />
       <button
         type="button"
         onClick={() => saveRename(data.id)}
@@ -132,7 +138,15 @@ export function PurityList() {
             cancelRename();
           },
           onError: (err) => {
-            toast.error(err instanceof ApiError ? err.message : "Failed to rename purity");
+            // err.message is the generic "Validation failed" string for a
+            // Zod rejection (e.g. the max-length check) - the actual reason
+            // lives in err.fields.purity instead. Falls back to err.message
+            // for every other error shape (e.g. PurityAlreadyExistsError's
+            // 409, which has no .fields and already carries a specific
+            // message there), same as AddPurityForm.tsx's own handling.
+            toast.error(
+              err instanceof ApiError ? (err.fields?.purity ?? err.message) : "Failed to rename purity",
+            );
           },
         },
       );

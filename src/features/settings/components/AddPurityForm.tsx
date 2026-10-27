@@ -76,7 +76,7 @@ export function AddPurityForm() {
 
         <div>
           <Label htmlFor="purity-value">Purity</Label>
-          <Input id="purity-value" placeholder="e.g. 22K" {...register("purity")} />
+          <Input id="purity-value" placeholder="e.g. 22K" maxLength={20} {...register("purity")} />
           {errors.purity ? <p className="mt-1.5 text-xs text-destructive">{errors.purity.message}</p> : null}
         </div>
       </div>

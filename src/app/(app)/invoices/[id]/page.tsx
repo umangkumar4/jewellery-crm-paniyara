@@ -440,6 +440,21 @@ export default function InvoiceDetailPage() {
           grandTotal={invoice.pending_amount}
           bare
           payButtonLabel="Pay remaining"
+          // Live mirror of addPayment()'s own server-side check
+          // (paid_amount > grandTotal - exchangeApplied, i.e. the pending
+          // balance) - catches it before Save Payment is even clickable,
+          // instead of only finding out via a toast after a 422.
+          // Math.round(invoice.pending_amount), not the raw value - matches
+          // exactly what "Pay remaining" itself fills in (PaymentPanel's
+          // own shortcut button already rounds grandTotal), so clicking
+          // that shortcut can never trigger this warning against itself,
+          // even for a legacy invoice whose stored pending_amount carries
+          // paise from before payments were restricted to whole rupees.
+          error={
+            draftPayment && draftPayment.amount > Math.round(invoice.pending_amount)
+              ? `Amount exceeds the pending balance of ${formatInr(invoice.pending_amount)}`
+              : undefined
+          }
         />
         <div className="mt-4 flex justify-end gap-2">
           <Button variant="outline" onClick={() => setCollectOpen(false)}>
@@ -447,7 +462,12 @@ export default function InvoiceDetailPage() {
           </Button>
           <Button
             onClick={handleCollect}
-            disabled={!draftPayment || draftPayment.amount <= 0 || addPayment.isPending}
+            disabled={
+              !draftPayment ||
+              draftPayment.amount <= 0 ||
+              draftPayment.amount > Math.round(invoice.pending_amount) ||
+              addPayment.isPending
+            }
           >
             {addPayment.isPending ? "Saving…" : "Save Payment"}
           </Button>

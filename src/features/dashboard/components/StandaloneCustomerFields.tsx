@@ -91,7 +91,13 @@ export function StandaloneCustomerFields() {
           <Input
             id="standalone-customer-phone"
             value={customer.phone}
-            onChange={(e) => setCustomer({ ...customer, phone: e.target.value })}
+            // Digits only, capped at 10 - matches PHONE_PATTERN above (the
+            // lookup feature already only fires on exactly 10 digits), so
+            // typing can never produce something the schema would reject
+            // at save time anyway.
+            onChange={(e) =>
+              setCustomer({ ...customer, phone: e.target.value.replace(/\D/g, "").slice(0, 10) })
+            }
             placeholder="9812345678"
             className={fieldErrors["customer.phone"] ? "border-destructive focus-visible:ring-destructive" : undefined}
           />
