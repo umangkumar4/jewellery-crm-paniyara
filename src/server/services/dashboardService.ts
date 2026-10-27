@@ -69,12 +69,15 @@ export async function getDashboardSummary({ from, to }: DashboardRangeParams): P
       { $group: { _id: null, count: { $sum: 1 }, net_weight_g: { $sum: "$netWtG" } } },
     ]),
     CustomerModel.countDocuments({ createdAt: { $gte: currentFrom, $lte: currentTo } }),
-    // status: "active" excludes cancelled purchases - nothing writes
-    // "cancelled" yet (reserved for a deferred cancel-and-recreate feature),
-    // but filtering now means this KPI stays correct the day that ships.
+    // isDeleted: { $ne: true }, not { isDeleted: false } - a plain equality
+    // match does NOT match documents where the field is simply absent
+    // (unlike MongoDB's special-cased null queries), and every purchase
+    // created before this field existed has no isDeleted field stored at
+    // all. $ne: true correctly includes both false and missing, so no
+    // existing purchase silently drops out of this KPI.
     // No `source` filter - combines billing_exchange + standalone purchases.
     OldJewelleryPurchaseModel.aggregate<{ count: number; total_value: number }>([
-      { $match: { status: "active", createdAt: { $gte: currentFrom, $lte: currentTo } } },
+      { $match: { isDeleted: { $ne: true }, createdAt: { $gte: currentFrom, $lte: currentTo } } },
       { $group: { _id: null, count: { $sum: 1 }, total_value: { $sum: "$totalPurchaseValue" } } },
     ]),
   ]);

@@ -112,12 +112,12 @@ export function PrintOldJewelleryPurchase({ id }: PrintOldJewelleryPurchaseProps
                     <Badge
                       variant="outline"
                       className={`border-transparent font-medium capitalize ${
-                        purchase.status === "active"
+                        !purchase.is_deleted
                           ? "bg-emerald-ink/10 text-emerald-ink"
                           : "bg-destructive/10 text-destructive"
                       }`}
                     >
-                      {purchase.status}
+                      {purchase.is_deleted ? "Cancelled" : "Active"}
                     </Badge>
                   </div>
                 </div>

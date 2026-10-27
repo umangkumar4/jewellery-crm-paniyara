@@ -110,7 +110,7 @@ export function serializeOldJewelleryPurchase({ purchase, items, linkedInvoiceNo
           confirmed_at: purchase.refund.confirmedAt.toISOString(),
         }
       : null,
-    status: purchase.status,
+    is_deleted: purchase.isDeleted,
     created_at: purchase.createdAt.toISOString(),
   };
 }
@@ -292,7 +292,7 @@ export async function createStandaloneOldJewelleryPurchase(
               remarks: input.refund.remarks ?? null,
               confirmedAt: new Date(),
             },
-            status: "active",
+            isDeleted: false,
             createdBy: null,
             operationId: input.operation_id,
           },

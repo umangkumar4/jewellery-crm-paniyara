@@ -236,7 +236,7 @@ export async function createInvoice(input: CreateInvoiceInput): Promise<InvoiceD
                       confirmedAt: new Date(),
                     }
                   : null,
-              status: "active",
+              isDeleted: false,
               createdBy: null,
             },
           ],

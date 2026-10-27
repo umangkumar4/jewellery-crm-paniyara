@@ -3,7 +3,6 @@ import type { PaymentMode } from "@/models/Invoice.model";
 
 export type OldJewelleryPurchaseSource = "billing_exchange" | "standalone";
 export type ExcessSettlement = "refund" | "credit";
-export type OldJewelleryPurchaseStatus = "active" | "cancelled";
 
 export interface OldJewelleryRefund {
   amount: number;
@@ -35,11 +34,13 @@ export interface OldJewelleryPurchaseDocument extends Document {
   // the deferred Customer Credit phase.
   excessSettlement: ExcessSettlement | null;
   refund: OldJewelleryRefund | null;
-  // Reserved now even though the cancel-and-recreate workflow itself is
-  // deferred, so that feature doesn't need a schema migration later - see
-  // docs/old-jewellery-exchange-plan.md's "Key decisions" §2 (Phase 1
-  // technical plan).
-  status: OldJewelleryPurchaseStatus;
+  // Was `status: "active" | "cancelled"` - renamed to match Invoice.isDeleted
+  // (same soft-delete concept, consistent field convention). Set when an
+  // invoice this purchase is linked to gets deleted, or when the standalone
+  // purchase itself is removed - see docs/old-jewellery-exchange-plan.md's
+  // "Key decisions" §2 (Phase 1 technical plan) for the original reasoning
+  // this field exists at all.
+  isDeleted: boolean;
   // Nullable - no route in this app currently threads the authenticated
   // admin's user id through to a service-layer write (requireAuth()
   // verifies the token and discards the payload; every other write here
@@ -93,7 +94,7 @@ const oldJewelleryPurchaseSchema = new Schema<OldJewelleryPurchaseDocument>(
     excessAmount: { type: Number, required: true, min: 0, default: 0 },
     excessSettlement: { type: String, enum: ["refund", "credit"], default: null },
     refund: { type: refundSchema, default: null },
-    status: { type: String, enum: ["active", "cancelled"], required: true, default: "active", index: true },
+    isDeleted: { type: Boolean, default: false, index: true },
     createdBy: { type: Schema.Types.ObjectId, ref: "User", default: null },
     // No `default: null` - see the interface field's comment above for why.
     operationId: { type: String },

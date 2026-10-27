@@ -40,7 +40,7 @@ export interface OldPurchaseDetail {
   excess_amount: number;
   excess_settlement: "refund" | "credit" | null;
   refund: OldPurchaseRefundDetail | null;
-  status: "active" | "cancelled";
+  is_deleted: boolean;
   created_at: string;
 }
 
