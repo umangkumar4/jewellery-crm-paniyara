@@ -30,11 +30,12 @@ export interface InvoicePrintLabels {
     stoneCharge: string;
     amount: string;
     // metal is shared by both the new-jewellery and Old Jewellery Exchange
-    // tables (both now show it as its own column). dustWt/value stay
-    // Old Jewellery Exchange-only - no equivalent concept in the
+    // tables (both now show it as its own column). dustWt/otherDeductionWt/
+    // value stay Old Jewellery Exchange-only - no equivalent concept in the
     // new-jewellery table.
     metal: string;
     dustWt: string;
+    otherDeductionWt: string;
     value: string;
   };
   subTotal: string;
@@ -106,6 +107,7 @@ export const invoicePrintLabels: Record<PrintLang, InvoicePrintLabels> = {
       amount: "Amount",
       metal: "Metal",
       dustWt: "Dust Wt (g)",
+      otherDeductionWt: "Other Deduction (g)",
       value: "Value",
     },
     subTotal: "Sub-Total",
@@ -161,6 +163,7 @@ export const invoicePrintLabels: Record<PrintLang, InvoicePrintLabels> = {
       amount: "राशि",
       metal: "धातु",
       dustWt: "धूल भार (ग्राम)",
+      otherDeductionWt: "अन्य कटौती (ग्राम)",
       value: "मूल्य",
     },
     subTotal: "उप-योग",

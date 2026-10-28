@@ -138,6 +138,12 @@ export default function InvoiceDetailPage() {
       { field: "gross_wt_g", headerName: "Gross Wt (g)", width: 120, headerClass: AG_GRID_HEADER_CLASS },
       { field: "stone_wt_g", headerName: "Stone Wt (g)", width: 120, headerClass: AG_GRID_HEADER_CLASS },
       { field: "dust_wt_g", headerName: "Dust Wt (g)", width: 110, headerClass: AG_GRID_HEADER_CLASS },
+      {
+        field: "other_deduction_wt_g",
+        headerName: "Other Deduction (g)",
+        width: 150,
+        headerClass: AG_GRID_HEADER_CLASS,
+      },
       { field: "net_wt_g", headerName: "Net Wt (g)", width: 110, headerClass: AG_GRID_HEADER_CLASS },
       {
         field: "applied_rate_per_gram",

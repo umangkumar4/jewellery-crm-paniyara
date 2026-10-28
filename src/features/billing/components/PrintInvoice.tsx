@@ -76,15 +76,17 @@ const COL_WIDTHS = {
 // Old Jewellery Exchange table - no HSN/Pcs/Making/Stone Charge (don't
 // apply to a buy-back, see docs/old-jewellery-exchange-plan.md's Step 6
 // scope decision), metal/purity are their own columns instead of folded
-// into Description, and dust weight is unique to this table.
+// into Description, and dust/other-deduction weight are unique to this
+// table.
 const OLD_COL_WIDTHS = {
   sr: "4%",
-  description: "20%",
+  description: "16%",
   metal: "9%",
   purity: "9%",
   grossWt: "9%",
   stoneWt: "9%",
   dustWt: "9%",
+  otherDeductionWt: "4%",
   netWt: "9%",
   rate: "11%",
   value: "11%",
@@ -172,6 +174,10 @@ export function PrintInvoice({ id }: PrintInvoiceProps) {
   const oldGrossWtTotal = invoice.old_jewellery_items.reduce((sum, item) => sum + item.gross_wt_g, 0);
   const oldStoneWtTotal = invoice.old_jewellery_items.reduce((sum, item) => sum + item.stone_wt_g, 0);
   const oldDustWtTotal = invoice.old_jewellery_items.reduce((sum, item) => sum + item.dust_wt_g, 0);
+  const oldOtherDeductionWtTotal = invoice.old_jewellery_items.reduce(
+    (sum, item) => sum + item.other_deduction_wt_g,
+    0,
+  );
   const oldNetWtTotal = invoice.old_jewellery_items.reduce((sum, item) => sum + item.net_wt_g, 0);
   const oldValueTotal = invoice.old_jewellery_items.reduce((sum, item) => sum + item.final_value, 0);
 
@@ -452,6 +458,7 @@ export function PrintInvoice({ id }: PrintInvoiceProps) {
                       <col style={{ width: OLD_COL_WIDTHS.grossWt }} />
                       <col style={{ width: OLD_COL_WIDTHS.stoneWt }} />
                       <col style={{ width: OLD_COL_WIDTHS.dustWt }} />
+                      <col style={{ width: OLD_COL_WIDTHS.otherDeductionWt }} />
                       <col style={{ width: OLD_COL_WIDTHS.netWt }} />
                       <col style={{ width: OLD_COL_WIDTHS.rate }} />
                       <col style={{ width: OLD_COL_WIDTHS.value }} />
@@ -465,6 +472,7 @@ export function PrintInvoice({ id }: PrintInvoiceProps) {
                         <th className={`${headBase} text-right`}>{t.tableHeaders.grossWt}</th>
                         <th className={`${headBase} text-right`}>{t.tableHeaders.stoneWt}</th>
                         <th className={`${headBase} text-right`}>{t.tableHeaders.dustWt}</th>
+                        <th className={`${headBase} text-right`}>{t.tableHeaders.otherDeductionWt}</th>
                         <th className={`${headBase} text-right`}>{t.tableHeaders.netWt}</th>
                         <th className={`${headBase} text-right`}>{t.tableHeaders.ratePerGram}</th>
                         <th className={`${headBase} text-right`}>{t.tableHeaders.value}</th>
@@ -480,6 +488,9 @@ export function PrintInvoice({ id }: PrintInvoiceProps) {
                           <td className={`${cellBase} text-right tabular-nums`}>{formatWt(item.gross_wt_g)}</td>
                           <td className={`${cellBase} text-right tabular-nums`}>{formatWt(item.stone_wt_g)}</td>
                           <td className={`${cellBase} text-right tabular-nums`}>{formatWt(item.dust_wt_g)}</td>
+                          <td className={`${cellBase} text-right tabular-nums`}>
+                            {formatWt(item.other_deduction_wt_g)}
+                          </td>
                           <td className={`${cellBase} text-right tabular-nums`}>{formatWt(item.net_wt_g)}</td>
                           <td className={`${cellBase} text-right tabular-nums`}>
                             {formatInr(item.applied_rate_per_gram)}
@@ -501,6 +512,9 @@ export function PrintInvoice({ id }: PrintInvoiceProps) {
                         </td>
                         <td className={`${cellBase} border-t-[1.5px] border-t-[#1f1a12] text-right font-bold tabular-nums`}>
                           {formatWt(oldDustWtTotal)}
+                        </td>
+                        <td className={`${cellBase} border-t-[1.5px] border-t-[#1f1a12] text-right font-bold tabular-nums`}>
+                          {formatWt(oldOtherDeductionWtTotal)}
                         </td>
                         <td className={`${cellBase} border-t-[1.5px] border-t-[#1f1a12] text-right font-bold tabular-nums`}>
                           {formatWt(oldNetWtTotal)}
