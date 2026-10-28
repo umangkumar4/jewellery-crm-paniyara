@@ -93,14 +93,15 @@ export function OldJewelleryInventoryGrid() {
 
   const columnDefs = useMemo<ColDef<OldJewelleryItemListRow>[]>(
     () => [
-      { field: "purchase_no", headerName: "Purchase No", width: 140, headerClass: AG_GRID_HEADER_CLASS },
-      { field: "description", headerName: "Description", width: 220, headerClass: AG_GRID_HEADER_CLASS },
-      { field: "metal", headerName: "Metal", width: 100, headerClass: AG_GRID_HEADER_CLASS },
-      { field: "purity", headerName: "Purity", width: 100, headerClass: AG_GRID_HEADER_CLASS },
+      { field: "purchase_no", headerName: "Purchase No", width: 140, flex: 1, headerClass: AG_GRID_HEADER_CLASS },
+      { field: "description", headerName: "Description", width: 220, flex:1, headerClass: AG_GRID_HEADER_CLASS },
+      { field: "metal", headerName: "Metal", width: 100, flex : 1 , headerClass: AG_GRID_HEADER_CLASS },
+      { field: "purity", headerName: "Purity", width: 100, flex :1, headerClass: AG_GRID_HEADER_CLASS },
       {
         field: "net_wt_g",
         headerName: "Net Wt (g)",
         width: 120,
+        flex: 1,
         headerClass: AG_GRID_HEADER_CLASS,
         valueFormatter: (p) => (p.value != null ? p.value.toFixed(3) : ""),
       },
@@ -108,12 +109,14 @@ export function OldJewelleryInventoryGrid() {
         field: "final_value",
         headerName: "Value",
         width: 130,
+        flex: 1,
         headerClass: AG_GRID_HEADER_CLASS,
         valueFormatter: (p) => (p.value != null ? formatInr(p.value) : ""),
       },
       {
         headerName: "Status",
         width: 120,
+        flex: 1,
         headerClass: AG_GRID_HEADER_CLASS,
         cellRenderer: StatusCell,
         valueGetter: (p) => p.data?.status,
@@ -121,6 +124,7 @@ export function OldJewelleryInventoryGrid() {
       {
         headerName: "Action",
         width: 150,
+        flex: 1,
         headerClass: AG_GRID_HEADER_CLASS,
         cellRenderer: makeActionsCell(setEditingItem),
         sortable: false,

@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useCustomer } from "@/features/customers/hooks/useCustomer";
 import { InvoiceTable } from "@/features/dashboard/components/InvoiceTable";
 import { formatInr } from "@/lib/formatters";
-import { BackButton } from "@/components/layout/BackButton";
+import { PageHeader } from "@/components/layout/PageHeader";
 
 export default function CustomerDetailPage() {
   const params = useParams<{ id: string }>();
@@ -22,14 +22,10 @@ export default function CustomerDetailPage() {
 
   return (
     <div className="mx-auto max-w-5xl space-y-6">
-      <BackButton />
-
-      <div>
-        <h2 className="font-display text-2xl text-foreground">{customer.name}</h2>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Customer since {new Date(customer.created_at).toLocaleDateString("en-IN")}
-        </p>
-      </div>
+      <PageHeader
+        title={customer.name}
+        description={`Customer since ${new Date(customer.created_at).toLocaleDateString("en-IN")}`}
+      />
 
       <Card className="shadow-[var(--shadow-jewel)]">
         <CardHeader>

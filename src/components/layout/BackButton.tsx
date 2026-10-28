@@ -13,7 +13,7 @@ export function BackButton({ className }: { className?: string }) {
       type="button"
       variant="ghost"
       onClick={() => router.back()}
-      className={cn("mb-3 -ml-2 h-8 gap-1 px-2 text-sm font-medium text-muted-foreground hover:text-foreground", className)}
+      className={cn("-ml-2 h-8 shrink-0 gap-1 px-2 text-sm font-medium text-muted-foreground hover:text-foreground", className)}
     >
       <ChevronLeft className="h-4 w-4" />
       Back

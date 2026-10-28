@@ -10,7 +10,7 @@ import { StandaloneRefundSection } from "@/features/dashboard/components/Standal
 import { isOldJewelleryItemValid } from "@/features/billing/lib/itemValidity";
 import { useCreateOldPurchase } from "@/features/dashboard/hooks/useCreateOldPurchase";
 import { useOldPurchaseStore, type OldPurchaseFieldErrors } from "@/store/useOldPurchaseStore";
-import { BackButton } from "@/components/layout/BackButton";
+import { PageHeader } from "@/components/layout/PageHeader";
 import {
   createStandaloneOldJewelleryPurchaseSchema,
   type CreateStandaloneOldJewelleryPurchaseInput,
@@ -158,12 +158,10 @@ export default function NewOldPurchasePage() {
 
   return (
     <div className="mx-auto max-w-5xl">
-      <BackButton />
-
-      <h2 className="font-display text-2xl text-foreground">New Old Jewellery Purchase</h2>
-      <p className="mt-1 text-sm text-muted-foreground">
-        Buy old jewellery from a customer with no linked sale - the full value is paid out.
-      </p>
+      <PageHeader
+        title="New Old Jewellery Purchase"
+        description="Buy old jewellery from a customer with no linked sale - the full value is paid out."
+      />
 
       <div className="mt-6 space-y-4">
         <StandaloneCustomerFields />

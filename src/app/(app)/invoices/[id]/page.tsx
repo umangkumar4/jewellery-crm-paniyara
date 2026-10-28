@@ -21,7 +21,7 @@ import { useInvoiceDetail } from "@/features/dashboard/hooks/useInvoiceDetail";
 import type { InvoiceDetail, InvoiceItemDetail, ExchangeSettlementType } from "@/features/dashboard/hooks/useInvoiceDetail";
 import type { OldPurchaseItemDetail } from "@/features/dashboard/hooks/useOldPurchaseDetail";
 import type { BillingPayment } from "@/store/useBillingStore";
-import { BackButton } from "@/components/layout/BackButton";
+import { PageHeader } from "@/components/layout/PageHeader";
 
 // Same per-component local-color-map convention InvoiceGrid.tsx and
 // PrintInvoice.tsx already each use for their own STATUS_BADGE, rather than
@@ -251,31 +251,27 @@ export default function InvoiceDetailPage() {
 
   return (
     <div className="mx-2 max-w-full">
-      <BackButton />
-
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2 className="font-display text-2xl text-foreground">{invoice.invoice_no}</h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {new Date(invoice.created_at).toLocaleString("en-IN")}
-          </p>
-        </div>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={() => window.open(`/invoices/${id}/print`, "_blank")}>
-            Print
-          </Button>
-          {invoice.payment_status !== "paid" ? (
-            <Button onClick={() => setCollectOpen(true)}>Collect Payment</Button>
-          ) : null}
-          <Button
-            variant="outline"
-            className="border-destructive text-destructive hover:bg-destructive/10"
-            onClick={() => setDeleteOpen(true)}
-          >
-            Delete Invoice
-          </Button>
-        </div>
-      </div>
+      <PageHeader
+        title={invoice.invoice_no}
+        description={new Date(invoice.created_at).toLocaleString("en-IN")}
+        actions={
+          <>
+            <Button variant="outline" onClick={() => window.open(`/invoices/${id}/print`, "_blank")}>
+              Print
+            </Button>
+            {invoice.payment_status !== "paid" ? (
+              <Button onClick={() => setCollectOpen(true)}>Collect Payment</Button>
+            ) : null}
+            <Button
+              variant="outline"
+              className="border-destructive text-destructive hover:bg-destructive/10"
+              onClick={() => setDeleteOpen(true)}
+            >
+              Delete Invoice
+            </Button>
+          </>
+        }
+      />
 
       <div className="mt-6 grid gap-6 md:grid-cols-3">
         <div className="panel p-6 md:col-span-2">

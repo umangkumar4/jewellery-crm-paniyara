@@ -27,7 +27,7 @@ const modules: NavItem[] = [
   { label: "Invoices", href: "/invoices", icon: FileText },
   { label: "Customers", href: "/customers", icon: Users },
   { label: "Tags", href: "/tagging", icon: Tag },
-  { label: "Old Jewellery", href: "/old-inventory", icon: Gem },
+  // { label: "Old Jewellery", href: "/old-inventory", icon: Gem },
   { label: "Settings", href: "/settings", icon: Settings },
 ];
 

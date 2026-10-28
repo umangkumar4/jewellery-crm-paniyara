@@ -1,13 +1,10 @@
 import { InvoiceGrid } from "@/features/dashboard/components/InvoiceGrid";
-import { BackButton } from "@/components/layout/BackButton";
+import { PageHeader } from "@/components/layout/PageHeader";
 
 export default function InvoicesPage() {
   return (
-    <div className="mx-auto max-w-6xl">
-      <BackButton />
-
-      <h2 className="font-display text-2xl text-foreground">Invoices</h2>
-      <p className="mt-1 text-sm text-muted-foreground">Every sale recorded through Billing.</p>
+    <div className="mx-2 max-w-full">
+      <PageHeader title="Invoices" description="Every sale recorded through Billing." />
 
       <div className="mt-6">
         <InvoiceGrid />
