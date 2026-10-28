@@ -44,8 +44,8 @@ const STATUS_BADGE: Record<"unpaid" | "partial" | "paid", string> = {
   paid: "bg-emerald-ink/10 text-emerald-ink",
 };
 
-// A4 landscape (297mm) minus the @page margin (10mm each side) below.
-const PAGE_WIDTH = "277mm";
+// A4 landscape (297mm) minus the @page margin (8mm each side) below.
+const PAGE_WIDTH = "281mm";
 
 // Percentages of the table's own width, not the page - these are relative,
 // so they structurally can't exceed 100% the way the first mockup's fixed
@@ -95,9 +95,9 @@ const OLD_COL_WIDTHS = {
 // No vertical column dividers - a single light row-separator per cell
 // (bottom edge only), not a boxed spreadsheet grid. The table already sits
 // inside the document's own outer border, so it doesn't need a second frame.
-const cellBase = "border-b border-[#e8e1d0] px-2 py-1.5 text-[10.5px]";
+const cellBase = "border-b border-[#e8e1d0] px-2 py-0.5 text-[10px]";
 const headBase =
-  "border-b-[1.5px] border-b-[#1f1a12] px-2 py-1.5 text-left text-[8.5px] font-semibold tracking-wide text-muted-foreground";
+  "border-b-[1.5px] border-b-[#1f1a12] px-2 py-0.5 text-left text-[8px] font-semibold tracking-wide text-muted-foreground";
 
 export interface PrintInvoiceProps {
   id: string;
@@ -187,7 +187,7 @@ export function PrintInvoice({ id }: PrintInvoiceProps) {
         rel="stylesheet"
         href="https://fonts.googleapis.com/css2?family=Noto+Serif+Devanagari:wght@600;700&family=Noto+Sans+Devanagari:wght@400;500;600;700&display=swap"
       />
-      <style>{"@page { size: A4 landscape; margin: 10mm; }"}</style>
+      <style>{"@page { size: A4 landscape; margin: 8mm; }"}</style>
 
       <div className="flex justify-center bg-muted/40 py-6 print:bg-white print:p-0">
         <div style={{ width: PAGE_WIDTH }}>
@@ -222,28 +222,28 @@ export function PrintInvoice({ id }: PrintInvoiceProps) {
             className="flex flex-col border-[1.5px] border-[#1f1a12]"
           >
             {/* Header */}
-            <div className="relative border-b-2 border-[#1f1a12] px-7 py-5 text-center">
+            <div className="relative border-b-2 border-[#1f1a12] px-7 py-1.5 text-center">
               <img
                 src="/logo.png"
                 alt=""
-                className="absolute left-7 top-4 h-16 w-16 object-contain"
+                className="absolute left-7 top-1.5 h-11 w-11 object-contain"
               />
-              <div className="mb-1.5 text-[10px] font-semibold tracking-[0.28em]" style={{ color: "#9a7b2f" }}>
+              <div className="mb-0.5 text-[9px] font-semibold tracking-[0.28em]" style={{ color: "#9a7b2f" }}>
                 {t.taxInvoice}
               </div>
-              <div className="text-[10.5px] italic text-muted-foreground">{heritageLine}</div>
-              <div style={{ fontFamily: displayFont }} className="mt-0.5 text-[28px] font-bold leading-tight">
+              <div className="text-[9.5px] italic text-muted-foreground">{heritageLine}</div>
+              <div style={{ fontFamily: displayFont }} className="mt-0.5 text-[20px] font-bold leading-tight">
                 {shopNameBig}
               </div>
-              <div style={{ fontFamily: displayFont }} className="mt-0.5 text-[14px] text-muted-foreground">
+              <div style={{ fontFamily: displayFont }} className="mt-0.5 text-[12px] text-muted-foreground">
                 {shopNameSmall}
               </div>
-              <div className="mt-1.5 text-[11px] text-muted-foreground">
+              <div className="mt-0.5 text-[10px] text-muted-foreground">
                 {shopAddress} &nbsp;·&nbsp; {shopConfig.phone}
               </div>
-              <div className="mt-0.5 text-[11px] text-muted-foreground">GSTIN: {shopConfig.gstin}</div>
+              <div className="mt-0.5 text-[10px] text-muted-foreground">GSTIN: {shopConfig.gstin}</div>
               <div
-                className="absolute right-5 top-4 rounded border px-2 py-0.5 text-[9.5px] font-semibold tracking-wide"
+                className="absolute right-5 top-1.5 rounded border px-2 py-0.5 text-[9.5px] font-semibold tracking-wide"
                 style={{ borderColor: "#9a7b2f", color: "#9a7b2f" }}
               >
                 {t.langTag}
@@ -252,9 +252,9 @@ export function PrintInvoice({ id }: PrintInvoiceProps) {
 
             {/* Bill to / invoice meta */}
             <div className="grid grid-cols-[1.3fr_1fr] border-b-[1.5px] border-[#1f1a12]">
-              <div className="border-r-[1.5px] border-[#c9beac] px-7 py-3.5">
-                <div className="mb-2 text-[10.5px] font-bold">{t.billTo}</div>
-                <div className="grid grid-cols-[76px_1fr] gap-y-1.5 text-[11.5px]">
+              <div className="border-r-[1.5px] border-[#c9beac] px-7 py-1.5">
+                <div className="mb-0.5 text-[10.5px] font-bold">{t.billTo}</div>
+                <div className="grid grid-cols-[76px_1fr] gap-y-0.5 text-[11px]">
                   <div className="text-muted-foreground">{t.name}</div>
                   <div className="font-semibold">{invoice.customer.name}</div>
                   <div className="text-muted-foreground">{t.phone}</div>
@@ -267,9 +267,9 @@ export function PrintInvoice({ id }: PrintInvoiceProps) {
                   ) : null}
                 </div>
               </div>
-              <div className="px-7 py-3.5">
-                <div className="mb-2 text-[10.5px] font-bold">{t.invoiceDetails}</div>
-                <div className="grid grid-cols-[96px_1fr] gap-y-1.5 text-[11.5px]">
+              <div className="px-7 py-1.5">
+                <div className="mb-0.5 text-[10.5px] font-bold">{t.invoiceDetails}</div>
+                <div className="grid grid-cols-[96px_1fr] gap-y-0.5 text-[11px]">
                   <div className="text-muted-foreground">{t.invoiceNo}</div>
                   <div className="font-semibold">{invoice.invoice_no}</div>
                   <div className="text-muted-foreground">{t.invoiceDate}</div>
@@ -381,57 +381,55 @@ export function PrintInvoice({ id }: PrintInvoiceProps) {
               </table>
             </div>
 
-            <div className="flex-1" />
-
             {/* Payment summary + totals */}
             <div className="grid grid-cols-[1.3fr_1fr] border-t-[1.5px] border-[#1f1a12]">
-              <div className="flex flex-col justify-between border-r-[1.5px] border-[#c9beac] px-7 py-4">
+              <div className="flex flex-col justify-between border-r-[1.5px] border-[#c9beac] px-7 py-1.5">
                 <div>
-                  <div className="mb-2 text-[10.5px] font-bold">{t.paymentSummary}</div>
-                  <div className="grid grid-cols-[110px_1fr] gap-y-1.5 text-[11.5px]">
+                  <div className="mb-0.5 text-[10.5px] font-bold">{t.paymentSummary}</div>
+                  <div className="grid grid-cols-[110px_1fr] gap-y-0.5 text-[11px]">
                     <div className="text-muted-foreground">{t.paymentMode}</div>
                     <div className="font-semibold">{paymentModeText}</div>
                   </div>
                 </div>
-                <div className="mt-2.5 text-[9.5px] italic text-muted-foreground">{t.termsNote}</div>
+                <div className="mt-1 text-[9px] italic text-muted-foreground">{t.termsNote}</div>
               </div>
               {/* Discount moved above Taxable Amount - previously sat after
                   CGST/SGST, so the taxable figure appeared before the line
                   explaining why it's lower than Subtotal. */}
-              <div className="grid grid-cols-[1fr_auto] text-[11.5px]">
-                <div className="border-b border-[#c9beac] bg-[#fdf4df] px-4 py-1.5 text-muted-foreground">
+              <div className="grid grid-cols-[1fr_auto] text-[11px]">
+                <div className="border-b border-[#c9beac] bg-[#fdf4df] px-4 py-0.5 text-muted-foreground">
                   {t.discount}
                 </div>
-                <div className="border-b border-[#c9beac] bg-[#fdf4df] px-4 py-1.5 text-right font-semibold tabular-nums">
+                <div className="border-b border-[#c9beac] bg-[#fdf4df] px-4 py-0.5 text-right font-semibold tabular-nums">
                   − {formatInr(invoice.discount_amount)}
                 </div>
-                <div className="border-b border-[#c9beac] px-4 py-1.5 text-muted-foreground">{t.taxableAmount}</div>
-                <div className="border-b border-[#c9beac] px-4 py-1.5 text-right font-semibold tabular-nums">
+                <div className="border-b border-[#c9beac] px-4 py-0.5 text-muted-foreground">{t.taxableAmount}</div>
+                <div className="border-b border-[#c9beac] px-4 py-0.5 text-right font-semibold tabular-nums">
                   {formatInr(taxableAmount)}
                 </div>
-                <div className="border-b border-[#c9beac] px-4 py-1.5 text-muted-foreground">
+                <div className="border-b border-[#c9beac] px-4 py-0.5 text-muted-foreground">
                   {t.cgst} ({invoice.cgst_percent ?? "—"}%)
                 </div>
-                <div className="border-b border-[#c9beac] px-4 py-1.5 text-right font-semibold tabular-nums">
+                <div className="border-b border-[#c9beac] px-4 py-0.5 text-right font-semibold tabular-nums">
                   + {formatInr(invoice.cgst_amount)}
                 </div>
-                <div className="border-b border-[#c9beac] px-4 py-1.5 text-muted-foreground">
+                <div className="border-b border-[#c9beac] px-4 py-0.5 text-muted-foreground">
                   {t.sgst} ({invoice.sgst_percent ?? "—"}%)
                 </div>
-                <div className="border-b border-[#c9beac] px-4 py-1.5 text-right font-semibold tabular-nums">
+                <div className="border-b border-[#c9beac] px-4 py-0.5 text-right font-semibold tabular-nums">
                   + {formatInr(invoice.sgst_amount)}
                 </div>
-                <div className="border-b-[1.5px] border-[#1f1a12] px-4 py-1.5 text-muted-foreground">
+                <div className="border-b-[1.5px] border-[#1f1a12] px-4 py-0.5 text-muted-foreground">
                   {t.roundOff}
                 </div>
-                <div className="border-b-[1.5px] border-[#1f1a12] px-4 py-1.5 text-right font-semibold tabular-nums">
+                <div className="border-b-[1.5px] border-[#1f1a12] px-4 py-0.5 text-right font-semibold tabular-nums">
                   {formatRoundOff(roundOff)}
                 </div>
-                <div className="px-4 py-2.5 text-[14px] font-bold" style={{ background: "#f1e9d8" }}>
+                <div className="px-4 py-1.5 text-[13px] font-bold" style={{ background: "#f1e9d8" }}>
                   {t.grandTotal}
                 </div>
                 <div
-                  className="px-4 py-2.5 text-right text-[14px] font-bold tabular-nums"
+                  className="px-4 py-1.5 text-right text-[13px] font-bold tabular-nums"
                   style={{ background: "#f1e9d8" }}
                 >
                   {formatInr(invoice.grand_total)}
@@ -445,9 +443,9 @@ export function PrintInvoice({ id }: PrintInvoiceProps) {
                 table only renders when this invoice actually has one;
                 Amount Paid/Total Remaining always render, same as every
                 ordinary invoice already needs them. */}
-            <div className="border-t-[1.5px] border-[#1f1a12]"> 
+            <div className="border-t-[1.5px] border-[#1f1a12]">
               {hasExchange ? (
-                <div className="mb-4">
+                <div className="mb-1">
                   {/* <div className="mb-2 text-[10.5px] font-bold">{t.oldJewelleryExchange}</div> */}
                   <table className="w-full table-fixed border-collapse">
                     <colgroup>
@@ -526,16 +524,16 @@ export function PrintInvoice({ id }: PrintInvoiceProps) {
                       </tr>
                     </tbody>
                   </table>
-                  <div className="ml-auto mt-2 grid grid-cols-[1fr_auto] text-[11.5px]" style={{ maxWidth: 360 }}>
-                    <div className="px-4 py-1.5 text-muted-foreground">{t.oldJewelleryTotal}</div>
-                    <div className="px-4 py-1.5 text-right font-semibold tabular-nums">
+                  <div className="ml-auto mt-0.5 grid grid-cols-[1fr_auto] text-[11px]" style={{ maxWidth: 360 }}>
+                    <div className="px-4 py-0.5 text-muted-foreground">{t.oldJewelleryTotal}</div>
+                    <div className="px-4 py-0.5 text-right font-semibold tabular-nums">
                       {formatInr(oldValueTotal)}
                     </div>
-                    <div className="px-4 py-2 text-[13px] font-bold" style={{ background: "#f1e9d8" }}>
+                    <div className="px-4 py-1 text-[12px] font-bold" style={{ background: "#f1e9d8" }}>
                       {t.amountToPay}
                     </div>
                     <div
-                      className="px-4 py-2 text-right text-[13px] font-bold tabular-nums"
+                      className="px-4 py-1 text-right text-[12px] font-bold tabular-nums"
                       style={{ background: "#f1e9d8" }}
                     >
                       {formatInr(amountToPay)}
@@ -547,7 +545,7 @@ export function PrintInvoice({ id }: PrintInvoiceProps) {
                       rendered here - internal shop notes, not customer-
                       facing. reference only appears when present. */}
                   {invoice.old_jewellery_excess ? (
-                    <div className="mt-2 text-[10px] leading-snug text-muted-foreground">
+                    <div className="mt-1 text-[9px] leading-snug text-muted-foreground">
                       {t.excess.intro} ({formatInr(oldValueTotal)}) {t.excess.exceededBy}{" "}
                       {formatInr(invoice.old_jewellery_excess.amount)}
                       {t.excess.exceededBySuffix ? ` ${t.excess.exceededBySuffix}` : ""}.
@@ -566,26 +564,26 @@ export function PrintInvoice({ id }: PrintInvoiceProps) {
                 </div>
               ) : null}
 
-              <div className="ml-auto grid grid-cols-[1fr_auto] text-[11.5px]" style={{ maxWidth: 360 }}>
-                <div className="px-4 py-1.5 text-muted-foreground">{t.amountPaid}</div>
-                <div className="px-4 py-1.5 text-right font-semibold tabular-nums">
+              <div className="ml-auto grid grid-cols-[1fr_auto] text-[11px]" style={{ maxWidth: 360 }}>
+                <div className="px-4 py-0.5 text-muted-foreground">{t.amountPaid}</div>
+                <div className="px-4 py-0.5 text-right font-semibold tabular-nums">
                   {formatInr(invoice.paid_amount)}
                 </div>
-                <div className="px-4 py-2 text-[13px] font-bold" style={{ color: "#8a3129" }}>
+                <div className="px-4 py-1 text-[12px] font-bold" style={{ color: "#8a3129" }}>
                   {t.totalRemaining}
                 </div>
-                <div className="px-4 py-2 text-right text-[13px] font-bold tabular-nums" style={{ color: "#8a3129" }}>
+                <div className="px-4 py-1 text-right text-[12px] font-bold tabular-nums" style={{ color: "#8a3129" }}>
                   {formatInr(invoice.pending_amount)}
                 </div>
               </div>
             </div>
 
             {/* Signatures */}
-            <div className="flex items-end justify-between border-t-[1.5px] border-[#1f1a12] px-7 py-4">
-              <div className="w-[200px] border-t border-[#9a9385] pt-1.5 text-[11px] text-muted-foreground">
+            <div className="flex items-end justify-between border-t-[1.5px] border-[#1f1a12] px-7 py-1.5">
+              <div className="w-[200px] border-t border-[#9a9385] pt-0.5 text-[10px] text-muted-foreground">
                 {t.customerSignature}
               </div>
-              <div className="w-[280px] border-t border-[#9a9385] pt-1.5 text-right text-[11px] text-muted-foreground">
+              <div className="w-[280px] border-t border-[#9a9385] pt-0.5 text-right text-[10px] text-muted-foreground">
                 {t.forShop} {shopConfig.legalNameEn}
               </div>
             </div>

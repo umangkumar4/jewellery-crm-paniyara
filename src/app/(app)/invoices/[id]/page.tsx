@@ -21,6 +21,7 @@ import { useInvoiceDetail } from "@/features/dashboard/hooks/useInvoiceDetail";
 import type { InvoiceDetail, InvoiceItemDetail, ExchangeSettlementType } from "@/features/dashboard/hooks/useInvoiceDetail";
 import type { OldPurchaseItemDetail } from "@/features/dashboard/hooks/useOldPurchaseDetail";
 import type { BillingPayment } from "@/store/useBillingStore";
+import { BackButton } from "@/components/layout/BackButton";
 
 // Same per-component local-color-map convention InvoiceGrid.tsx and
 // PrintInvoice.tsx already each use for their own STATUS_BADGE, rather than
@@ -250,6 +251,8 @@ export default function InvoiceDetailPage() {
 
   return (
     <div className="mx-2 max-w-full">
+      <BackButton />
+
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="font-display text-2xl text-foreground">{invoice.invoice_no}</h2>
@@ -322,24 +325,31 @@ export default function InvoiceDetailPage() {
           {invoice.payments.length === 0 ? (
             <p className="mt-2 text-sm text-muted-foreground">No payments recorded yet.</p>
           ) : (
-            <ul className="mt-2 space-y-1 text-sm">
+            <ul className="mt-3 space-y-2">
               {invoice.payments.map((payment, index) => (
-                <li key={index} className="flex items-center justify-between text-muted-foreground">
-                  <span>
-                    {payment.mode} · {new Date(payment.paid_at).toLocaleString("en-IN")}
-                  </span>
-                  <span className="flex items-center gap-2">
-                    <span className="text-foreground">{formatInr(payment.amount)}</span>
+                <li
+                  key={index}
+                  className="flex items-center justify-between rounded-lg border border-border bg-muted/30 px-3.5 py-2.5"
+                >
+                  <div className="text-sm">
+                    <span className="font-medium capitalize text-foreground">{payment.mode}</span>
+                    <span className="mx-1.5 text-muted-foreground">·</span>
+                    <span className="text-muted-foreground">
+                      {new Date(payment.paid_at).toLocaleString("en-IN")}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-semibold text-foreground">{formatInr(payment.amount)}</span>
                     <button
                       type="button"
                       onClick={() => window.open(`/invoices/${id}/payments/${index}/receipt`, "_blank")}
                       aria-label="Print receipt for this payment"
                       title="Print receipt for this payment"
-                      className="rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+                      className="rounded-full p-1.5 text-muted-foreground transition hover:bg-background hover:text-foreground"
                     >
                       <Receipt className="h-3.5 w-3.5" />
                     </button>
-                  </span>
+                  </div>
                 </li>
               ))}
             </ul>

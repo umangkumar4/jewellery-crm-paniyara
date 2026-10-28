@@ -5,6 +5,7 @@ import { TagForm } from "@/features/tagging/components/TagForm";
 import { TagLabelPreview } from "@/features/tagging/components/TagLabelPreview";
 import { TagsTable } from "@/features/tagging/components/TagsTable";
 import type { Tag } from "@/features/tagging/hooks/useCreateTag";
+import { BackButton } from "@/components/layout/BackButton";
 
 export default function TaggingPage() {
   const [previewTag, setPreviewTag] = useState<Tag | null>(null);
@@ -24,6 +25,8 @@ export default function TaggingPage() {
 
   return (
     <div className="mx-2 max-w-full">
+      <BackButton className="print:hidden" />
+
       <h2 className="font-display text-2xl text-foreground print:hidden">New Tag</h2>
       <p className="mt-1 text-sm text-muted-foreground print:hidden">
         Create an article tag and print its barcode label.

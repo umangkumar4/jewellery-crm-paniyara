@@ -16,6 +16,7 @@ import { isItemValid, isOldJewelleryItemValid } from "@/features/billing/lib/ite
 import { useCreateInvoice } from "@/features/billing/hooks/useCreateInvoice";
 import { useBillingStore, type BillingFieldErrors, type BillingItemErrors } from "@/store/useBillingStore";
 import { createInvoiceSchema, type CreateInvoiceInput } from "@/schemas/invoice.schema";
+import { BackButton } from "@/components/layout/BackButton";
 
 // Same formatting as TotalsPanel's own formatInr - duplicated locally
 // rather than extracted to a shared util for one extra call site.
@@ -277,6 +278,8 @@ export default function BillingPage() {
 
   return (
     <div className="mx-auto max-w-7xl">
+      <BackButton />
+
       <h2 className="font-display text-2xl text-foreground">Billing</h2>
       <p className="mt-1 text-sm text-muted-foreground">Scan or add items, then finalize the sale.</p>
 

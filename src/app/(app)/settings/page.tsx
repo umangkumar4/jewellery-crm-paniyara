@@ -7,6 +7,7 @@ import { MetalRatesTable } from "@/features/settings/components/MetalRatesTable"
 import { AddPurityForm } from "@/features/settings/components/AddPurityForm";
 import { PurityList } from "@/features/settings/components/PurityList";
 import { ChangePasswordForm } from "@/features/settings/components/ChangePasswordForm";
+import { BackButton } from "@/components/layout/BackButton";
 
 type SettingsTab = "rates" | "purities" | "security";
 
@@ -15,6 +16,8 @@ export default function SettingsPage() {
 
   return (
     <div className="mx-auto max-w-full">
+      <BackButton />
+
       <h2 className="font-display text-2xl text-foreground">Settings</h2>
       <p className="mt-1 text-sm text-muted-foreground">Manage purities and today&apos;s metal rates.</p>
 
