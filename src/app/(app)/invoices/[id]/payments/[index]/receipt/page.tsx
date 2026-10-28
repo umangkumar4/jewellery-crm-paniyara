@@ -3,6 +3,7 @@
 import { useEffect, useRef } from "react";
 import { useParams } from "next/navigation";
 import { useInvoicePrintData } from "@/features/dashboard/hooks/useInvoiceDetail";
+import { calculateNewPending } from "@/features/billing/lib/calculations";
 import { shopConfig } from "@/lib/shop-config";
 
 function formatInr(value: number): string {
@@ -55,7 +56,15 @@ export default function PaymentReceiptPage() {
   // keep showing what was true at the moment this payment was made, not
   // silently pick up payments collected afterward.
   const paidToDate = invoice.payments.slice(0, index + 1).reduce((sum, p) => sum + p.amount, 0);
-  const pendingAtThatPoint = Math.max(0, invoice.grand_total - paidToDate);
+  // Exchange is deducted before cash, exactly like calculateNewPending() does
+  // everywhere else (addPayment() validation, the Totals panel, PaymentPanel) -
+  // this receipt must not compute pending as if cash alone covers grand_total.
+  const { pendingAmount: pendingAtThatPoint } = calculateNewPending(
+    invoice.grand_total,
+    invoice.exchange_applied,
+    0, // creditUsed - always 0, same as every other caller (Credit phase is deferred)
+    paidToDate,
+  );
 
   return (
     <div className="mx-auto max-w-md bg-background p-8 text-foreground">
@@ -82,6 +91,10 @@ export default function PaymentReceiptPage() {
           <dd className="font-medium">{invoice.customer.name}</dd>
         </div>
         <div className="flex justify-between">
+          <dt className="text-muted-foreground">Phone</dt>
+          <dd className="font-medium">{invoice.customer.phone}</dd>
+        </div>
+        <div className="flex justify-between">
           <dt className="text-muted-foreground">Date</dt>
           <dd className="font-medium">{new Date(payment.paid_at).toLocaleString("en-IN")}</dd>
         </div>
@@ -100,6 +113,16 @@ export default function PaymentReceiptPage() {
         <div className="flex justify-between text-base">
           <span className="text-muted-foreground">Invoice total</span>
           <span className="font-display text-lg font-semibold">{formatInr(invoice.grand_total)}</span>
+        </div>
+        {invoice.exchange_applied > 0 ? (
+          <div className="flex justify-between text-sm">
+            <span className="text-muted-foreground">Old Jewellery Exchange Applied</span>
+            <span className="font-medium">− {formatInr(invoice.exchange_applied)}</span>
+          </div>
+        ) : null}
+        <div className="flex justify-between text-sm">
+          <span className="text-muted-foreground">Paid Till Now</span>
+          <span className="font-medium">− {formatInr(paidToDate)}</span>
         </div>
         <div className="flex justify-between text-sm">
           <span className="text-muted-foreground">Balance pending</span>
