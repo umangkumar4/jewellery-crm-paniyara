@@ -9,6 +9,13 @@ function formatWt(value: number): string {
   return value.toFixed(3);
 }
 
+// Whole rupees, not paise, for the tiny printed label specifically - the
+// paddle has no room for decimals on this row. The precise paise value is
+// still shown wherever there's actual space (Tags table, Add Tag form).
+function formatStoneAmount(value: number): string {
+  return `₹${Math.round(value)}`;
+}
+
 // One 25mm x 15mm print "paddle". Both ends of the tag render this same
 // component (mirrored) so whichever side ends up facing out once the tag is
 // tied onto the piece, the code/weights are still readable without untying
@@ -33,7 +40,14 @@ function TagPaddle({ tag }: { tag: Tag }) {
           </div>
           <div className="flex justify-between">
             <span className="text-[#9c9484]">S</span>
-            <span>{formatWt(tag.stone_wt_g)}</span>
+            {/* Combined with amount on this one row, not a 4th row - the
+                paddle has no vertical room for one (confirmed design call).
+                Amount only shown when actually set, so a tag that doesn't
+                use this field prints exactly as it always has. */}
+            <span>
+              {formatWt(tag.stone_wt_g)}
+              {tag.stone_amount > 0 ? ` ${formatStoneAmount(tag.stone_amount)}` : ""}
+            </span>
           </div>
           <div className="flex justify-between">
             <span className="text-[#9c9484]">N</span>

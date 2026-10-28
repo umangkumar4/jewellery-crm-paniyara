@@ -12,6 +12,10 @@ export interface Tag {
   stone_wt_g: number;
   net_wt_g: number;
   status: "tagged" | "sold";
+  buyer_code: string;
+  stone_amount_method: "not_set" | "fixed" | "per_gram";
+  total_stone_amount: number;
+  stone_amount: number;
   created_at: string;
 }
 

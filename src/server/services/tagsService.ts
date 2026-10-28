@@ -41,6 +41,10 @@ export async function createTag(input: CreateTagInput) {
     grossWtG: input.gross_wt_g,
     stoneWtG: input.stone_wt_g,
     netWtG: input.net_wt_g,
+    buyerCode: input.buyer_code ?? "",
+    stoneAmountMethod: input.stone_amount_method,
+    totalStoneAmount: input.total_stone_amount,
+    stoneAmount: input.stone_amount,
   });
 
   tag.purityId = purity;
@@ -115,6 +119,10 @@ export function serializeTag(tag: TagDocument) {
     stone_wt_g: tag.stoneWtG,
     net_wt_g: tag.netWtG,
     status: tag.status,
+    buyer_code: tag.buyerCode ?? "",
+    stone_amount_method: tag.stoneAmountMethod ?? "not_set",
+    total_stone_amount: tag.totalStoneAmount ?? 0,
+    stone_amount: tag.stoneAmount ?? 0,
     created_at: tag.createdAt.toISOString(),
   };
 }
