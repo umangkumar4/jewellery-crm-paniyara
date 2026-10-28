@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { Receipt } from "lucide-react";
 import { toast } from "sonner";
 import { AgGridReact } from "ag-grid-react";
@@ -9,15 +9,19 @@ import type { ColDef, ICellRendererParams } from "ag-grid-community";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/Button";
 import { Dialog } from "@/components/ui/Dialog";
+import { Label } from "@/components/ui/Label";
+import { Input } from "@/components/ui/Input";
 import { agGridTheme, AG_GRID_HEADER_CLASS, AG_GRID_DEFAULT_COL_DEF } from "@/lib/ag-grid";
 import { ApiError } from "@/lib/api-client";
 import { PaymentPanel } from "@/features/billing/components/PaymentPanel";
 import { useAddPayment } from "@/features/billing/hooks/useAddPayment";
+import { useDeleteInvoice } from "@/features/dashboard/hooks/useDeleteInvoice";
 import { calculateNewPending, isValueOverridden } from "@/features/billing/lib/calculations";
 import { useInvoiceDetail } from "@/features/dashboard/hooks/useInvoiceDetail";
 import type { InvoiceDetail, InvoiceItemDetail, ExchangeSettlementType } from "@/features/dashboard/hooks/useInvoiceDetail";
 import type { OldPurchaseItemDetail } from "@/features/dashboard/hooks/useOldPurchaseDetail";
 import type { BillingPayment } from "@/store/useBillingStore";
+import { PageHeader } from "@/components/layout/PageHeader";
 
 // Same per-component local-color-map convention InvoiceGrid.tsx and
 // PrintInvoice.tsx already each use for their own STATUS_BADGE, rather than
@@ -63,12 +67,16 @@ function DescriptionCell({ data }: ICellRendererParams<InvoiceItemDetail>) {
 }
 
 export default function InvoiceDetailPage() {
+  const router = useRouter();
   const params = useParams<{ id: string }>();
   const id = params.id;
   const { data: invoice, isLoading, isError } = useInvoiceDetail(id);
   const [collectOpen, setCollectOpen] = useState(false);
   const [draftPayment, setDraftPayment] = useState<BillingPayment | null>(null);
   const addPayment = useAddPayment(id);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteReason, setDeleteReason] = useState("");
+  const deleteInvoice = useDeleteInvoice(id);
 
   const itemColumnDefs = useMemo<ColDef<InvoiceItemDetail>[]>(
     // Fixed widths, not flex - with 10 columns, flex forces every column to
@@ -79,6 +87,13 @@ export default function InvoiceDetailPage() {
     () => [
       { field: "sr_no", headerName: "#", width: 60, headerClass: AG_GRID_HEADER_CLASS },
       { headerName: "Description", width: 220, headerClass: AG_GRID_HEADER_CLASS, cellRenderer: DescriptionCell },
+      {
+        field: "buyer_code",
+        headerName: "Buyer Code",
+        width: 130,
+        headerClass: AG_GRID_HEADER_CLASS,
+        valueFormatter: (p) => (p.value ? p.value : "—"),
+      },
       { field: "hsn_code", headerName: "HSN", width: 90, headerClass: AG_GRID_HEADER_CLASS },
       { field: "pieces", headerName: "Pcs", width: 70, headerClass: AG_GRID_HEADER_CLASS },
       { field: "gross_wt_g", headerName: "Gross Wt (g)", width: 130, headerClass: AG_GRID_HEADER_CLASS },
@@ -124,6 +139,12 @@ export default function InvoiceDetailPage() {
       { field: "gross_wt_g", headerName: "Gross Wt (g)", width: 120, headerClass: AG_GRID_HEADER_CLASS },
       { field: "stone_wt_g", headerName: "Stone Wt (g)", width: 120, headerClass: AG_GRID_HEADER_CLASS },
       { field: "dust_wt_g", headerName: "Dust Wt (g)", width: 110, headerClass: AG_GRID_HEADER_CLASS },
+      {
+        field: "other_deduction_wt_g",
+        headerName: "Other Deduction (g)",
+        width: 150,
+        headerClass: AG_GRID_HEADER_CLASS,
+      },
       { field: "net_wt_g", headerName: "Net Wt (g)", width: 110, headerClass: AG_GRID_HEADER_CLASS },
       {
         field: "applied_rate_per_gram",
@@ -211,24 +232,46 @@ export default function InvoiceDetailPage() {
     );
   };
 
+  const handleDelete = () => {
+    const reason = deleteReason.trim();
+    if (!reason) return;
+    deleteInvoice.mutate(reason, {
+      onSuccess: () => {
+        toast.success("Invoice deleted");
+        // Redirect, not just close the dialog - this page would otherwise
+        // 404 on its own next refetch (findInvoiceById now excludes a
+        // deleted invoice), so staying here would be a dead end.
+        router.push("/invoices");
+      },
+      onError: (error) => {
+        toast.error(error instanceof ApiError ? error.message : "Could not delete this invoice.");
+      },
+    });
+  };
+
   return (
     <div className="mx-2 max-w-full">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2 className="font-display text-2xl text-foreground">{invoice.invoice_no}</h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {new Date(invoice.created_at).toLocaleString("en-IN")}
-          </p>
-        </div>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={() => window.open(`/invoices/${id}/print`, "_blank")}>
-            Print
-          </Button>
-          {invoice.payment_status !== "paid" ? (
-            <Button onClick={() => setCollectOpen(true)}>Collect Payment</Button>
-          ) : null}
-        </div>
-      </div>
+      <PageHeader
+        title={invoice.invoice_no}
+        description={new Date(invoice.created_at).toLocaleString("en-IN")}
+        actions={
+          <>
+            <Button variant="outline" onClick={() => window.open(`/invoices/${id}/print`, "_blank")}>
+              Print
+            </Button>
+            {invoice.payment_status !== "paid" ? (
+              <Button onClick={() => setCollectOpen(true)}>Collect Payment</Button>
+            ) : null}
+            <Button
+              variant="outline"
+              className="border-destructive text-destructive hover:bg-destructive/10"
+              onClick={() => setDeleteOpen(true)}
+            >
+              Delete Invoice
+            </Button>
+          </>
+        }
+      />
 
       <div className="mt-6 grid gap-6 md:grid-cols-3">
         <div className="panel p-6 md:col-span-2">
@@ -278,24 +321,31 @@ export default function InvoiceDetailPage() {
           {invoice.payments.length === 0 ? (
             <p className="mt-2 text-sm text-muted-foreground">No payments recorded yet.</p>
           ) : (
-            <ul className="mt-2 space-y-1 text-sm">
+            <ul className="mt-3 space-y-2">
               {invoice.payments.map((payment, index) => (
-                <li key={index} className="flex items-center justify-between text-muted-foreground">
-                  <span>
-                    {payment.mode} · {new Date(payment.paid_at).toLocaleString("en-IN")}
-                  </span>
-                  <span className="flex items-center gap-2">
-                    <span className="text-foreground">{formatInr(payment.amount)}</span>
+                <li
+                  key={index}
+                  className="flex items-center justify-between rounded-lg border border-border bg-muted/30 px-3.5 py-2.5"
+                >
+                  <div className="text-sm">
+                    <span className="font-medium capitalize text-foreground">{payment.mode}</span>
+                    <span className="mx-1.5 text-muted-foreground">·</span>
+                    <span className="text-muted-foreground">
+                      {new Date(payment.paid_at).toLocaleString("en-IN")}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-semibold text-foreground">{formatInr(payment.amount)}</span>
                     <button
                       type="button"
                       onClick={() => window.open(`/invoices/${id}/payments/${index}/receipt`, "_blank")}
                       aria-label="Print receipt for this payment"
                       title="Print receipt for this payment"
-                      className="rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+                      className="rounded-full p-1.5 text-muted-foreground transition hover:bg-background hover:text-foreground"
                     >
                       <Receipt className="h-3.5 w-3.5" />
                     </button>
-                  </span>
+                  </div>
                 </li>
               ))}
             </ul>
@@ -470,6 +520,71 @@ export default function InvoiceDetailPage() {
             }
           >
             {addPayment.isPending ? "Saving…" : "Save Payment"}
+          </Button>
+        </div>
+      </Dialog>
+
+      <Dialog
+        open={deleteOpen}
+        onClose={() => {
+          setDeleteOpen(false);
+          setDeleteReason("");
+        }}
+        title="Delete invoice?"
+      >
+        <p className="text-sm text-muted-foreground">
+          Delete <span className="font-medium text-foreground">{invoice.invoice_no}</span>? This can&apos;t be
+          undone from here. Any tag-linked items become sellable again, and the invoice is hidden from every
+          list, dashboard figure, and customer history - but the record itself is kept, not erased, along with
+          the reason below.
+          {/* invoice.old_jewellery_items.length > 0, not hasExchange - the
+              server's own check (deleteInvoiceCascade) is based on
+              linkedOldPurchaseId, not exchange_applied, so this warning
+              must match that: a 100%-excess exchange (exchange_applied 0,
+              everything settled as refund) still has linked old jewellery
+              items the server will act on, even though hasExchange would
+              be false for it. */}
+          {invoice.old_jewellery_items.length > 0 ? (
+            <>
+              {" "}
+              The linked old jewellery exchange will also be undone, as long as every item is still in the shop
+              - if any item has already been disposed or melted, this delete will be blocked instead.
+            </>
+          ) : null}
+          {invoice.paid_amount > 0 ? (
+            <> Payments already recorded on this invoice are kept as-is - no refund is tracked automatically.</>
+          ) : null}
+        </p>
+        <div className="mt-4">
+          <Label htmlFor="delete-reason">Reason *</Label>
+          <Input
+            id="delete-reason"
+            autoFocus
+            value={deleteReason}
+            onChange={(e) => setDeleteReason(e.target.value)}
+            placeholder="Why is this invoice being deleted?"
+          />
+        </div>
+        <div className="mt-6 flex justify-end gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => {
+              setDeleteOpen(false);
+              setDeleteReason("");
+            }}
+            disabled={deleteInvoice.isPending}
+          >
+            Cancel
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            className="border-destructive text-destructive hover:bg-destructive/10"
+            onClick={handleDelete}
+            disabled={!deleteReason.trim() || deleteInvoice.isPending}
+          >
+            {deleteInvoice.isPending ? "Deleting…" : "Delete"}
           </Button>
         </div>
       </Dialog>

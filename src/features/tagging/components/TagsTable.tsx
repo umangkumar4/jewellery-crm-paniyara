@@ -145,6 +145,25 @@ const columnDefs = useMemo<ColDef<Tag>[]>(
       valueGetter: (p) => (p.data ? `${p.data.net_wt_g}g` : ""),
     },
     {
+      headerName: "Stone Amount",
+      flex: 1,
+      headerClass: AG_GRID_HEADER_CLASS,
+      // "—" for a tag whose Stone Amount was never set (see
+      // StoneAmountDialog.tsx) - distinct from an explicitly applied ₹0, so
+      // the table reflects the same distinction the stored data now makes.
+      valueGetter: (p) =>
+        !p.data || p.data.stone_amount_method === "not_set"
+          ? "—"
+          : `₹${p.data.stone_amount.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+    },
+    {
+      field: "buyer_code",
+      headerName: "Buyer Code",
+      flex: 1,
+      headerClass: AG_GRID_HEADER_CLASS,
+      valueFormatter: (p) => (p.value ? p.value : "—"),
+    },
+    {
       headerName: "Status",
       flex: 1,
       headerClass: AG_GRID_HEADER_CLASS,

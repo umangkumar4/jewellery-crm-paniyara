@@ -36,6 +36,22 @@ export class InvoiceNotFoundError extends Error {
   }
 }
 
+export class InvoiceAlreadyDeletedError extends Error {
+  constructor() {
+    super("This invoice has already been deleted");
+    this.name = "InvoiceAlreadyDeletedError";
+  }
+}
+
+export class OldJewelleryItemNotReturnableError extends Error {
+  constructor(public readonly description: string, public readonly itemStatus: string) {
+    super(
+      `Cannot delete this invoice - old jewellery item "${description}" has already been ${itemStatus.toLowerCase()} and can no longer be returned`,
+    );
+    this.name = "OldJewelleryItemNotReturnableError";
+  }
+}
+
 export class PaymentExceedsBalanceError extends Error {
   constructor() {
     // "remaining balance", not "grand total" - still accurate when
@@ -236,7 +252,7 @@ export async function createInvoice(input: CreateInvoiceInput): Promise<InvoiceD
                       confirmedAt: new Date(),
                     }
                   : null,
-              status: "active",
+              isDeleted: false,
               createdBy: null,
             },
           ],
@@ -313,6 +329,7 @@ export async function createInvoice(input: CreateInvoiceInput): Promise<InvoiceD
               makingValue: item.making_value,
               stoneCharge: item.stone_charge,
               total: item.total,
+              buyerCode: item.buyer_code ?? "",
             })),
             payments,
             subtotal: input.subtotal,
@@ -385,7 +402,12 @@ export interface ListInvoicesParams {
 }
 
 export async function listInvoices({ page, limit, date, from, to, customerId, status }: ListInvoicesParams) {
-  const filter: QueryFilter<InvoiceDocument> = {};
+  // $ne: true, not { isDeleted: false } - a plain equality match doesn't
+  // match documents where the field is simply absent, and every invoice
+  // created before this field existed has no isDeleted field stored at all.
+  // Backs both the invoices ledger page and a customer's invoice history
+  // (same function, gated by the optional customerId filter below).
+  const filter: QueryFilter<InvoiceDocument> = { isDeleted: { $ne: true } };
   if (from && to) {
     filter.createdAt = {
       $gte: businessDayStart(from),
@@ -421,16 +443,25 @@ export async function listInvoices({ page, limit, date, from, to, customerId, st
 
 // Mongoose's findById throws a CastError on a malformed ObjectId string
 // instead of returning null - guarding here lets every caller return a
-// clean 404 instead of leaking a 500 for "someone typo'd the URL".
+// clean 404 instead of leaking a 500 for "someone typo'd the URL". Excludes
+// a deleted invoice too (same $ne: true reasoning as listInvoices) - a
+// deleted invoice should 404 like it never existed, not render.
 export async function findInvoiceById(id: string): Promise<InvoiceDocument | null> {
   if (!Types.ObjectId.isValid(id)) {
     return null;
   }
-  return InvoiceModel.findById(id);
+  return InvoiceModel.findOne({ _id: id, isDeleted: { $ne: true } });
 }
 
+// Soft delete, not a true removal - sets isDeleted/deleteReason/deletedAt
+// rather than InvoiceModel.deleteOne(). All-or-nothing: if any linked
+// old-jewellery item can no longer be returned, nothing in this function
+// writes anything at all - checked before the first write, inside the same
+// transaction as everything else, so there's no window where a partial
+// cascade could land.
 export async function deleteInvoiceCascade(
   id: string,
+  reason: string,
 ): Promise<{ invoiceNo: string; revertedTags: string[] }> {
   if (!Types.ObjectId.isValid(id)) {
     throw new InvoiceNotFoundError();
@@ -445,6 +476,21 @@ export async function deleteInvoiceCascade(
       if (!invoice) {
         throw new InvoiceNotFoundError();
       }
+      if (invoice.isDeleted) {
+        throw new InvoiceAlreadyDeletedError();
+      }
+
+      // Checked first, before any write - a single not-returnable item
+      // blocks the whole deletion, not just that one item's own cascade.
+      if (invoice.linkedOldPurchaseId) {
+        const oldItems = await OldJewelleryItemModel.find({
+          purchaseId: invoice.linkedOldPurchaseId,
+        }).session(session);
+        const notReturnable = oldItems.find((item) => item.status !== "IN_SHOP");
+        if (notReturnable) {
+          throw new OldJewelleryItemNotReturnableError(notReturnable.description, notReturnable.status);
+        }
+      }
 
       const tagCodes = invoice.items
         .map((item) => item.tagCode)
@@ -454,7 +500,29 @@ export async function deleteInvoiceCascade(
         await TagModel.updateMany({ code: { $in: tagCodes } }, { $set: { status: "tagged" } }, { session });
       }
 
-      await InvoiceModel.deleteOne({ _id: invoice._id }, { session });
+      // Every linked old-jewellery item was confirmed IN_SHOP above - safe
+      // to mark both the purchase and its items as returned/deleted.
+      if (invoice.linkedOldPurchaseId) {
+        await OldJewelleryPurchaseModel.updateOne(
+          { _id: invoice.linkedOldPurchaseId },
+          { $set: { isDeleted: true } },
+          { session },
+        );
+        await OldJewelleryItemModel.updateMany(
+          { purchaseId: invoice.linkedOldPurchaseId },
+          { $set: { isDeleted: true } },
+          { session },
+        );
+      }
+
+      invoice.isDeleted = true;
+      invoice.deleteReason = reason;
+      invoice.deletedAt = new Date();
+      // Payments already recorded on this invoice are left exactly as they
+      // are - no refund logic, purely a record-keeping flag (explicit
+      // product decision - deleting a paid invoice doesn't track or imply
+      // a refund was issued).
+      await invoice.save({ session });
 
       result = { invoiceNo: invoice.invoiceNo, revertedTags: tagCodes };
     });
@@ -479,6 +547,12 @@ export async function addPayment(
   const invoice = await InvoiceModel.findById(id);
   if (!invoice) {
     throw new InvoiceNotFoundError();
+  }
+  // A deleted invoice shouldn't be collectible on, even via a direct/
+  // malformed request bypassing the UI (which already can't reach this -
+  // the invoice detail page itself 404s via findInvoiceById's own exclusion).
+  if (invoice.isDeleted) {
+    throw new InvoiceAlreadyDeletedError();
   }
 
   // grandTotal - exchangeApplied, not the raw grandTotal - an exchange
@@ -617,6 +691,7 @@ export function serializeInvoice(invoice: InvoiceDocument) {
       making_value: item.makingValue,
       stone_charge: item.stoneCharge,
       total: item.total,
+      buyer_code: item.buyerCode ?? "",
     })),
     payments: invoice.payments.map((payment) => ({
       amount: payment.amount,

@@ -12,11 +12,18 @@ import { toOptions } from "@/components/ui/react-select-styles";
 import { WeightField } from "@/components/ui/WeightField";
 import { ApiError } from "@/lib/api-client";
 import { METALS } from "@/lib/metals";
+import { roundMoney } from "@/features/billing/lib/calculations";
+import { StoneAmountDialog, type StoneAmountMethod } from "@/features/tagging/components/StoneAmountDialog";
 
 const METAL_OPTIONS = toOptions(METALS);
 import { createTagSchema, type CreateTagFormValues, type CreateTagInput } from "@/schemas/tag.schema";
 import { useCreateTag, type Tag } from "@/features/tagging/hooks/useCreateTag";
 import { useMetalPurities } from "@/features/settings/hooks/useMetalPurities";
+
+// Same 2dp convention every other money display in this app uses.
+function formatInr(value: number): string {
+  return `₹${value.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
 
 export function TagForm({ onCreated }: { onCreated: (tag: Tag) => void }) {
   const createTag = useCreateTag();
@@ -29,6 +36,13 @@ export function TagForm({ onCreated }: { onCreated: (tag: Tag) => void }) {
   // type a decimal at all. Same reasoning as useNumericStoreField.ts.
   const [grossDisplay, setGrossDisplay] = useState("0");
   const [stoneDisplay, setStoneDisplay] = useState("0");
+  // Stone Amount is locked, set only via StoneAmountDialog (mirrors
+  // billing's MakingChargeDialog) - "not_set" is a real, distinguishable
+  // state until the dialog is actually applied once, rather than defaulting
+  // straight to "fixed" the instant this form mounts.
+  const [stoneAmountMethod, setStoneAmountMethod] = useState<"not_set" | StoneAmountMethod>("not_set");
+  const [totalStoneAmount, setTotalStoneAmount] = useState(0);
+  const [showStoneDialog, setShowStoneDialog] = useState(false);
 
   const { data: purities } = useMetalPurities({ metal });
 
@@ -49,6 +63,10 @@ export function TagForm({ onCreated }: { onCreated: (tag: Tag) => void }) {
       gross_wt_g: 0,
       stone_wt_g: 0,
       net_wt_g: 0,
+      buyer_code: "",
+      stone_amount_method: "not_set",
+      total_stone_amount: 0,
+      stone_amount: 0,
     },
   });
 
@@ -91,6 +109,27 @@ export function TagForm({ onCreated }: { onCreated: (tag: Tag) => void }) {
 
   const netWtG = watch("net_wt_g");
 
+  // stoneAmount = 0 (not_set), value (fixed), or value x stoneWtG (per
+  // gram) - same shape as billing's calculateMakingCharge, reusing its
+  // roundMoney helper rather than a second, naive Math.round that would
+  // reintroduce the exact floating-point rounding bug that helper was
+  // built to fix. Re-runs when stoneWtG changes too, so a "per_gram" amount
+  // applied earlier stays correct if the stone weight is edited afterward
+  // (mirrors ManualAddForm's identical re-derive for making charge).
+  useEffect(() => {
+    const amount =
+      stoneAmountMethod === "fixed"
+        ? roundMoney(totalStoneAmount)
+        : stoneAmountMethod === "per_gram"
+          ? roundMoney(totalStoneAmount * (Number(stoneWtG) || 0))
+          : 0;
+    setValue("stone_amount_method", stoneAmountMethod);
+    setValue("total_stone_amount", totalStoneAmount);
+    setValue("stone_amount", amount, { shouldValidate: true });
+  }, [stoneAmountMethod, totalStoneAmount, stoneWtG, setValue]);
+
+  const stoneAmount = watch("stone_amount");
+
   const onSubmit = handleSubmit((values) => {
     setFormError(null);
     createTag.mutate(values, {
@@ -99,6 +138,8 @@ export function TagForm({ onCreated }: { onCreated: (tag: Tag) => void }) {
         reset();
         setGrossDisplay("0");
         setStoneDisplay("0");
+        setStoneAmountMethod("not_set");
+        setTotalStoneAmount(0);
         setMetal(METALS[0]);
         onCreated(tag);
       },
@@ -220,11 +261,54 @@ export function TagForm({ onCreated }: { onCreated: (tag: Tag) => void }) {
         </div>
       </div>
 
+      <div>
+        <Label htmlFor="buyer_code">Buyer Code</Label>
+        <Input
+          id="buyer_code"
+          maxLength={30}
+          placeholder="Optional"
+          {...register("buyer_code")}
+        />
+        {errors.buyer_code ? (
+          <p className="mt-1.5 text-xs text-destructive">{errors.buyer_code.message}</p>
+        ) : null}
+      </div>
+
+      <div>
+        <Label htmlFor="stone_amount_trigger">Stone Amount</Label>
+        <button
+          type="button"
+          id="stone_amount_trigger"
+          onClick={() => setShowStoneDialog(true)}
+          className="flex h-12 w-full items-center justify-between rounded-lg border border-input bg-card px-4 text-sm text-foreground hover:bg-muted/50"
+        >
+          <span>{stoneAmountMethod === "not_set" ? "Not set" : formatInr(stoneAmount ?? 0)}</span>
+          {stoneAmountMethod === "per_gram" ? (
+            <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+              ₹/g
+            </span>
+          ) : null}
+        </button>
+      </div>
+
       {formError ? <p className="text-sm text-destructive">{formError}</p> : null}
 
       <Button type="submit" disabled={createTag.isPending || !hasPurities} className="w-full uppercase">
         {createTag.isPending ? "Creating…" : "Create Tag & Print Label"}
       </Button>
+
+      {showStoneDialog ? (
+        <StoneAmountDialog
+          onClose={() => setShowStoneDialog(false)}
+          initialMethod={stoneAmountMethod === "not_set" ? "fixed" : stoneAmountMethod}
+          initialValue={totalStoneAmount}
+          stoneWtG={Number(stoneWtG) || 0}
+          onApply={(result) => {
+            setStoneAmountMethod(result.stoneAmountMethod);
+            setTotalStoneAmount(result.totalStoneAmount);
+          }}
+        />
+      ) : null}
     </form>
   );
 }

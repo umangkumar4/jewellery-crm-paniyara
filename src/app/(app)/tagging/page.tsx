@@ -5,6 +5,7 @@ import { TagForm } from "@/features/tagging/components/TagForm";
 import { TagLabelPreview } from "@/features/tagging/components/TagLabelPreview";
 import { TagsTable } from "@/features/tagging/components/TagsTable";
 import type { Tag } from "@/features/tagging/hooks/useCreateTag";
+import { PageHeader } from "@/components/layout/PageHeader";
 
 export default function TaggingPage() {
   const [previewTag, setPreviewTag] = useState<Tag | null>(null);
@@ -24,10 +25,11 @@ export default function TaggingPage() {
 
   return (
     <div className="mx-2 max-w-full">
-      <h2 className="font-display text-2xl text-foreground print:hidden">New Tag</h2>
-      <p className="mt-1 text-sm text-muted-foreground print:hidden">
-        Create an article tag and print its barcode label.
-      </p>
+      <PageHeader
+        className="print:hidden"
+        title="New Tag"
+        description="Create an article tag and print its barcode label."
+      />
 
       <div ref={previewRef} className="mt-6 grid gap-6 md:grid-cols-2">
         <div className="panel p-6 print:hidden">

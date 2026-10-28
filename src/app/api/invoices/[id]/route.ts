@@ -1,6 +1,8 @@
 import { logger } from "@/lib/logger";
 import { dbConnect } from "@/lib/db/mongoose";
 import { requireAuth } from "@/server/auth/session";
+import { deleteInvoiceSchema } from "@/schemas/invoice.schema";
+import { validationErrorResponse } from "@/server/validation";
 import {
   findInvoiceById,
   findOldJewelleryExchangeItems,
@@ -9,6 +11,8 @@ import {
   deleteInvoiceCascade,
   serializeInvoice,
   InvoiceNotFoundError,
+  InvoiceAlreadyDeletedError,
+  OldJewelleryItemNotReturnableError,
 } from "@/server/services/invoicesService";
 
 export const dynamic = "force-dynamic";
@@ -53,18 +57,25 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   }
 }
 
-// Backend-only, by design - no entry point for this exists anywhere in the
-// UI (see docs/billing-plan.md decision 5). Kept as a real, transactional
-// endpoint for direct/administrative use, not wired into any page.
+// Soft delete (isDeleted: true, record kept) - now wired into the invoice
+// detail page's own "Delete Invoice" dialog, which is why this requires a
+// mandatory `reason` in the body (previously backend-only/decision 5, see
+// docs/billing-plan.md - that changed once this got a real UI + audit trail).
 export async function DELETE(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const authError = await requireAuth(request);
   if (authError) return authError;
+
+  const body = await request.json().catch(() => null);
+  const parsed = deleteInvoiceSchema.safeParse(body);
+  if (!parsed.success) {
+    return validationErrorResponse(parsed.error);
+  }
 
   await dbConnect();
   const { id } = await params;
 
   try {
-    const { invoiceNo, revertedTags } = await deleteInvoiceCascade(id);
+    const { invoiceNo, revertedTags } = await deleteInvoiceCascade(id, parsed.data.reason);
     return Response.json({
       message: `Invoice ${invoiceNo} and its records were deleted`,
       reverted_tags: revertedTags,
@@ -72,6 +83,12 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
   } catch (error) {
     if (error instanceof InvoiceNotFoundError) {
       return Response.json({ error: error.message }, { status: 404 });
+    }
+    if (error instanceof InvoiceAlreadyDeletedError) {
+      return Response.json({ error: error.message }, { status: 409 });
+    }
+    if (error instanceof OldJewelleryItemNotReturnableError) {
+      return Response.json({ error: error.message }, { status: 409 });
     }
     logger.error({ err: error }, "Failed to delete invoice");
     return Response.json({ error: "Internal server error" }, { status: 500 });

@@ -48,6 +48,14 @@ export interface OldJewelleryItemDocument extends Document {
   overrideReason: string;
   status: OldJewelleryItemStatus;
   statusHistory: OldJewelleryStatusChange[];
+  // Independent of `status` above - status is purely physical state
+  // (in shop / disposed / melted), isDeleted is "this item was returned to
+  // the customer because the invoice that exchanged it in got deleted".
+  // Same isDeleted convention as Invoice/OldJewelleryPurchase. Lets
+  // listOldJewelleryItems() exclude a returned item from the shop's active
+  // inventory grid without needing a cross-collection join against its
+  // parent purchase.
+  isDeleted: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -87,6 +95,7 @@ const oldJewelleryItemSchema = new Schema<OldJewelleryItemDocument>(
     overrideReason: { type: String, default: "", trim: true },
     status: { type: String, enum: ["IN_SHOP", "DISPOSED", "MELTED"], required: true, default: "IN_SHOP", index: true },
     statusHistory: { type: [statusChangeSchema], default: [] },
+    isDeleted: { type: Boolean, default: false, index: true },
   },
   { timestamps: true },
 );

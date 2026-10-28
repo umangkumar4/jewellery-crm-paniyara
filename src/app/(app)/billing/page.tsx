@@ -16,6 +16,7 @@ import { isItemValid, isOldJewelleryItemValid } from "@/features/billing/lib/ite
 import { useCreateInvoice } from "@/features/billing/hooks/useCreateInvoice";
 import { useBillingStore, type BillingFieldErrors, type BillingItemErrors } from "@/store/useBillingStore";
 import { createInvoiceSchema, type CreateInvoiceInput } from "@/schemas/invoice.schema";
+import { PageHeader } from "@/components/layout/PageHeader";
 
 // Same formatting as TotalsPanel's own formatInr - duplicated locally
 // rather than extracted to a shared util for one extra call site.
@@ -159,6 +160,7 @@ export default function BillingPage() {
         making_value: item.makingValue,
         stone_charge: item.stoneCharge,
         tag_code: item.tagCode ?? undefined,
+        buyer_code: item.buyerCode?.trim() || undefined,
         total: item.total,
       })),
       discount_amount: totals.discountAmount,
@@ -275,9 +277,8 @@ export default function BillingPage() {
   }
 
   return (
-    <div className="mx-auto max-w-7xl">
-      <h2 className="font-display text-2xl text-foreground">Billing</h2>
-      <p className="mt-1 text-sm text-muted-foreground">Scan or add items, then finalize the sale.</p>
+    <div className="mx-2 max-w-full">
+      <PageHeader title="Billing" description="Scan or add items, then finalize the sale." />
 
       {/* Single full-width column, not a sidebar split - each section lays
           its own fields out horizontally instead of stacking narrow

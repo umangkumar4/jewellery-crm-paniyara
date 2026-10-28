@@ -36,6 +36,11 @@ export interface BillingItem {
   makingValue: number;
   stoneCharge: number;
   total: number;
+  // Free text, optional, never read by withTotal/calculateItemTotal - a
+  // reference code the cashier can record to remember which buyer this
+  // item was lent/sold against. Optional so useAddTagItem.ts's existing
+  // addItem() call doesn't need to change just to omit it.
+  buyerCode?: string;
 }
 
 // A customer's old jewellery exchanged during this sale - settlement
@@ -154,6 +159,11 @@ interface BillingState {
 function withTotal(item: Omit<BillingItem, "total">): BillingItem {
   return {
     ...item,
+    // Always a real string, never undefined - useAddTagItem.ts's addItem()
+    // call doesn't pass this field at all, so without defaulting it here
+    // every tag-scanned row would start as buyerCode: undefined, which the
+    // grid's controlled <input> (ItemFieldCell) can't render consistently.
+    buyerCode: item.buyerCode ?? "",
     total: calculateItemTotal({
       netWtG: item.netWtG,
       ratePerGram: item.ratePerGram,

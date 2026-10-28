@@ -57,7 +57,8 @@ export function useAddTagItem() {
         makingCharge: 0,
         makingMethod: "fixed",
         makingValue: 0,
-        stoneCharge: 0,
+        stoneCharge: tag.stone_amount,
+        buyerCode: tag.buyer_code,
       });
 
       return tag;

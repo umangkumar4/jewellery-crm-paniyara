@@ -1,10 +1,10 @@
 import { UserModel } from "@/models/User.model";
 import { comparePassword, hashPassword } from "@/server/auth/password";
-import type { LoginInput, RegisterInput } from "@/schemas/auth.schema";
+import type { ChangePasswordInput, LoginInput, RegisterInput } from "@/schemas/auth.schema";
 
 export class UserAlreadyExistsError extends Error {
   constructor() {
-    super("A user account already exists");
+    super("A user with this email already exists");
     this.name = "UserAlreadyExistsError";
   }
 }
@@ -16,12 +16,21 @@ export class InvalidCredentialsError extends Error {
   }
 }
 
-export async function registerUser(input: RegisterInput) {
-  const existingCount = await UserModel.countDocuments();
-  if (existingCount > 0) {
-    throw new UserAlreadyExistsError();
+export class UserNotFoundError extends Error {
+  constructor() {
+    super("User not found");
+    this.name = "UserNotFoundError";
   }
+}
 
+export class InvalidCurrentPasswordError extends Error {
+  constructor() {
+    super("Current password is incorrect");
+    this.name = "InvalidCurrentPasswordError";
+  }
+}
+
+export async function registerUser(input: RegisterInput) {
   const passwordHash = await hashPassword(input.password);
 
   try {
@@ -52,4 +61,19 @@ export async function loginUser(input: LoginInput) {
   }
 
   return { id: user._id.toString(), name: user.name, email: user.email };
+}
+
+export async function changePassword(userId: string, input: ChangePasswordInput) {
+  const user = await UserModel.findById(userId);
+  if (!user) {
+    throw new UserNotFoundError();
+  }
+
+  const valid = await comparePassword(input.currentPassword, user.passwordHash);
+  if (!valid) {
+    throw new InvalidCurrentPasswordError();
+  }
+
+  user.passwordHash = await hashPassword(input.newPassword);
+  await user.save();
 }

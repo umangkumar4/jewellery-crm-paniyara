@@ -60,6 +60,11 @@ const invoiceItemInputSchema = z.object({
   stone_charge: z.number().min(0, "Stone charge must be 0 or more").default(0),
   // Optional - a manually-added line (no scanned/browsed tag behind it) has none.
   tag_code: z.string().trim().toUpperCase().optional(),
+  // Free text, optional, never read by any calculation - a reference code
+  // the cashier can jot down to remember which buyer this specific item
+  // was lent/sold against, for later complaint lookup. Same "optional
+  // end-to-end" shape as purity.
+  buyer_code: z.string().trim().max(30, "Buyer code must be at most 30 characters").optional(),
   // Positive, not min(0) - a line that contributes nothing to the bill is
   // always either an incomplete entry (rate not set yet, or a net weight so
   // small the metal value rounds to ₹0) or a mistake, never a real sellable
@@ -280,3 +285,13 @@ export const addInvoicePaymentSchema = z
   });
 
 export type AddInvoicePaymentInput = z.infer<typeof addInvoicePaymentSchema>;
+
+// A reason is mandatory, not optional - deleting an invoice is a soft
+// delete (isDeleted: true, record kept, never a hard DeleteOne), and the
+// entire value of keeping the record for audit purposes depends on it
+// being explainable later, not just flagged.
+export const deleteInvoiceSchema = z.object({
+  reason: z.string().trim().min(1, "A reason is required to delete an invoice"),
+});
+
+export type DeleteInvoiceInput = z.infer<typeof deleteInvoiceSchema>;
