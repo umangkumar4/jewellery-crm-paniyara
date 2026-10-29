@@ -49,10 +49,12 @@ export async function GET(request: Request) {
       ? (statusParam as "unpaid" | "partial" | "paid")
       : undefined;
 
+  const q = searchParams.get("q")?.trim() || undefined;
+
   await dbConnect();
 
   try {
-    const { items, total } = await listInvoices({ page, limit, date, from, to, customerId, status });
+    const { items, total } = await listInvoices({ page, limit, date, from, to, customerId, status, q });
     return Response.json({ data: items.map(serializeInvoiceListItem), total, page });
   } catch (error) {
     logger.error({ error }, "Failed to list invoices");
