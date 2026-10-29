@@ -44,12 +44,12 @@ export function Sidebar({ collapsed }: { collapsed: boolean }) {
       <div className="flex items-center gap-3 px-5 py-5">
         <img
           src="/logo.png"
-          alt={shopConfig.appName}
+          alt={shopConfig.heritageLineEn}
           className="h-9 w-9 shrink-0 rounded-full bg-gold/20 object-contain p-1"
         />
         {!collapsed ? (
           <div className="min-w-0">
-            <p className="font-display truncate text-lg leading-tight">{shopConfig.appName}</p>
+            <p className="font-display truncate text-lg leading-tight">{shopConfig.heritageLineEn}</p>
             <p className="truncate text-[10px] tracking-wide text-sidebar-foreground/50 uppercase">
               {shopConfig.appTagline}
             </p>

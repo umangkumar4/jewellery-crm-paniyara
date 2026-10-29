@@ -235,7 +235,9 @@ export function PrintInvoice({ id }: PrintInvoiceProps) {
               <div className="mb-0.5 text-[9px] font-semibold tracking-[0.28em]" style={{ color: "#9a7b2f" }}>
                 {t.taxInvoice}
               </div>
-              <div className="text-[9.5px] italic text-muted-foreground">{heritageLine}</div>
+              <div style={{ fontFamily: displayFont }} className="mt-0.5 text-[20px] font-bold leading-tight">
+                {heritageLine}
+              </div>
               <div style={{ fontFamily: displayFont }} className="mt-0.5 text-[20px] font-bold leading-tight">
                 {shopNameBig}
               </div>

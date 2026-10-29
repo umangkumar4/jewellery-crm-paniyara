@@ -20,7 +20,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Jewellery CRM & POS",
+  title: "Shri Khaduram Jewellers",
   description: "Article tagging, barcode billing, and daily sales analytics for jewellery retail.",
 };
 

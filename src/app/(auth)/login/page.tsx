@@ -37,19 +37,17 @@ export default function LoginPage() {
               </div>
             </div>
 
-            {/* Heritage line now sized to match the shop-name heading below
-                it, per explicit request - same font-display/text-3xl
-                treatment, differentiated by color (white vs gold) rather
-                than size, and still sits on top. */}
+            {/* Heritage line and legal name share the same font-display/
+                text-3xl/font-semibold treatment per explicit request,
+                differentiated by color (white vs gold) rather than size.
+                The Hindi restatement of the legal name was dropped - it
+                duplicated legalNameEn right below it. */}
             <h1 className="font-display mt-9 text-3xl font-semibold leading-snug text-sidebar-foreground/90">
               {shopConfig.heritageLineEn}
             </h1>
-            <h2 className="font-display mt-1 text-3xl font-semibold leading-snug text-gold">
-              {shopConfig.legalNameHi}
-              <br />
-              {shopConfig.legalNameHiSub}
-            </h2>
-            <p className="mt-3 max-w-sm text-sm text-sidebar-foreground/70">{shopConfig.legalNameEn}</p>
+            <p className="font-display mt-1 text-3xl font-semibold leading-snug text-gold">
+              {shopConfig.legalNameEn}
+            </p>
             <p className="mt-2 max-w-sm text-sm text-sidebar-foreground/70">{shopConfig.tagline}</p>
             <p className="mt-3 text-xs text-sidebar-foreground/50">
               {shopConfig.addressEn} &nbsp;·&nbsp; {shopConfig.phone}

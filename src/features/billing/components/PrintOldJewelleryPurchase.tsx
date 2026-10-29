@@ -68,6 +68,12 @@ export function PrintOldJewelleryPurchase({ id }: PrintOldJewelleryPurchaseProps
               <div className="mb-1.5 text-[10px] font-semibold tracking-[0.28em]" style={{ color: "#9a7b2f" }}>
                 OLD JEWELLERY PURCHASE RECEIPT
               </div>
+              <div
+                style={{ fontFamily: "'Cormorant Garamond',serif" }}
+                className="text-[24px] font-bold leading-tight"
+              >
+                {shopConfig.heritageLineEn}
+              </div>
               <div style={{ fontFamily: "'Cormorant Garamond',serif" }} className="mt-0.5 text-[24px] font-bold leading-tight">
                 {shopConfig.legalNameEn}
               </div>
