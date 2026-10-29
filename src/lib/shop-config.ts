@@ -10,17 +10,15 @@ export const shopConfig = {
   portalTagline: "POS & Inventory System",
   legalNameHi: "गोविन्द प्रसाद नीलेश कुमार",
   legalNameHiSub: "ज्वेलर्स एण्ड बर्तन भण्डार",
-  legalNameEn: "Govind Prasad Nilesh Kumar Jewellers & Bartan Bhandar",
-  // The shop's physical board carries this heritage line above the
-  // proprietor's name - "Late Khaderu Ram's old shop".
-  heritageLineHi: "स्व० खदेरू राम की पुरानी दुकान",
-  heritageLineEn: "Late Khaderu Ram's Old Shop",
+  legalNameEn: "Govind Prasad Nilesh Kumar Jewellers & Bartan Bhandar", 
+  heritageLineHi: "श्री खदेरूराम ज्वैलर्स",
+heritageLineEn: "Shri Khaderuram Jewellers",
   tagline:
     "Traditional Elegance Meets Modern Billing, Gold Rate Analytics & Stock Management.",
   gstin: "09ABCDE1234F1Z5",
   addressEn: "Paniyara, Maharajganj, Uttar Pradesh",
   addressHi: "पनियरा – महाराजगंज",
-  phone: "+91 70717 21819",
+  phone: "+91 70717 21819, +91 76518 68365",
   version: "v2.4.0",
   since: 1993,
 } as const;
