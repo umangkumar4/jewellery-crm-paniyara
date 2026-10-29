@@ -58,12 +58,7 @@ function formatInr(value: number | null | undefined): string {
 
 function DescriptionCell({ data }: ICellRendererParams<InvoiceItemDetail>) {
   if (!data) return null;
-  return (
-    <span>
-      {data.description}
-      {data.tag_code ? <span className="ml-2 text-xs text-muted-foreground">{data.tag_code}</span> : null}
-    </span>
-  );
+  return <span>{data.description}</span>;
 }
 
 export default function InvoiceDetailPage() {
@@ -88,6 +83,13 @@ export default function InvoiceDetailPage() {
       { field: "sr_no", headerName: "#", width: 60, headerClass: AG_GRID_HEADER_CLASS },
       { headerName: "Description", width: 220, headerClass: AG_GRID_HEADER_CLASS, cellRenderer: DescriptionCell },
       {
+        field: "tag_code",
+        headerName: "Tag Code",
+        width: 140,
+        headerClass: AG_GRID_HEADER_CLASS,
+        valueFormatter: (p) => (p.value ? p.value : "—"),
+      },
+      {
         field: "buyer_code",
         headerName: "Buyer Code",
         width: 130,
@@ -95,6 +97,13 @@ export default function InvoiceDetailPage() {
         valueFormatter: (p) => (p.value ? p.value : "—"),
       },
       { field: "hsn_code", headerName: "HSN", width: 90, headerClass: AG_GRID_HEADER_CLASS },
+      {
+        field: "purity",
+        headerName: "Purity",
+        width: 90,
+        headerClass: AG_GRID_HEADER_CLASS,
+        valueFormatter: (p) => (p.value ? p.value : "—"),
+      },
       { field: "pieces", headerName: "Pcs", width: 70, headerClass: AG_GRID_HEADER_CLASS },
       { field: "gross_wt_g", headerName: "Gross Wt (g)", width: 130, headerClass: AG_GRID_HEADER_CLASS },
       { field: "stone_wt_g", headerName: "Stone Wt (g)", width: 130, headerClass: AG_GRID_HEADER_CLASS },
@@ -110,6 +119,13 @@ export default function InvoiceDetailPage() {
         field: "making_charge",
         headerName: "Making",
         width: 120,
+        headerClass: AG_GRID_HEADER_CLASS,
+        valueFormatter: (p) => (p.value != null ? formatInr(p.value) : ""),
+      },
+      {
+        field: "stone_charge",
+        headerName: "Stone Charge",
+        width: 130,
         headerClass: AG_GRID_HEADER_CLASS,
         valueFormatter: (p) => (p.value != null ? formatInr(p.value) : ""),
       },
@@ -159,19 +175,20 @@ export default function InvoiceDetailPage() {
         width: 130,
         headerClass: AG_GRID_HEADER_CLASS,
         cellClass: "font-medium! text-foreground!",
-        valueFormatter: (p) => (p.value != null ? formatInr(p.value) : ""),
-      },
-      {
-        headerName: "Override Reason",
-        width: 200,
-        headerClass: AG_GRID_HEADER_CLASS,
-        // Plain field, not a stacked cell under Value - ag-grid cells don't
-        // support multi-line content the way a plain HTML <td> does (what
-        // OldJewelleryExchangeSection.tsx/StandaloneItemsSection.tsx use),
-        // so a dedicated single-line column is the reliable way to show
-        // this here instead of fighting row-height/overflow on the cell.
-        valueGetter: (p) =>
-          p.data && isValueOverridden(p.data.final_value, p.data.calculated_value) ? p.data.override_reason : "—",
+        // "*" marks an overridden value instead of a dedicated "Override
+        // Reason" column (ag-grid cells can't stack multi-line content the
+        // way a plain HTML <td> can, which is why that column existed) -
+        // the reason itself shows on hover via tooltipValueGetter below,
+        // keeping the row to a glance instead of a "—"-filled column for
+        // the common case where nothing was overridden.
+        valueFormatter: (p) =>
+          p.value != null
+            ? `${formatInr(p.value)}${p.data && isValueOverridden(p.data.final_value, p.data.calculated_value) ? " *" : ""}`
+            : "",
+        tooltipValueGetter: (p) =>
+          p.data && isValueOverridden(p.data.final_value, p.data.calculated_value)
+            ? p.data.override_reason
+            : undefined,
       },
     ],
     [],
@@ -181,7 +198,7 @@ export default function InvoiceDetailPage() {
     return <p className="text-sm text-muted-foreground">Loading…</p>;
   }
   if (isError || !invoice) {
-    return <p className="text-sm text-destructive">Could not load this invoice.</p>;
+    return <p className="text-sm text-destructive">Could not load this invoice.</p>
   }
 
   // old_jewellery_items is embedded directly on the invoice response now
@@ -301,8 +318,8 @@ export default function InvoiceDetailPage() {
 
           {hasExchange ? (
             <>
-              <h3 className="mt-6 font-display text-lg text-foreground">Old Jewellery Exchange</h3>
-              <div className="mt-3">
+              <h3 className="mt-2 font-display text-lg text-foreground">Old Jewellery Exchange</h3>
+              <div className="mt-2">
                 <AgGridReact<OldPurchaseItemDetail>
                   theme={agGridTheme}
                   defaultColDef={AG_GRID_DEFAULT_COL_DEF}
@@ -408,20 +425,14 @@ export default function InvoiceDetailPage() {
                   <dt className="text-foreground">Amount to Pay</dt>
                   <dd className="text-foreground">{formatInr(amountToPay)}</dd>
                 </div>
-                <div className="flex justify-between pl-4 text-xs">
-                  <dt className="text-muted-foreground">↳ Paid</dt>
+                <div className="flex justify-between ">
+                  <dt className="text-muted-foreground">Paid</dt>
                   <dd className="text-muted-foreground">{formatInr(invoice.paid_amount)}</dd>
                 </div>
-                <div className="flex items-center justify-between pl-4 text-xs">
-                  <dt className="text-muted-foreground">↳ Pending</dt>
+                <div className="flex items-center justify-between">
+                  <dt className="text-muted-foreground">Pending</dt>
                   <dd className="flex items-center gap-1.5">
                     <span className="text-muted-foreground">{formatInr(invoice.pending_amount)}</span>
-                    <Badge
-                      variant="outline"
-                      className={`border-transparent font-medium capitalize ${PAYMENT_STATUS_BADGE[invoice.payment_status]}`}
-                    >
-                      {invoice.payment_status}
-                    </Badge>
                   </dd>
                 </div>
               </>
@@ -435,12 +446,6 @@ export default function InvoiceDetailPage() {
                   <dt className="text-muted-foreground">Pending</dt>
                   <dd className="flex items-center gap-1.5">
                     <span className="text-foreground">{formatInr(invoice.pending_amount)}</span>
-                    <Badge
-                      variant="outline"
-                      className={`border-transparent font-medium capitalize ${PAYMENT_STATUS_BADGE[invoice.payment_status]}`}
-                    >
-                      {invoice.payment_status}
-                    </Badge>
                   </dd>
                 </div>
               </>
@@ -454,7 +459,7 @@ export default function InvoiceDetailPage() {
             {invoice.old_jewellery_excess ? (
               <>
                 <div className="flex justify-between border-t border-border pt-2">
-                  <dt className="text-muted-foreground">Excess Refunded</dt>
+                  <dt className="text-muted-foreground">Refunded to Customer</dt>
                   <dd className="text-foreground">{formatInr(invoice.old_jewellery_excess.amount)}</dd>
                 </div>
                 {invoice.old_jewellery_excess.refund ? (

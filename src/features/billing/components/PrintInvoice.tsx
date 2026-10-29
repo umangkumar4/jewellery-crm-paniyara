@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useInvoicePrintData } from "@/features/dashboard/hooks/useInvoiceDetail";
-import { roundMoney } from "@/features/billing/lib/calculations";
+import { isValueOverridden, roundMoney } from "@/features/billing/lib/calculations";
 import { shopConfig } from "@/lib/shop-config";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/badge";
@@ -110,6 +110,10 @@ export interface PrintInvoiceProps {
 export function PrintInvoice({ id }: PrintInvoiceProps) {
   const { data: invoice, isLoading, isError } = useInvoicePrintData(id);
   const [lang, setLang] = useState<PrintLang>("en");
+  // Print-time note - deliberately not persisted (no field on the invoice,
+  // no save call). Lives only in this component's state for the current
+  // print session, same lifetime as the `lang` toggle above.
+  const [note, setNote] = useState("");
 
   if (isLoading) {
     return <p className="p-8 text-sm text-muted-foreground">Loading…</p>;
@@ -391,6 +395,31 @@ export function PrintInvoice({ id }: PrintInvoiceProps) {
                     <div className="font-semibold">{paymentModeText}</div>
                   </div>
                 </div>
+                {/* Print-time note - screen-only textarea while editing (so
+                    the cashier can type it), swapped for plain text in the
+                    print output itself so the printed bill shows clean
+                    typography rather than a form-control box. Not persisted -
+                    see the `note` state comment above. Only takes up space in
+                    print when something was actually typed. */}
+                <div className="print:hidden my-1">
+                  <label htmlFor="print-note" className="mb-0.5 block text-[10.5px] font-bold">
+                    Notes
+                  </label>
+                  <textarea
+                    id="print-note"
+                    value={note}
+                    onChange={(e) => setNote(e.target.value)}
+                    placeholder="Add a note to print on this bill…"
+                    rows={2}
+                    className="w-full resize-none rounded-md border border-border bg-white px-2 py-1 text-[11px] text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  />
+                </div>
+                {note.trim() ? (
+                  <div className="hidden print:block my-1">
+                    <div className="mb-0.5 text-[10.5px] font-bold">Notes</div>
+                    <div className="whitespace-pre-wrap text-[11px]">{note}</div>
+                  </div>
+                ) : null}
                 <div className="mt-1 text-[9px] italic text-muted-foreground">{t.termsNote}</div>
               </div>
               {/* Discount moved above Taxable Amount - previously sat after
@@ -495,6 +524,7 @@ export function PrintInvoice({ id }: PrintInvoiceProps) {
                           </td>
                           <td className={`${cellBase} text-right font-semibold tabular-nums`}>
                             {formatInr(item.final_value)}
+                            {isValueOverridden(item.final_value, item.calculated_value) ? " *" : ""}
                           </td>
                         </tr>
                       ))}
