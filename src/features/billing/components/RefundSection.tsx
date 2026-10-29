@@ -84,14 +84,6 @@ export function RefundSection({ bare = false }: RefundSectionProps = {}) {
           />
         </div>
         <div>
-          <Label htmlFor="refund-reference">Reference / UTR (optional)</Label>
-          <Input
-            id="refund-reference"
-            value={refund.reference}
-            onChange={(e) => updateRefund({ reference: e.target.value })}
-          />
-        </div>
-        <div>
           <Label htmlFor="refund-remarks">Remarks (optional)</Label>
           <Input
             id="refund-remarks"

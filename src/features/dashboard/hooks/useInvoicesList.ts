@@ -22,6 +22,7 @@ export interface InvoicesListParams {
   to?: string;
   customerId?: string;
   status?: "unpaid" | "partial" | "paid";
+  q?: string;
 }
 
 export interface InvoicesListResponse {
@@ -39,6 +40,7 @@ export function useInvoicesList(params: InvoicesListParams) {
   }
   if (params.customerId) searchParams.set("customerId", params.customerId);
   if (params.status) searchParams.set("status", params.status);
+  if (params.q) searchParams.set("q", params.q);
 
   return useQuery({
     queryKey: ["invoices", params],

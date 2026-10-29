@@ -399,9 +399,10 @@ export interface ListInvoicesParams {
   to?: string;
   customerId?: string;
   status?: "unpaid" | "partial" | "paid";
+  q?: string;
 }
 
-export async function listInvoices({ page, limit, date, from, to, customerId, status }: ListInvoicesParams) {
+export async function listInvoices({ page, limit, date, from, to, customerId, status, q }: ListInvoicesParams) {
   // $ne: true, not { isDeleted: false } - a plain equality match doesn't
   // match documents where the field is simply absent, and every invoice
   // created before this field existed has no isDeleted field stored at all.
@@ -428,6 +429,11 @@ export async function listInvoices({ page, limit, date, from, to, customerId, st
   }
   if (status) {
     filter.paymentStatus = status;
+  }
+  if (q) {
+    // q is user input - escape regex metacharacters before using it in a
+    // RegExp, same pattern as customersService.listCustomers().
+    filter.invoiceNo = new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
   }
 
   const [items, total] = await Promise.all([

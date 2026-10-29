@@ -1,18 +1,20 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { CalendarRange, ChevronLeft, ChevronRight, Eye, Printer, X } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { CalendarRange, ChevronLeft, ChevronRight, Eye, Search, X } from "lucide-react";
 import { AgGridReact } from "ag-grid-react";
 import type { ColDef, ICellRendererParams } from "ag-grid-community";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/Button";
+import { Input } from "@/components/ui/Input";
+import { LoaderBlock, LoaderOverlay } from "@/components/ui/Loader";
 import { DateRangePicker } from "@/components/ui/DateRangePicker";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { agGridTheme, AG_GRID_HEADER_CLASS, AG_GRID_DEFAULT_COL_DEF } from "@/lib/ag-grid";
 import {
   buildDateRangePresets,
-  DEFAULT_PRESET,
   fromDateKey,
   rangeForPreset,
   toDateKey,
@@ -74,21 +76,13 @@ function StatusCell({ data }: ICellRendererParams<InvoiceListRow>) {
 function ActionsCell({ data }: ICellRendererParams<InvoiceListRow>) {
   if (!data) return null;
   return (
-    <div className="flex h-full items-center gap-1">
+    <div className="flex h-full items-center gap-1" onClick={(e) => e.stopPropagation()}>
       <Link
         href={`/invoices/${data.id}`}
         aria-label="View invoice"
         className="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
       >
         <Eye className="h-4 w-4" />
-      </Link>
-      <Link
-        href={`/invoices/${data.id}/print`}
-        target="_blank"
-        aria-label="Print invoice"
-        className="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
-      >
-        <Printer className="h-4 w-4" />
       </Link>
     </div>
   );
@@ -121,28 +115,43 @@ interface InvoiceGridProps {
 // own range (see `dateRange` prop doc above), /dashboard passes its own
 // top-level DateRangeFilter's range down instead.
 export function InvoiceGrid({ customerId, title = "Invoices", dateRange }: InvoiceGridProps = {}) {
+  const router = useRouter();
   const isDateControlledExternally = dateRange !== undefined;
 
-  // null = "All time" (today's behavior: no date filter applied). Only used
-  // when dateRange isn't passed in - see isDateControlledExternally below.
-  const [internalRange, setInternalRange] = useState<DateRange | null>(null);
+  // Defaults to today's invoices. Only used when dateRange isn't passed in -
+  // see isDateControlledExternally below. null = "All time" (date filter
+  // cleared via the X button).
+  const [internalRange, setInternalRange] = useState<DateRange | null>(rangeForPreset("today"));
   const range = isDateControlledExternally ? dateRange : internalRange;
   const [status, setStatus] = useState<StatusFilter>("all");
   const [page, setPage] = useState(1);
 
-  const [prevFilters, setPrevFilters] = useState({ from: range?.from, to: range?.to, status });
-  if (prevFilters.from !== range?.from || prevFilters.to !== range?.to || prevFilters.status !== status) {
-    setPrevFilters({ from: range?.from, to: range?.to, status });
+  const [searchInput, setSearchInput] = useState("");
+  const [q, setQ] = useState("");
+  useEffect(() => {
+    const timer = setTimeout(() => setQ(searchInput.trim()), 300);
+    return () => clearTimeout(timer);
+  }, [searchInput]);
+
+  const [prevFilters, setPrevFilters] = useState({ from: range?.from, to: range?.to, status, q });
+  if (
+    prevFilters.from !== range?.from ||
+    prevFilters.to !== range?.to ||
+    prevFilters.status !== status ||
+    prevFilters.q !== q
+  ) {
+    setPrevFilters({ from: range?.from, to: range?.to, status, q });
     setPage(1);
   }
 
-  const { data, isLoading, isError } = useInvoicesList({
+  const { data, isLoading, isFetching, isError } = useInvoicesList({
     page,
     limit: LIMIT,
     from: range?.from,
     to: range?.to,
     customerId,
     status: status === "all" ? undefined : status,
+    q: q || undefined,
   });
 
   const dateRangePresets = useMemo(() => buildDateRangePresets(), []);
@@ -221,15 +230,36 @@ export function InvoiceGrid({ customerId, title = "Invoices", dateRange }: Invoi
 
   return (
     <div className="panel p-6">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <h3 className="font-display text-xl text-foreground">{title}</h3>
+      <h3 className="font-display text-xl text-foreground">{title}</h3>
+
+      <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+           <Input
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
+            placeholder="Search by invoice number"
+            leadingIcon={<Search className="h-4 w-4" />}
+            className="sm:w-60"
+          />
+          <Tabs value={status} onValueChange={(value) => setStatus(value as StatusFilter)}>
+            <TabsList>
+              {STATUS_TABS.map((tab) => (
+                <TabsTrigger key={tab.value} value={tab.value} className={tab.activeClass}>
+                  {tab.label}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+          </Tabs>
+
+        </div>
+
         {isDateControlledExternally ? null : range ? (
           <div className="flex items-center gap-2">
             <DateRangePicker
               value={{ from: fromDateKey(range.from), to: fromDateKey(range.to) }}
               onChange={(next) => setInternalRange({ from: toDateKey(next.from), to: toDateKey(next.to) })}
               presets={dateRangePresets}
-              defaultPresetKey={DEFAULT_PRESET}
+              defaultPresetKey="today"
             />
             <Button
               type="button"
@@ -242,43 +272,40 @@ export function InvoiceGrid({ customerId, title = "Invoices", dateRange }: Invoi
             </Button>
           </div>
         ) : (
-          <Button type="button" variant="outline" onClick={() => setInternalRange(rangeForPreset(DEFAULT_PRESET))}>
+          <Button type="button" variant="outline" onClick={() => setInternalRange(rangeForPreset("today"))}>
             <CalendarRange className="h-4 w-4" />
             Filter by date
           </Button>
         )}
       </div>
 
-      <Tabs value={status} onValueChange={(value) => setStatus(value as StatusFilter)} className="mt-4">
-        <TabsList>
-          {STATUS_TABS.map((tab) => (
-            <TabsTrigger key={tab.value} value={tab.value} className={tab.activeClass}>
-              {tab.label}
-            </TabsTrigger>
-          ))}
-        </TabsList>
-      </Tabs>
-
-      <div className="mt-5">
+      <div className="relative mt-5">
         {isLoading && !data ? (
-          <div className="py-6 text-center text-sm text-muted-foreground">Loading…</div>
+          <LoaderBlock />
         ) : isError ? (
           <div className="py-6 text-center text-sm text-destructive">Failed to load invoices.</div>
         ) : !data || data.data.length === 0 ? (
           <div className="py-6 text-center text-sm text-muted-foreground">
-            {range || status !== "all" ? "No invoices match the current filters." : "No invoices yet."}
+            {range || status !== "all" || q ? "No invoices match the current filters." : "No invoices yet."}
           </div>
         ) : (
-          <AgGridReact<InvoiceListRow>
-            theme={agGridTheme}
-            defaultColDef={AG_GRID_DEFAULT_COL_DEF}
-            rowData={data.data}
-            columnDefs={columnDefs}
-            getRowId={(p) => p.data.id}
-            domLayout="autoHeight"
-            suppressCellFocus
-            animateRows={false}
-          />
+          <>
+            {isFetching && <LoaderOverlay />}
+            <AgGridReact<InvoiceListRow>
+              theme={agGridTheme}
+              defaultColDef={AG_GRID_DEFAULT_COL_DEF}
+              rowData={data.data}
+              columnDefs={columnDefs}
+              getRowId={(p) => p.data.id}
+              domLayout="autoHeight"
+              suppressCellFocus
+              animateRows={false}
+              rowClass="cursor-pointer"
+              onRowClicked={(e) => {
+                if (e.data) router.push(`/invoices/${e.data.id}`);
+              }}
+            />
+          </>
         )}
       </div>
 

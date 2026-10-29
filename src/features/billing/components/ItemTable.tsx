@@ -721,7 +721,7 @@ export function ItemTable({ onBrowseTags }: { onBrowseTags: () => void }) {
         <div className="min-w-[220px] flex-1 lg:max-w-sm">
           <ScanInput />
         </div>
-        <div className="flex shrink-0 gap-2">
+        <div className="flex shrink-0 gap-2 lg:ml-auto">
           <Button type="button" variant="outline" size="md" onClick={onBrowseTags}>
             <Search className="h-4 w-4" /> Browse Tags
           </Button>
