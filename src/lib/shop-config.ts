@@ -10,7 +10,8 @@ export const shopConfig = {
   portalTagline: "POS & Inventory System",
   legalNameHi: "गोविन्द प्रसाद नीलेश कुमार",
   legalNameHiSub: "ज्वेलर्स एण्ड बर्तन भण्डार",
-  legalNameEn: "Govind Prasad Nilesh Kumar Jewellers & Bartan Bhandar", 
+  legalNameEn: "Govind Prasad Nilesh Kumar Jewellers & Bartan Bhandar",
+ 
   heritageLineHi: "श्री खदेरूराम ज्वैलर्स",
 heritageLineEn: "Shri Khaderuram Jewellers",
   tagline:
