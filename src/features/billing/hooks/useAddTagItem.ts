@@ -42,6 +42,12 @@ export function useAddTagItem() {
     },
     onError: (error) => {
       if (error instanceof ApiError) {
+        // 409 here only ever means "this tag is already sold" (see GET
+        // /api/tags/[code]) - ScanInput shows a dedicated popup for that
+        // case instead of this generic toast. TagBrowseDialog, the only
+        // other caller, can never hit it: its list is pre-filtered to
+        // status "tagged", so a sold tag is never clickable there.
+        if (error.status === 409) return;
         toast.error(error.message);
         return;
       }
