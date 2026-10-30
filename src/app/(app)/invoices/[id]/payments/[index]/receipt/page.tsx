@@ -70,8 +70,8 @@ export default function PaymentReceiptPage() {
     <div className="mx-auto max-w-md bg-background p-8 text-foreground">
       <div className="text-center">
         <img src="/logo.png" alt="" className="mx-auto h-14 w-14 object-contain" />
-        <h1 className="font-display mt-2 text-2xl">{shopConfig.legalNameEn}</h1>
-        <p className="text-sm text-muted-foreground">{shopConfig.legalNameHi}</p>
+        <p className="font-display mt-2 text-2xl">{shopConfig.heritageLineEn}</p>
+        <h1 className="font-display text-2xl">{shopConfig.legalNameEn}</h1>
         <p className="mt-1 text-xs text-muted-foreground">GSTIN: {shopConfig.gstin}</p>
       </div>
 
@@ -104,7 +104,7 @@ export default function PaymentReceiptPage() {
         </div>
       </dl>
 
-      <div className="mt-5 rounded-lg bg-muted/40 p-4">
+      <div className="mt-5 rounded-lg bg-muted/40">
         <div className="flex justify-between text-sm">
           <span className="text-muted-foreground">Received today</span>
           <span className="font-semibold text-gold">{formatInr(payment.amount)}</span>
@@ -112,7 +112,7 @@ export default function PaymentReceiptPage() {
         <div className="gold-rule my-2" />
         <div className="flex justify-between text-base">
           <span className="text-muted-foreground">Invoice total</span>
-          <span className="font-display text-lg font-semibold">{formatInr(invoice.grand_total)}</span>
+          <span className="font-semibold">{formatInr(invoice.grand_total)}</span>
         </div>
         {invoice.exchange_applied > 0 ? (
           <div className="flex justify-between text-sm">
@@ -122,7 +122,7 @@ export default function PaymentReceiptPage() {
         ) : null}
         <div className="flex justify-between text-sm">
           <span className="text-muted-foreground">Paid Till Now</span>
-          <span className="font-medium">− {formatInr(paidToDate)}</span>
+          <span className="font-semibold">− {formatInr(paidToDate)}</span>
         </div>
         <div className="flex justify-between text-sm">
           <span className="text-muted-foreground">Balance pending</span>

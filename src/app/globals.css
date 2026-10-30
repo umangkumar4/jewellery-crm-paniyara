@@ -140,7 +140,7 @@
   --radius-4xl: var(--radius-4xl);
 
   --font-sans: var(--font-inter);
-  --font-display: var(--font-cormorant);
+  --font-display: var(--font-inter);
   --font-mono: var(--font-geist-mono);
 }
 

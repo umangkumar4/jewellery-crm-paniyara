@@ -23,7 +23,10 @@ export default function DashboardPage() {
 
       <MetalRateCarousel />
 
-      <div className="flex justify-end">
+      <div className="flex justify-between items-center gap-4">
+        <div className="flex items-center gap-2">
+          <h2 className="font-display text-xl text-foreground">Today Stats</h2>
+        </div>
         <DateRangeFilter onChange={setRange} defaultPresetKey="today" />
       </div>
 
