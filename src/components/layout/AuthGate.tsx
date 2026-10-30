@@ -3,6 +3,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { getStoredToken } from "@/lib/auth-token";
+import { Loader } from "@/components/ui/Loader";
 
 /**
  * There's no cookie, so the server has no idea who's logged in on a plain
@@ -26,7 +27,13 @@ export function AuthGate({ children }: { children: ReactNode }) {
     }
   }, [router]);
 
-  if (!authed) return null;
+  if (!authed) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-background">
+        <Loader size="lg" />
+      </div>
+    );
+  }
 
   return <>{children}</>;
 }

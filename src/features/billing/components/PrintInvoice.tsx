@@ -125,7 +125,7 @@ export function PrintInvoice({ id }: PrintInvoiceProps) {
   const t = invoicePrintLabels[lang];
   const isHi = lang === "hi";
   const bodyFont = isHi ? "'Noto Sans Devanagari','Inter',sans-serif" : "'Inter',sans-serif";
-  const displayFont = isHi ? "'Noto Serif Devanagari',serif" : "'Cormorant Garamond',serif";
+  const displayFont = isHi ? "'Noto Serif Devanagari',serif" : "'Inter',sans-serif";
 
   // The invoice shows the shop's full registered name (proprietor + business
   // type combined), matching the physical shop board - legalNameHi/
