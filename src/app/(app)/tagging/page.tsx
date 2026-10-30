@@ -31,12 +31,22 @@ export default function TaggingPage() {
         description="Create an article tag and print its barcode label."
       />
 
-      <div ref={previewRef} className="mt-6 grid gap-6 md:grid-cols-2">
-        <div className="panel p-6 print:hidden">
-          <TagForm onCreated={setPreviewTag} />
+      <div ref={previewRef} className="mt-6 grid gap-6 md:grid-cols-2 md:items-start">
+        <div>
+          <p className="mb-3 text-xs font-semibold tracking-wide text-muted-foreground uppercase print:hidden">
+            Step 1 · Tag Details
+          </p>
+          <div className="panel p-6 print:hidden">
+            <TagForm onCreated={setPreviewTag} />
+          </div>
         </div>
 
-        <TagLabelPreview tag={previewTag} />
+        <div className="md:sticky md:top-6">
+          <p className="mb-3 text-xs font-semibold tracking-wide text-muted-foreground uppercase print:hidden">
+            Step 2 · Label Preview
+          </p>
+          <TagLabelPreview tag={previewTag} />
+        </div>
       </div>
 
       <div className="mt-8 print:hidden">

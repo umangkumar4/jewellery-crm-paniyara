@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { ChevronLeft, ChevronRight, Printer, Search, Trash2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, Printer, Search, Tag as TagIcon, Trash2 } from "lucide-react";
 import { AgGridReact } from "ag-grid-react";
 import type { ColDef, ICellRendererParams } from "ag-grid-community";
 import { toast } from "sonner";
@@ -116,6 +116,8 @@ export function TagsTable({
 
   const total = data?.total ?? 0;
   const totalPages = Math.max(1, Math.ceil(total / LIMIT));
+  const rangeStart = total === 0 ? 0 : (page - 1) * LIMIT + 1;
+  const rangeEnd = Math.min(page * LIMIT, total);
 
 const columnDefs = useMemo<ColDef<Tag>[]>(
   () => [
@@ -185,7 +187,14 @@ const columnDefs = useMemo<ColDef<Tag>[]>(
 
   return (
     <div className="panel p-6">
-      <h3 className="font-display text-xl text-foreground">Tags</h3>
+      <div className="flex items-center gap-2">
+        <h3 className="font-display text-xl text-foreground">Tags</h3>
+        {data ? (
+          <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
+            {total}
+          </span>
+        ) : null}
+      </div>
 
       <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <Input
@@ -209,14 +218,21 @@ const columnDefs = useMemo<ColDef<Tag>[]>(
 
       <div className="mt-5">
         {isLoading && !data ? (
-          <div className="py-6 text-center text-sm text-muted-foreground">Loading…</div>
+          <div className="space-y-2">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <div key={i} className="h-10 w-full animate-pulse rounded-md bg-muted" />
+            ))}
+          </div>
         ) : isError ? (
           <div className="py-6 text-center text-sm text-destructive">
             {error instanceof ApiError ? error.message : "Failed to load tags."}
           </div>
         ) : !data || data.data.length === 0 ? (
-          <div className="py-6 text-center text-sm text-muted-foreground">
-            {q || status !== "all" ? "No tags match the current filters." : "No tags yet."}
+          <div className="flex flex-col items-center gap-2 py-10 text-center">
+            <TagIcon className="h-6 w-6 text-muted-foreground" />
+            <p className="text-sm text-muted-foreground">
+              {q || status !== "all" ? "No tags match the current filters." : "No tags yet."}
+            </p>
           </div>
         ) : (
           <AgGridReact<Tag>
@@ -234,7 +250,7 @@ const columnDefs = useMemo<ColDef<Tag>[]>(
 
       <div className="mt-4 flex items-center justify-between text-sm text-muted-foreground">
         <span>
-          Page {page} of {totalPages}
+          {total === 0 ? "No results" : `Showing ${rangeStart}–${rangeEnd} of ${total}`}
         </span>
         <div className="flex gap-2">
           <Button

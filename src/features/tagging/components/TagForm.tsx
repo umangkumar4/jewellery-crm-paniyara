@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { Gem } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -43,6 +44,14 @@ export function TagForm({ onCreated }: { onCreated: (tag: Tag) => void }) {
   const [stoneAmountMethod, setStoneAmountMethod] = useState<"not_set" | StoneAmountMethod>("not_set");
   const [totalStoneAmount, setTotalStoneAmount] = useState(0);
   const [showStoneDialog, setShowStoneDialog] = useState(false);
+  // True once the user has actually edited gross/stone weight - gates the
+  // Net Wt error below so it can't appear before the user has done anything
+  // (see that field's error render). Plain component state driven only by
+  // the two weight inputs' own onValueChange handlers, not by effect-run
+  // counting, so it's unaffected by React 18 Strict Mode's dev-only double
+  // invocation of effects (which previously made a ref-based "first run"
+  // guard here fire the error on mount anyway).
+  const [weightsTouched, setWeightsTouched] = useState(false);
 
   const { data: purities } = useMetalPurities({ metal });
 
@@ -103,7 +112,11 @@ export function TagForm({ onCreated }: { onCreated: (tag: Tag) => void }) {
     const net = Math.max(0, (Number(grossWtG) || 0) - (Number(stoneWtG) || 0));
     // shouldValidate: true - without it, setValue doesn't re-run validation,
     // so a stale error (e.g. from a previous failed submit) would keep
-    // showing even after the user fixes the values that caused it.
+    // showing even after the user fixes the values that caused it. This
+    // does mean errors.net_wt_g gets set from the very first render (0 - 0
+    // = 0, which fails the schema's "> 0" check) - the error paragraph
+    // below only renders it once weightsTouched is true, so that's invisible
+    // until the user has actually touched a weight field.
     setValue("net_wt_g", Math.round(net * 1000) / 1000, { shouldValidate: true });
   }, [grossWtG, stoneWtG, setValue]);
 
@@ -138,6 +151,7 @@ export function TagForm({ onCreated }: { onCreated: (tag: Tag) => void }) {
         reset();
         setGrossDisplay("0");
         setStoneDisplay("0");
+        setWeightsTouched(false);
         setStoneAmountMethod("not_set");
         setTotalStoneAmount(0);
         setMetal(METALS[0]);
@@ -166,7 +180,18 @@ export function TagForm({ onCreated }: { onCreated: (tag: Tag) => void }) {
   );
 
   return (
-    <form onSubmit={onSubmit} className="space-y-5" noValidate>
+    <form
+      onSubmit={(e) => {
+        // A submit attempt also reveals the Net Wt error even if the user
+        // never touched gross/stone (e.g. hit submit on a blank form) -
+        // weightsTouched alone would otherwise keep it hidden forever in
+        // that case.
+        setWeightsTouched(true);
+        return onSubmit(e);
+      }}
+      className="space-y-5"
+      noValidate
+    >
       <div>
         <Label htmlFor="product_name">Product Name</Label>
         <Input id="product_name" placeholder="e.g. Gold Ring - floral" {...register("product_name")} />
@@ -175,7 +200,7 @@ export function TagForm({ onCreated }: { onCreated: (tag: Tag) => void }) {
         ) : null}
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div>
           <Label htmlFor="metal">Metal</Label>
           <SelectField
@@ -213,7 +238,7 @@ export function TagForm({ onCreated }: { onCreated: (tag: Tag) => void }) {
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <div>
           <Label htmlFor="gross_wt_g">Gross Wt (g)</Label>
           <WeightField
@@ -221,6 +246,7 @@ export function TagForm({ onCreated }: { onCreated: (tag: Tag) => void }) {
             value={grossDisplay}
             onValueChange={(raw) => {
               setGrossDisplay(raw);
+              setWeightsTouched(true);
               setValue("gross_wt_g", Number(raw) || 0, { shouldValidate: true });
             }}
           />
@@ -236,6 +262,7 @@ export function TagForm({ onCreated }: { onCreated: (tag: Tag) => void }) {
             value={stoneDisplay}
             onValueChange={(raw) => {
               setStoneDisplay(raw);
+              setWeightsTouched(true);
               setValue("stone_wt_g", Number(raw) || 0, { shouldValidate: true });
             }}
           />
@@ -253,9 +280,13 @@ export function TagForm({ onCreated }: { onCreated: (tag: Tag) => void }) {
               would otherwise look like a normal field). Plain Input, not
               NumberField - nothing ever types into it, so the leading-zero
               typing bug NumberField exists for doesn't apply here. */}
-          <Input id="net_wt_g" readOnly value={String(netWtG)} />
-          <p className="mt-1.5 text-xs text-muted-foreground">Auto-calculated: gross − stone weight.</p>
-          {errors.net_wt_g ? (
+          <Input
+            id="net_wt_g"
+            readOnly
+            value={String(netWtG)}
+            className="cursor-not-allowed bg-muted text-muted-foreground"
+          />
+          {errors.net_wt_g && weightsTouched ? (
             <p className="mt-1.5 text-xs text-destructive">{errors.net_wt_g.message}</p>
           ) : null}
         </div>
@@ -282,7 +313,10 @@ export function TagForm({ onCreated }: { onCreated: (tag: Tag) => void }) {
           onClick={() => setShowStoneDialog(true)}
           className="flex h-12 w-full items-center justify-between rounded-lg border border-input bg-card px-4 text-sm text-foreground hover:bg-muted/50"
         >
-          <span>{stoneAmountMethod === "not_set" ? "Not set" : formatInr(stoneAmount ?? 0)}</span>
+          <span className="flex items-center gap-2">
+            <Gem className="h-4 w-4 text-muted-foreground" />
+            {stoneAmountMethod === "not_set" ? "Not set" : formatInr(stoneAmount ?? 0)}
+          </span>
           {stoneAmountMethod === "per_gram" ? (
             <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
               ₹/g
@@ -293,9 +327,11 @@ export function TagForm({ onCreated }: { onCreated: (tag: Tag) => void }) {
 
       {formError ? <p className="text-sm text-destructive">{formError}</p> : null}
 
-      <Button type="submit" disabled={createTag.isPending || !hasPurities} className="w-full uppercase">
-        {createTag.isPending ? "Creating…" : "Create Tag & Print Label"}
-      </Button>
+      <div className="border-t border-border pt-5">
+        <Button type="submit" disabled={createTag.isPending || !hasPurities} className="w-full uppercase">
+          {createTag.isPending ? "Creating…" : "Create Tag & Print Label"}
+        </Button>
+      </div>
 
       {showStoneDialog ? (
         <StoneAmountDialog
