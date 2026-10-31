@@ -6,7 +6,7 @@ export default function InvoicesPage() {
     <div className="mx-2 max-w-full">
       <PageHeader title="Invoices" description="Every sale recorded through Billing." />
 
-      <div className="mt-6">
+      <div className="mt-2">
         <InvoiceGrid />
       </div>
     </div>

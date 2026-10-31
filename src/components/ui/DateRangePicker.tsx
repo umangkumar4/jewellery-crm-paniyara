@@ -36,8 +36,8 @@ function RangeDayButton({ day, modifiers, className, ...rest }: DayButtonProps) 
       data-day={day.date.toISOString()}
       className={cn(
         className,
-        "flex h-9 items-center justify-center text-sm transition-colors",
-        modifiers.range_middle ? "mx-0 w-full rounded-none" : "mx-auto my-0.5 w-9 rounded-full",
+        "flex h-8 items-center justify-center text-xs transition-colors",
+        modifiers.range_middle ? "mx-0 w-full rounded-none" : "mx-auto my-0.5 w-8 rounded-full",
         isEndpoint && "bg-primary text-primary-foreground",
         !isEndpoint && modifiers.range_middle && "bg-primary/15 text-foreground",
         !isEndpoint && !modifiers.range_middle && !modifiers.outside && !modifiers.disabled && "text-foreground hover:bg-muted",
@@ -52,17 +52,17 @@ function RangeDayButton({ day, modifiers, className, ...rest }: DayButtonProps) 
 
 const dayPickerClassNames = {
   months: "flex",
-  month: "space-y-3",
+  month: "space-y-2",
   month_caption: "flex items-center justify-between px-1",
-  caption_label: "text-sm font-semibold text-foreground",
+  caption_label: "text-xs font-semibold text-foreground",
   nav: "flex items-center gap-1",
   button_previous:
-    "inline-flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-40",
+    "inline-flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-40",
   button_next:
-    "inline-flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-40",
-  chevron: "h-4 w-4 fill-current",
-  month_grid: "mt-2 w-full border-collapse",
-  weekday: "w-9 pb-1 text-xs font-medium text-muted-foreground",
+    "inline-flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-40",
+  chevron: "h-3.5 w-3.5 fill-current",
+  month_grid: "mt-1.5 w-full border-collapse",
+  weekday: "w-8 pb-1 text-[11px] font-medium text-muted-foreground",
   day: "p-0 text-center align-middle",
 };
 
@@ -132,23 +132,25 @@ export function DateRangePicker({ value, onChange, presets, defaultPresetKey, cl
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className="flex h-12 items-center gap-2 rounded-lg border border-input bg-card px-4 text-sm font-medium text-foreground hover:border-ring focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        className="flex h-9 items-center gap-2 rounded-lg border border-input bg-card px-3 text-xs font-medium text-foreground hover:border-ring focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
         {format(value.from, "d MMM")} – {format(value.to, "d MMM yyyy")}
       </button>
 
       {open ? (
-        <div className="panel absolute right-0 z-50 mt-2 w-[min(90vw,34rem)] overflow-hidden p-0 shadow-lg">
-          <div className="border-b border-border px-5 py-3">
-            <p className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">Select date range</p>
-            <p className="font-display text-lg text-foreground">
+        <div className="panel absolute right-0 z-50 mt-2 w-[min(90vw,26rem)] overflow-hidden p-0 shadow-lg">
+          <div className="border-b border-border px-4 py-2.5">
+            <p className="text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">
+              Select date range
+            </p>
+            <p className="font-display text-base text-foreground">
               {pending?.from ? format(pending.from, "d MMM") : "—"} –{" "}
               {pending?.to ? format(pending.to, "d MMM yyyy") : pending?.from ? format(pending.from, "yyyy") : "—"}
             </p>
           </div>
 
           <div className="flex flex-col sm:flex-row">
-            <div className="p-4">
+            <div className="p-3">
               <DayPicker
                 mode="range"
                 numberOfMonths={1}
@@ -162,14 +164,14 @@ export function DateRangePicker({ value, onChange, presets, defaultPresetKey, cl
                 components={{ DayButton: RangeDayButton }}
               />
             </div>
-            <div className="flex shrink-0 flex-col gap-1.5 border-t border-border p-4 sm:w-40 sm:border-t-0 sm:border-l">
+            <div className="flex shrink-0 flex-col gap-1 border-t border-border p-3 sm:w-28 sm:border-t-0 sm:border-l">
               {presets.map((preset) => (
                 <button
                   key={preset.key}
                   type="button"
                   onClick={() => applyPreset(preset)}
                   className={cn(
-                    "rounded-md px-3 py-2 text-left text-sm font-medium transition-colors",
+                    "rounded-md px-2.5 py-1.5 text-left text-xs font-medium transition-colors",
                     activePresetKey === preset.key
                       ? "bg-primary text-primary-foreground"
                       : "bg-muted text-muted-foreground hover:text-foreground",
@@ -181,14 +183,14 @@ export function DateRangePicker({ value, onChange, presets, defaultPresetKey, cl
             </div>
           </div>
 
-          <div className="flex items-center justify-end gap-2 border-t border-border px-5 py-3">
-            <Button type="button" variant="ghost" size="md" onClick={() => setOpen(false)}>
+          <div className="flex items-center justify-end gap-1.5 border-t border-border px-4 py-2.5">
+            <Button type="button" variant="ghost" size="md" onClick={() => setOpen(false)} className="h-8 px-3 text-xs">
               Cancel
             </Button>
-            <Button type="button" variant="outline" size="md" onClick={handleClear}>
+            <Button type="button" variant="outline" size="md" onClick={handleClear} className="h-8 px-3 text-xs">
               Clear
             </Button>
-            <Button type="button" size="md" onClick={handleOk} disabled={!pending?.from}>
+            <Button type="button" size="md" onClick={handleOk} disabled={!pending?.from} className="h-8 px-3 text-xs">
               OK
             </Button>
           </div>

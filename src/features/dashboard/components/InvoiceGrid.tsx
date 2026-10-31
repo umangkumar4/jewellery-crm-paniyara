@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { CalendarRange, ChevronLeft, ChevronRight, Eye, Search, X } from "lucide-react";
+import { CalendarRange, ChevronLeft, ChevronRight, Eye, Search } from "lucide-react";
 import { AgGridReact } from "ag-grid-react";
 import type { ColDef, ICellRendererParams } from "ag-grid-community";
 import { Badge } from "@/components/ui/badge";
@@ -120,8 +120,9 @@ export function InvoiceGrid({ customerId, title = "Invoices", dateRange }: Invoi
   const isDateControlledExternally = dateRange !== undefined;
 
   // Defaults to today's invoices. Only used when dateRange isn't passed in -
-  // see isDateControlledExternally below. null = "All time" (date filter
-  // cleared via the X button).
+  // see isDateControlledExternally below. null = "All time" - no UI control
+  // sets this anymore (the clear button was removed), kept as a valid state
+  // only so the type/ternary below still compiles without a wider change.
   const [internalRange, setInternalRange] = useState<DateRange | null>(rangeForPreset("today"));
   const range = isDateControlledExternally ? dateRange : internalRange;
   const [status, setStatus] = useState<StatusFilter>("all");
@@ -255,23 +256,12 @@ export function InvoiceGrid({ customerId, title = "Invoices", dateRange }: Invoi
         </div>
 
         {isDateControlledExternally ? null : range ? (
-          <div className="flex items-center gap-2">
-            <DateRangePicker
-              value={{ from: fromDateKey(range.from), to: fromDateKey(range.to) }}
-              onChange={(next) => setInternalRange({ from: toDateKey(next.from), to: toDateKey(next.to) })}
-              presets={dateRangePresets}
-              defaultPresetKey="today"
-            />
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              aria-label="Clear date range"
-              onClick={() => setInternalRange(null)}
-            >
-              <X className="h-4 w-4" />
-            </Button>
-          </div>
+          <DateRangePicker
+            value={{ from: fromDateKey(range.from), to: fromDateKey(range.to) }}
+            onChange={(next) => setInternalRange({ from: toDateKey(next.from), to: toDateKey(next.to) })}
+            presets={dateRangePresets}
+            defaultPresetKey="today"
+          />
         ) : (
           <Button type="button" variant="outline" onClick={() => setInternalRange(rangeForPreset("today"))}>
             <CalendarRange className="h-4 w-4" />
@@ -284,9 +274,9 @@ export function InvoiceGrid({ customerId, title = "Invoices", dateRange }: Invoi
         {isLoading && !data ? (
           <TableSkeleton rows={6} />
         ) : isError ? (
-          <div className="py-6 text-center text-sm text-destructive">Failed to load invoices.</div>
+          <div className="py-12 text-center text-sm text-destructive">Failed to load invoices.</div>
         ) : !data || data.data.length === 0 ? (
-          <div className="py-6 text-center text-sm text-muted-foreground">
+          <div className="py-12 text-center text-sm text-muted-foreground">
             {range || status !== "all" || q ? "No invoices match the current filters." : "No invoices yet."}
           </div>
         ) : (
