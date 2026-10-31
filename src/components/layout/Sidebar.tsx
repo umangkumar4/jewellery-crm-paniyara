@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import { DropdownMenu as DropdownMenuPrimitive } from "radix-ui";
 import {
   FileText,
   Gem,
@@ -10,6 +11,7 @@ import {
   Receipt,
   Settings,
   Tag,
+  User as UserIcon,
   Users,
   type LucideIcon,
 } from "lucide-react";
@@ -45,6 +47,7 @@ export function Sidebar({
   const pathname = usePathname();
   const router = useRouter();
   const logout = useAuthStore((state) => state.logout);
+  const user = useAuthStore((state) => state.user);
 
   function handleLogout() {
     logout();
@@ -112,18 +115,49 @@ export function Sidebar({
         {!collapsed ? (
           <p className="font-mono text-[11px] text-sidebar-foreground/50">GSTIN: {shopConfig.gstin}</p>
         ) : null}
-        <button
-          type="button"
-          onClick={handleLogout}
-          aria-label="Logout"
-          className={cn(
-            "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-sidebar-foreground/80 transition-colors hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground",
-            collapsed ? "justify-center" : "-mx-3 w-[calc(100%+1.5rem)]",
-          )}
-        >
-          <LogOut className="h-4 w-4 shrink-0" />
-          {!collapsed ? <span className="truncate">Logout</span> : null}
-        </button>
+        <DropdownMenuPrimitive.Root>
+          <DropdownMenuPrimitive.Trigger asChild>
+            <button
+              type="button"
+              aria-label="Account menu"
+              className={cn(
+                "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-sidebar-foreground/80 transition-colors hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground",
+                collapsed ? "justify-center" : "-mx-3 w-[calc(100%+1.5rem)]",
+              )}
+            >
+              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-gold/20 text-xs font-semibold text-gold">
+                {user?.name ? user.name.charAt(0).toUpperCase() : <UserIcon className="h-3.5 w-3.5" />}
+              </span>
+              {!collapsed ? <span className="truncate">{user?.name ?? "Account"}</span> : null}
+            </button>
+          </DropdownMenuPrimitive.Trigger>
+          <DropdownMenuPrimitive.Portal>
+            <DropdownMenuPrimitive.Content
+              side="top"
+              align="start"
+              sideOffset={8}
+              className="panel z-50 min-w-40 p-1"
+            >
+              <DropdownMenuPrimitive.Item asChild>
+                <Link
+                  href="/profile"
+                  onClick={onCloseMobile}
+                  className="flex cursor-pointer items-center gap-2 rounded-md px-2.5 py-2 text-sm text-foreground outline-none hover:bg-muted"
+                >
+                  <UserIcon className="h-4 w-4" />
+                  Profile
+                </Link>
+              </DropdownMenuPrimitive.Item>
+              <DropdownMenuPrimitive.Item
+                onSelect={handleLogout}
+                className="flex cursor-pointer items-center gap-2 rounded-md px-2.5 py-2 text-sm text-foreground outline-none hover:bg-muted"
+              >
+                <LogOut className="h-4 w-4" />
+                Logout
+              </DropdownMenuPrimitive.Item>
+            </DropdownMenuPrimitive.Content>
+          </DropdownMenuPrimitive.Portal>
+        </DropdownMenuPrimitive.Root>
       </div>
       </aside>
     </>

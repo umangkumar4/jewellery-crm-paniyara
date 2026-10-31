@@ -158,7 +158,6 @@ export function AddOldJewelleryItemDialog({ onClose, initialItem, onSave }: AddO
       onClose={onClose}
       title={initialItem ? "Edit Old Jewellery Item" : "Add Old Jewellery Item"}
       className="max-w-2xl"
-      dimBackground={false}
     >
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <div className="col-span-2 sm:col-span-2">

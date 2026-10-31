@@ -6,10 +6,9 @@ import { MetalRateForm } from "@/features/settings/components/MetalRateForm";
 import { MetalRatesTable } from "@/features/settings/components/MetalRatesTable";
 import { AddPurityForm } from "@/features/settings/components/AddPurityForm";
 import { PurityList } from "@/features/settings/components/PurityList";
-import { ChangePasswordForm } from "@/features/settings/components/ChangePasswordForm";
 import { PageHeader } from "@/components/layout/PageHeader";
 
-type SettingsTab = "rates" | "purities" | "security";
+type SettingsTab = "rates" | "purities";
 
 export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState<SettingsTab>("rates");
@@ -26,9 +25,6 @@ export default function SettingsPage() {
           <TabsTrigger variant="line" value="purities">
             Add Purity
           </TabsTrigger>
-          <TabsTrigger variant="line" value="security">
-            Security
-          </TabsTrigger>
         </TabsList>
       </Tabs>
 
@@ -39,18 +35,12 @@ export default function SettingsPage() {
           </div>
           <MetalRatesTable />
         </div>
-      ) : activeTab === "purities" ? (
+      ) : (
         <div className="mt-6">
           <div className="panel p-6">
             <AddPurityForm />
           </div>
           <PurityList />
-        </div>
-      ) : (
-        <div className="mt-6">
-          <div className="panel p-6">
-            <ChangePasswordForm />
-          </div>
         </div>
       )}
     </div>

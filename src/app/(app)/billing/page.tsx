@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/Button";
 import { ApiError } from "@/lib/api-client";
@@ -55,6 +56,7 @@ function collectValidationErrors(body: unknown): {
 }
 
 export default function BillingPage() {
+  const router = useRouter();
   const [browseOpen, setBrowseOpen] = useState(false);
   const [confirmation, setConfirmation] = useState<{ id: string; no: string } | null>(null);
   // Idempotency key for the exchange path (see docs/old-jewellery-exchange-plan.md's
@@ -254,7 +256,7 @@ export default function BillingPage() {
           <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-center">
             <Button
               variant="outline"
-              onClick={() => window.open(`/invoices/${confirmation.id}/print`, "_blank")}
+              onClick={() => router.push(`/invoices/${confirmation.id}/print`)}
             >
               Print Receipt
             </Button>

@@ -19,9 +19,9 @@ export function PageHeader({
   return (
     <div className={cn("flex flex-wrap items-end justify-between gap-4 border-b border-border pb-5", className)}>
       <div>
-        <BackButton className="mb-2" />
-        <h2 className="font-display text-3xl text-foreground">{title}</h2>
-        {description ? <p className="mt-1.5 text-sm text-muted-foreground">{description}</p> : null}
+        <BackButton className="" />
+        <h2 className="font-display text-2xl text-foreground">{title}</h2>
+        {description ? <p className="mt-1 text-sm text-muted-foreground">{description}</p> : null}
       </div>
       {actions ? <div className="flex shrink-0 flex-wrap gap-2">{actions}</div> : null}
     </div>

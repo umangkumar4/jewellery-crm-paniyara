@@ -18,6 +18,7 @@ import { useAddPayment } from "@/features/billing/hooks/useAddPayment";
 import { useDeleteInvoice } from "@/features/dashboard/hooks/useDeleteInvoice";
 import { calculateNewPending, isValueOverridden } from "@/features/billing/lib/calculations";
 import { useInvoiceDetail } from "@/features/dashboard/hooks/useInvoiceDetail";
+import { InvoiceDetailSkeleton } from "@/features/dashboard/components/InvoiceDetailSkeleton";
 import type { InvoiceDetail, InvoiceItemDetail, ExchangeSettlementType } from "@/features/dashboard/hooks/useInvoiceDetail";
 import type { OldPurchaseItemDetail } from "@/features/dashboard/hooks/useOldPurchaseDetail";
 import type { BillingPayment } from "@/store/useBillingStore";
@@ -195,7 +196,7 @@ export default function InvoiceDetailPage() {
   );
 
   if (isLoading) {
-    return <p className="text-sm text-muted-foreground">Loading…</p>;
+    return <InvoiceDetailSkeleton />;
   }
   if (isError || !invoice) {
     return <p className="text-sm text-destructive">Could not load this invoice.</p>
@@ -273,7 +274,7 @@ export default function InvoiceDetailPage() {
         description={new Date(invoice.created_at).toLocaleString("en-IN")}
         actions={
           <>
-            <Button variant="outline" onClick={() => window.open(`/invoices/${id}/print`, "_blank")}>
+            <Button variant="outline" onClick={() => router.push(`/invoices/${id}/print`)}>
               Print
             </Button>
             {invoice.payment_status !== "paid" ? (
@@ -372,7 +373,7 @@ export default function InvoiceDetailPage() {
                       <span className="text-sm font-semibold text-foreground">{formatInr(payment.amount)}</span>
                       <button
                         type="button"
-                        onClick={() => window.open(`/invoices/${id}/payments/${index}/receipt`, "_blank")}
+                        onClick={() => router.push(`/invoices/${id}/payments/${index}/receipt`)}
                         aria-label="Print receipt for this payment"
                         title="Print receipt for this payment"
                         className="rounded-full p-1.5 text-muted-foreground transition hover:bg-background hover:text-foreground"
