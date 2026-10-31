@@ -8,9 +8,11 @@ export interface Tag {
   product_name: string;
   metal: string;
   purity: string;
+  purity_id: string;
   gross_wt_g: number;
   stone_wt_g: number;
   net_wt_g: number;
+  rate_per_gram: number | null;
   status: "tagged" | "sold";
   buyer_code: string;
   stone_amount_method: "not_set" | "fixed" | "per_gram";

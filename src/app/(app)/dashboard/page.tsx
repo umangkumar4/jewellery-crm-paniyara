@@ -35,13 +35,8 @@ export default function DashboardPage() {
         isLoading={summaryQuery.isLoading}
         isError={summaryQuery.isError}
       />
-
-      <SalesTrendChart data={trendQuery.data} isLoading={trendQuery.isLoading} isError={trendQuery.isError} />
-
-      {/* Reuses the page's own top-level date filter instead of showing a
-          second, separate one inside the ledger - see InvoiceGrid's
-          `dateRange` prop doc. */}
       <InvoiceGrid dateRange={range} />
+      <SalesTrendChart data={trendQuery.data} isLoading={trendQuery.isLoading} isError={trendQuery.isError} />
     </div>
   );
 }
