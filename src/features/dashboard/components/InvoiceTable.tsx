@@ -204,7 +204,6 @@ export function InvoiceTable({ customerId, title = "Invoices" }: InvoiceTablePro
                       </Link>
                       <Link
                         href={`/invoices/${invoice.id}/print`}
-                        target="_blank"
                         aria-label="Print invoice"
                         className="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
                       >

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/Button";
 import { ApiError } from "@/lib/api-client";
@@ -44,6 +45,7 @@ function collectValidationErrors(body: unknown): {
 }
 
 export default function NewOldPurchasePage() {
+  const router = useRouter();
   const [confirmation, setConfirmation] = useState<{ id: string; no: string } | null>(null);
   // Idempotency key, same role as billing/page.tsx's operationId - stable
   // across repeated "Record Purchase" clicks/retries on the same draft,
@@ -138,7 +140,7 @@ export default function NewOldPurchasePage() {
           <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-center">
             <Button
               variant="outline"
-              onClick={() => window.open(`/old-purchases/${confirmation.id}/print`, "_blank")}
+              onClick={() => router.push(`/old-purchases/${confirmation.id}/print`)}
             >
               Print Receipt
             </Button>
