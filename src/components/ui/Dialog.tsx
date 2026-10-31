@@ -32,7 +32,7 @@ export function Dialog({ open, onClose, title, children, className, dimBackgroun
   return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div
-        className={cn("absolute inset-0", dimBackground && "bg-background/80")}
+        className={cn("absolute inset-0", dimBackground && "bg-foreground/50")}
         onClick={onClose}
         aria-hidden="true"
       />

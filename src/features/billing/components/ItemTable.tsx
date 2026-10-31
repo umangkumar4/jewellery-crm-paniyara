@@ -397,10 +397,7 @@ function ManualAddForm({ onDone }: { onDone: () => void }) {
   return (
     // Wider than Dialog's default max-w-lg - this form's 4-column grid of
     // labeled numeric fields needs more room than a typical modal's content.
-    // dimBackground={false} per explicit request - keeps the billing page
-    // visible behind this one dialog (TagBrowseDialog's overlay is
-    // untouched, this wasn't asked to change there).
-    <Dialog open onClose={onDone} title="Add Item" className="max-w-2xl" dimBackground={false}>
+    <Dialog open onClose={onDone} title="Add Item" className="max-w-2xl">
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <div className="col-span-2 sm:col-span-2">
           <Label htmlFor="manual-description">Description *</Label>
