@@ -90,7 +90,7 @@ function EditRateDialog({ purity, onClose }: { purity: MetalPurity | null; onClo
       title={purity ? `Edit Rate - ${purity.metal} ${purity.purity}` : "Edit Rate"}
     >
       <form onSubmit={onSubmit} className="space-y-5" noValidate>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div>
             <Label htmlFor="edit-rate-value">Sell Rate per gram (₹)</Label>
             <Input
@@ -202,7 +202,7 @@ export function MetalRatesTable() {
       ) : groups.length === 0 ? (
         <p className="mt-4 py-6 text-center text-sm text-muted-foreground">No rates set yet - set one above.</p>
       ) : (
-        <div className="mt-4 grid gap-6 sm:grid-cols-2">
+        <div className="mt-4 grid grid-cols-1 gap-6">
           {groups.map((group) => (
             <div key={group.metal} className="rounded-lg border border-border p-4">
               <h4 className="font-display text-base text-foreground">{group.metal}</h4>

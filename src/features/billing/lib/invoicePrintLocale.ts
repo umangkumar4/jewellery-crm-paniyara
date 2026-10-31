@@ -63,6 +63,9 @@ export interface InvoicePrintLabels {
   forShop: string;
   printButton: string;
   noPayments: string;
+  // Closing thank-you line, centered above the Signatures row - purely a
+  // goodwill note, not a legal/terms statement (that's termsNote above).
+  welcomeNote: string;
   // Shown only when old jewellery exceeded the bill (excess/refund case) -
   // composed from fragments (static label + inline interpolated amounts),
   // same convention every other dynamic line on this page already uses,
@@ -98,16 +101,16 @@ export const invoicePrintLabels: Record<PrintLang, InvoicePrintLabels> = {
       hsn: "HSN",
       purity: "Purity",
       pcs: "Pcs",
-      grossWt: "Gross Wt (g)",
-      stoneWt: "Stone Wt (g)",
-      netWt: "Net Wt (g)",
+      grossWt: "G. Wt (g)",
+      stoneWt: "S. Wt (g)",
+      netWt: "N. Wt (g)",
       ratePerGram: "Rate/g",
       makingCharge: "Making Charge",
       stoneCharge: "Stone Charge",
       amount: "Amount",
       metal: "Metal",
       dustWt: "Dust Wt (g)",
-      otherDeductionWt: "Other Deduction (g)",
+      otherDeductionWt: "Oth(g)",
       value: "Value",
     },
     subTotal: "Sub-Total",
@@ -128,6 +131,8 @@ export const invoicePrintLabels: Record<PrintLang, InvoicePrintLabels> = {
     forShop: "For",
     printButton: "Print Invoice",
     noPayments: "—",
+    welcomeNote:
+      "Thank you for trusting us with your jewellery. A tradition since 1993 — we look forward to serving you again.",
     excess: {
       intro: "The value of your old jewellery",
       exceededBy: "exceeded this bill by",
@@ -184,6 +189,7 @@ export const invoicePrintLabels: Record<PrintLang, InvoicePrintLabels> = {
     forShop: "की ओर से",
     printButton: "बीजक प्रिंट करें",
     noPayments: "—",
+    welcomeNote: "अपने आभूषणों के लिए हम पर भरोसा जताने हेतु धन्यवाद। 1993 से चली आ रही यह परंपरा, आपकी सेवा में सदैव तत्पर।",
     excess: {
       intro: "आपके पुराने आभूषण का मूल्य",
       exceededBy: "इस बिल से",

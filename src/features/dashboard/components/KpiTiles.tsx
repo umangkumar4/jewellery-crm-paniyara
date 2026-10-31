@@ -36,7 +36,7 @@ const defaultRangeTiles = (summary: DashboardSummary): KpiTile[] => [
 const defaultSnapshotTiles = (summary: DashboardSummary): KpiTile[] => [
   { label: "Pending Amount", value: formatInr(summary.pending_amount), icon: Wallet, badge: "As of now" },
   {
-    label: `Stock on Hand · ${formatWeight(summary.stock_on_hand.net_weight_g)}`,
+    label: `Stock on Hand`,
     value: `${summary.stock_on_hand.count} pcs`,
     icon: Boxes,
     badge: "As of now",
