@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/Button";
 import { Dialog } from "@/components/ui/Dialog";
 import { Input } from "@/components/ui/Input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { TableSkeleton } from "@/components/ui/table-skeleton";
 import { agGridTheme, AG_GRID_HEADER_CLASS, AG_GRID_DEFAULT_COL_DEF } from "@/lib/ag-grid";
 import { ApiError } from "@/lib/api-client";
 import { useDeleteTag } from "@/features/tagging/hooks/useDeleteTag";
@@ -218,11 +219,7 @@ const columnDefs = useMemo<ColDef<Tag>[]>(
 
       <div className="mt-5">
         {isLoading && !data ? (
-          <div className="space-y-2">
-            {Array.from({ length: 6 }).map((_, i) => (
-              <div key={i} className="h-10 w-full animate-pulse rounded-md bg-muted" />
-            ))}
-          </div>
+          <TableSkeleton rows={6} />
         ) : isError ? (
           <div className="py-6 text-center text-sm text-destructive">
             {error instanceof ApiError ? error.message : "Failed to load tags."}

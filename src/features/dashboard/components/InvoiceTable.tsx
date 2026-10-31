@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/Button";
 import { DateRangePicker } from "@/components/ui/DateRangePicker";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { TableSkeleton } from "@/components/ui/table-skeleton";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   buildDateRangePresets,
@@ -158,8 +159,8 @@ export function InvoiceTable({ customerId, title = "Invoices" }: InvoiceTablePro
           <TableBody>
             {isLoading ? (
               <TableRow className="border-border/60 hover:bg-transparent">
-                <TableCell colSpan={8} className="py-6 text-center whitespace-normal text-muted-foreground">
-                  Loading…
+                <TableCell colSpan={8} className="py-4 whitespace-normal">
+                  <TableSkeleton rows={4} />
                 </TableCell>
               </TableRow>
             ) : isError ? (

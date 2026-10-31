@@ -18,6 +18,7 @@ import { useAddPayment } from "@/features/billing/hooks/useAddPayment";
 import { useDeleteInvoice } from "@/features/dashboard/hooks/useDeleteInvoice";
 import { calculateNewPending, isValueOverridden } from "@/features/billing/lib/calculations";
 import { useInvoiceDetail } from "@/features/dashboard/hooks/useInvoiceDetail";
+import { InvoiceDetailSkeleton } from "@/features/dashboard/components/InvoiceDetailSkeleton";
 import type { InvoiceDetail, InvoiceItemDetail, ExchangeSettlementType } from "@/features/dashboard/hooks/useInvoiceDetail";
 import type { OldPurchaseItemDetail } from "@/features/dashboard/hooks/useOldPurchaseDetail";
 import type { BillingPayment } from "@/store/useBillingStore";
@@ -195,7 +196,7 @@ export default function InvoiceDetailPage() {
   );
 
   if (isLoading) {
-    return <p className="text-sm text-muted-foreground">Loading…</p>;
+    return <InvoiceDetailSkeleton />;
   }
   if (isError || !invoice) {
     return <p className="text-sm text-destructive">Could not load this invoice.</p>

@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/Button";
 import { Dialog } from "@/components/ui/Dialog";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
+import { TableSkeleton } from "@/components/ui/table-skeleton";
 import { agGridTheme, AG_GRID_HEADER_CLASS, AG_GRID_DEFAULT_COL_DEF } from "@/lib/ag-grid";
 import { ApiError } from "@/lib/api-client";
 import { METALS, type Metal } from "@/lib/metals";
@@ -190,7 +191,9 @@ export function MetalRatesTable() {
       <h3 className="font-display text-xl text-foreground">Current Rates</h3>
 
       {isLoading ? (
-        <p className="mt-4 py-6 text-center text-sm text-muted-foreground">Loading…</p>
+        <div className="mt-4">
+          <TableSkeleton rows={6} />
+        </div>
       ) : isError ? (
         <p className="mt-4 py-6 text-center text-sm text-destructive">
           {error instanceof ApiError ? error.message : "Failed to load rates."}

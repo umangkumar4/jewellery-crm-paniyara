@@ -2,6 +2,7 @@
 
 import { Boxes, Gem, IndianRupee, Package, Receipt, Users, Wallet } from "lucide-react";
 import { formatInr, formatWeight } from "@/lib/formatters";
+import { Skeleton } from "@/components/ui/skeleton";
 import type { DashboardSummary } from "@/features/dashboard/hooks/useDashboardSummary";
 
 export interface KpiTile {
@@ -43,6 +44,20 @@ const defaultSnapshotTiles = (summary: DashboardSummary): KpiTile[] => [
   },
 ];
 
+// Mirrors the real tile's anatomy below (icon row, value, label) so the
+// loading state lines up with the loaded cards instead of jumping.
+export function KpiCardSkeleton() {
+  return (
+    <div className="panel p-4">
+      <div className="flex items-center justify-between">
+        <Skeleton className="h-5 w-5 rounded-full" />
+      </div>
+      <Skeleton className="mt-3 h-6 w-20" />
+      <Skeleton className="mt-2 h-3 w-24" />
+    </div>
+  );
+}
+
 export function KpiTiles({
   summary,
   isLoading,
@@ -54,7 +69,7 @@ export function KpiTiles({
     return (
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
         {Array.from({ length: 8 }).map((_, index) => (
-          <div key={index} className="panel h-24 animate-pulse" />
+          <KpiCardSkeleton key={index} />
         ))}
       </div>
     );

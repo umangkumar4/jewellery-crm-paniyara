@@ -9,7 +9,8 @@ import type { ColDef, ICellRendererParams } from "ag-grid-community";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
-import { LoaderBlock, LoaderOverlay } from "@/components/ui/Loader";
+import { LoaderOverlay } from "@/components/ui/Loader";
+import { TableSkeleton } from "@/components/ui/table-skeleton";
 import { DateRangePicker } from "@/components/ui/DateRangePicker";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { agGridTheme, AG_GRID_HEADER_CLASS, AG_GRID_DEFAULT_COL_DEF } from "@/lib/ag-grid";
@@ -281,7 +282,7 @@ export function InvoiceGrid({ customerId, title = "Invoices", dateRange }: Invoi
 
       <div className="relative mt-5">
         {isLoading && !data ? (
-          <LoaderBlock />
+          <TableSkeleton rows={6} />
         ) : isError ? (
           <div className="py-6 text-center text-sm text-destructive">Failed to load invoices.</div>
         ) : !data || data.data.length === 0 ? (
