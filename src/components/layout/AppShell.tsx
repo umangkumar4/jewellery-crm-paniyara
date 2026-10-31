@@ -19,7 +19,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       <Sidebar collapsed={collapsed} />
       <div className="flex min-w-0 flex-1 flex-col">
         <Header onToggleSidebar={() => setCollapsed((v) => !v)} />
-        <main className="flex-1 overflow-y-auto p-8 print:overflow-visible print:p-0">{children}</main>
+        <main className="flex-1 overflow-y-auto p-4 print:overflow-visible print:p-0">{children}</main>
       </div>
     </div>
   );

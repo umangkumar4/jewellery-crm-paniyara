@@ -293,33 +293,49 @@ export default function InvoiceDetailPage() {
       <div className="mt-6 grid gap-6 md:grid-cols-3">
         <div className="panel p-6 md:col-span-2">
           <h3 className="font-display text-lg text-foreground">Customer</h3>
-          <p className="mt-2 text-sm text-foreground">{invoice.customer.name}</p>
-          <p className="text-sm text-muted-foreground">{invoice.customer.phone}</p>
-          {invoice.customer.email ? (
-            <p className="text-sm text-muted-foreground">{invoice.customer.email}</p>
-          ) : null}
-          {invoice.customer.address ? (
-            <p className="text-sm text-muted-foreground">{invoice.customer.address}</p>
-          ) : null}
+          <dl className="mt-3 grid grid-cols-2 gap-x-6 gap-y-3 sm:grid-cols-4">
+            <div>
+              <dt className="text-xs text-muted-foreground">Name</dt>
+              <dd className="text-sm text-foreground">{invoice.customer.name}</dd>
+            </div>
+            <div>
+              <dt className="text-xs text-muted-foreground">Phone</dt>
+              <dd className="text-sm text-foreground">{invoice.customer.phone}</dd>
+            </div>
+            {invoice.customer.email ? (
+              <div>
+                <dt className="text-xs text-muted-foreground">Email</dt>
+                <dd className="text-sm text-foreground">{invoice.customer.email}</dd>
+              </div>
+            ) : null}
+            {invoice.customer.address ? (
+              <div>
+                <dt className="text-xs text-muted-foreground">Address</dt>
+                <dd className="text-sm text-foreground">{invoice.customer.address}</dd>
+              </div>
+            ) : null}
+          </dl>
 
-          <h3 className="mt-6 font-display text-lg text-foreground">Items</h3>
-          <div className="mt-3">
-            <AgGridReact<InvoiceItemDetail>
-              theme={agGridTheme}
-              defaultColDef={AG_GRID_DEFAULT_COL_DEF}
-              rowData={invoice.items}
-              columnDefs={itemColumnDefs}
-              getRowId={(p) => String(p.data.sr_no)}
-              domLayout="autoHeight"
-              suppressCellFocus
-              animateRows={false}
-            />
+          <div className="mt-8 border-t border-border pt-6">
+            <h3 className="font-display text-lg text-foreground">Items</h3>
+            <div className="mt-3">
+              <AgGridReact<InvoiceItemDetail>
+                theme={agGridTheme}
+                defaultColDef={AG_GRID_DEFAULT_COL_DEF}
+                rowData={invoice.items}
+                columnDefs={itemColumnDefs}
+                getRowId={(p) => String(p.data.sr_no)}
+                domLayout="autoHeight"
+                suppressCellFocus
+                animateRows={false}
+              />
+            </div>
           </div>
 
           {hasExchange ? (
-            <>
-              <h3 className="mt-2 font-display text-lg text-foreground">Old Jewellery Exchange</h3>
-              <div className="mt-2">
+            <div className="mt-8 border-t border-border pt-6">
+              <h3 className="font-display text-lg text-foreground">Old Jewellery Exchange</h3>
+              <div className="mt-3">
                 <AgGridReact<OldPurchaseItemDetail>
                   theme={agGridTheme}
                   defaultColDef={AG_GRID_DEFAULT_COL_DEF}
@@ -331,42 +347,44 @@ export default function InvoiceDetailPage() {
                   animateRows={false}
                 />
               </div>
-            </>
+            </div>
           ) : null}
 
-          <h3 className="mt-6 font-display text-lg text-foreground">Payments</h3>
-          {invoice.payments.length === 0 ? (
-            <p className="mt-2 text-sm text-muted-foreground">No payments recorded yet.</p>
-          ) : (
-            <ul className="mt-3 space-y-2">
-              {invoice.payments.map((payment, index) => (
-                <li
-                  key={index}
-                  className="flex items-center justify-between rounded-lg border border-border bg-muted/30 px-3.5 py-2.5"
-                >
-                  <div className="text-sm">
-                    <span className="font-medium capitalize text-foreground">{payment.mode}</span>
-                    <span className="mx-1.5 text-muted-foreground">·</span>
-                    <span className="text-muted-foreground">
-                      {new Date(payment.paid_at).toLocaleString("en-IN")}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-semibold text-foreground">{formatInr(payment.amount)}</span>
-                    <button
-                      type="button"
-                      onClick={() => window.open(`/invoices/${id}/payments/${index}/receipt`, "_blank")}
-                      aria-label="Print receipt for this payment"
-                      title="Print receipt for this payment"
-                      className="rounded-full p-1.5 text-muted-foreground transition hover:bg-background hover:text-foreground"
-                    >
-                      <Receipt className="h-3.5 w-3.5" />
-                    </button>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )}
+          <div className="mt-8 border-t border-border pt-6">
+            <h3 className="font-display text-lg text-foreground">Payments</h3>
+            {invoice.payments.length === 0 ? (
+              <p className="mt-3 text-sm text-muted-foreground">No payments recorded yet.</p>
+            ) : (
+              <ul className="mt-3 space-y-2">
+                {invoice.payments.map((payment, index) => (
+                  <li
+                    key={index}
+                    className="flex items-center justify-between rounded-lg border border-border bg-muted/30 px-3.5 py-2.5"
+                  >
+                    <div className="text-sm">
+                      <span className="font-medium capitalize text-foreground">{payment.mode}</span>
+                      <span className="mx-1.5 text-muted-foreground">·</span>
+                      <span className="text-muted-foreground">
+                        {new Date(payment.paid_at).toLocaleString("en-IN")}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-semibold text-foreground">{formatInr(payment.amount)}</span>
+                      <button
+                        type="button"
+                        onClick={() => window.open(`/invoices/${id}/payments/${index}/receipt`, "_blank")}
+                        aria-label="Print receipt for this payment"
+                        title="Print receipt for this payment"
+                        className="rounded-full p-1.5 text-muted-foreground transition hover:bg-background hover:text-foreground"
+                      >
+                        <Receipt className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
         </div>
 
         <div className="panel p-6">
