@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useRef } from "react";
 import { useParams } from "next/navigation";
+import { Button } from "@/components/ui/Button";
+import { BackButton } from "@/components/layout/BackButton";
 import { useInvoicePrintData } from "@/features/dashboard/hooks/useInvoiceDetail";
 import { calculateNewPending } from "@/features/billing/lib/calculations";
 import { shopConfig } from "@/lib/shop-config";
@@ -24,14 +25,6 @@ export default function PaymentReceiptPage() {
   const params = useParams<{ id: string; index: string }>();
   const { id, index: indexParam } = params;
   const { data: invoice, isLoading, isError } = useInvoicePrintData(id);
-  const hasPrinted = useRef(false);
-
-  useEffect(() => {
-    if (invoice && !hasPrinted.current) {
-      hasPrinted.current = true;
-      window.print();
-    }
-  }, [invoice]);
 
   if (isLoading) {
     return <p className="p-8 text-sm text-muted-foreground">Loading…</p>;
@@ -68,6 +61,14 @@ export default function PaymentReceiptPage() {
 
   return (
     <div className="mx-auto max-w-md bg-background p-8 text-foreground">
+      {/* Controls - never printed, same pattern as PrintInvoice.tsx's own
+          print:hidden Print button. Printing is click-only now, same as
+          the main invoice print page - no auto window.print() on mount. */}
+      <div className="mb-4 flex items-center justify-between print:hidden">
+        <BackButton />
+        <Button onClick={() => window.print()}>Print Receipt</Button>
+      </div>
+
       <div className="text-center">
         <img src="/logo.png" alt="" className="mx-auto h-14 w-14 object-contain" />
         <p className="font-display mt-2 text-2xl">{shopConfig.heritageLineEn}</p>
