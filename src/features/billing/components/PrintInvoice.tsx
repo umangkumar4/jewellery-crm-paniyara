@@ -44,8 +44,8 @@ const STATUS_BADGE: Record<"unpaid" | "partial" | "paid", string> = {
   paid: "bg-emerald-ink/10 text-emerald-ink",
 };
 
-// A4 landscape (297mm) minus the @page margin (8mm each side) below.
-const PAGE_WIDTH = "281mm";
+// A4 portrait (210mm) minus the @page margin (8mm each side) below.
+const PAGE_WIDTH = "194mm";
 
 // Percentages of the table's own width, not the page - these are relative,
 // so they structurally can't exceed 100% the way the first mockup's fixed
@@ -57,20 +57,26 @@ const PAGE_WIDTH = "281mm";
 // tax-inclusive-total column: every item shows its stored pre-tax Amount
 // only, GST/CGST/SGST is a single invoice-level breakdown in the footer
 // (already fully stored), never computed per row.
+// Narrow-content columns (HSN, Purity, Pcs, Gross/Stone/Net Wt - short codes
+// and 3-decimal weights, never more than a few characters) trimmed down from
+// their landscape widths, freeing up percentage share for the columns that
+// actually hold longer content (Description, Rate, Making Charge, Stone
+// Charge, Amount) now that the table's total width dropped from 281mm
+// (landscape) to 194mm (portrait, see PAGE_WIDTH above).
 const COL_WIDTHS = {
   sr: "3%",
-  description: "12%",
+  description: "16%",
   metal: "7%",
-  hsn: "6%",
-  purity: "7%",
-  pcs: "5%",
-  grossWt: "8%",
-  stoneWt: "8%",
-  netWt: "8%",
-  rate: "10%",
-  making: "9%",
-  stoneCharge: "9%",
-  amount: "9%",
+  hsn: "4%",
+  purity: "5%",
+  pcs: "3%",
+  grossWt: "6%",
+  stoneWt: "6%",
+  netWt: "6%",
+  rate: "12%",
+  making: "11%",
+  stoneCharge: "11%",
+  amount: "11%",
 };
 
 // Old Jewellery Exchange table - no HSN/Pcs/Making/Stone Charge (don't
@@ -104,7 +110,7 @@ export interface PrintInvoiceProps {
 }
 
 // Self-contained: fetches, renders loading/error states, owns the EN/हिन्दी
-// toggle and Print button, and lays out the whole bordered A4-landscape
+// toggle and Print button, and lays out the whole bordered A4-portrait
 // document - any page can mount <PrintInvoice id={someId} /> and get a
 // complete, ready-to-print bill with nothing else required from the caller.
 export function PrintInvoice({ id }: PrintInvoiceProps) {
@@ -191,7 +197,7 @@ export function PrintInvoice({ id }: PrintInvoiceProps) {
         rel="stylesheet"
         href="https://fonts.googleapis.com/css2?family=Noto+Serif+Devanagari:wght@600;700&family=Noto+Sans+Devanagari:wght@400;500;600;700&display=swap"
       />
-      <style>{"@page { size: A4 landscape; margin: 8mm; }"}</style>
+      <style>{"@page { size: A4 portrait; margin: 8mm; }"}</style>
 
       <div className="flex justify-center bg-muted/40 py-6 print:bg-white print:p-0">
         <div style={{ width: PAGE_WIDTH }}>
@@ -571,43 +577,68 @@ export function PrintInvoice({ id }: PrintInvoiceProps) {
                       {formatInr(amountToPay)}
                     </div>
                   </div>
-                  {/* Only when old jewellery exceeded the bill - plain-
-                      English (or Hindi) explanation for the customer, not
-                      a terse badge/label. remarks is deliberately never
-                      rendered here - internal shop notes, not customer-
-                      facing. reference only appears when present. */}
-                  {invoice.old_jewellery_excess ? (
-                    <div className="mt-1 text-[9px] leading-snug text-muted-foreground">
-                      {t.excess.intro} ({formatInr(oldValueTotal)}) {t.excess.exceededBy}{" "}
-                      {formatInr(invoice.old_jewellery_excess.amount)}
-                      {t.excess.exceededBySuffix ? ` ${t.excess.exceededBySuffix}` : ""}.
-                      {invoice.old_jewellery_excess.refund ? (
-                        <>
-                          {" "}
-                          {t.excess.refundedVia}{" "}
-                          {paymentModeLabels[lang][invoice.old_jewellery_excess.refund.mode]}.
-                          {invoice.old_jewellery_excess.refund.reference
-                            ? ` (${t.excess.referenceLabel}: ${invoice.old_jewellery_excess.refund.reference})`
-                            : ""}
-                        </>
-                      ) : null}
-                    </div>
-                  ) : null}
                 </div>
               ) : null}
 
-              <div className="ml-auto grid grid-cols-[1fr_auto] text-[11px]" style={{ maxWidth: 360 }}>
-                <div className="px-4 py-0.5 text-muted-foreground">{t.amountPaid}</div>
-                <div className="px-4 py-0.5 text-right font-semibold tabular-nums">
-                  {formatInr(invoice.paid_amount)}
-                </div>
-                <div className="px-4 py-1 text-[12px] font-bold" style={{ color: "#8a3129" }}>
-                  {t.totalRemaining}
-                </div>
-                <div className="px-4 py-1 text-right text-[12px] font-bold tabular-nums" style={{ color: "#8a3129" }}>
-                  {formatInr(invoice.pending_amount)}
+              {/* Excess note sits beside Amount Paid/Total Remaining (same
+                  row) rather than stacked above it - stacking a full-width,
+                  two-line note between "Amount to Pay" and "Amount Paid"
+                  pushed the latter down and left a dead gap on the right
+                  where the (left-aligned) note had no content. Only when
+                  old jewellery exceeded the bill - plain-English (or Hindi)
+                  explanation for the customer, not a terse badge/label.
+                  remarks is deliberately never rendered here - internal shop
+                  notes, not customer-facing. reference only appears when
+                  present. */}
+              <div className="flex items-start justify-between">
+                {invoice.old_jewellery_excess ? (
+                  <div className="mt-1 max-w-[380px] px-2 text-[9px] leading-snug text-muted-foreground">
+                    <div>
+                      {t.excess.intro} ({formatInr(oldValueTotal)}) {t.excess.exceededBy}{" "}
+                      {formatInr(invoice.old_jewellery_excess.amount)}
+                      {t.excess.exceededBySuffix ? ` ${t.excess.exceededBySuffix}` : ""}.
+                    </div>
+                    {invoice.old_jewellery_excess.refund ? (
+                      <div>
+                        {t.excess.refundedVia}{" "}
+                        {paymentModeLabels[lang][invoice.old_jewellery_excess.refund.mode]}.
+                        {invoice.old_jewellery_excess.refund.reference
+                          ? ` (${t.excess.referenceLabel}: ${invoice.old_jewellery_excess.refund.reference})`
+                          : ""}
+                      </div>
+                    ) : null}
+                  </div>
+                ) : (
+                  <div />
+                )}
+                <div className="grid grid-cols-[1fr_auto] text-[11px]" style={{ maxWidth: 360 }}>
+                  <div className="px-4 py-0.5 text-muted-foreground">{t.amountPaid}</div>
+                  <div className="px-4 py-0.5 text-right font-semibold tabular-nums">
+                    {formatInr(invoice.paid_amount)}
+                  </div>
+                  <div className="px-4 py-1 text-[12px] font-bold" style={{ color: "#8a3129" }}>
+                    {t.totalRemaining}
+                  </div>
+                  <div
+                    className="px-4 py-1 text-right text-[12px] font-bold tabular-nums"
+                    style={{ color: "#8a3129" }}
+                  >
+                    {formatInr(invoice.pending_amount)}
+                  </div>
                 </div>
               </div>
+            </div>
+
+            {/* Closing thank-you note - goodwill line, not a legal/terms
+                statement (that's termsNote in the Payment Summary column).
+                Centered and set in the heritage display font so it echoes
+                the header's heritage line rather than reading as another
+                data row. */}
+            <div
+              style={{ fontFamily: displayFont }}
+              className="border-t-[1.5px] border-[#1f1a12] px-7 py-1 text-center text-[9.5px] italic text-muted-foreground"
+            >
+              {t.welcomeNote}
             </div>
 
             {/* Signatures */}
