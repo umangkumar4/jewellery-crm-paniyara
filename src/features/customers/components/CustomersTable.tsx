@@ -57,6 +57,7 @@ export function CustomersTable() {
       field: "name",
       headerName: "Name",
       flex: 1,
+      minWidth: 140,
       headerClass: AG_GRID_HEADER_CLASS,
       cellClass: "font-medium",
     },
@@ -64,11 +65,13 @@ export function CustomersTable() {
       field: "phone",
       headerName: "Phone",
       flex: 1,
+      minWidth: 130,
       headerClass: AG_GRID_HEADER_CLASS,
     },
     {
       headerName: "Email",
       flex: 1,
+      minWidth: 180,
       headerClass: AG_GRID_HEADER_CLASS,
       valueGetter: (p) => p.data?.email || "—",
     },
@@ -76,6 +79,7 @@ export function CustomersTable() {
       field: "created_at",
       headerName: "Member Since",
       flex: 1,
+      minWidth: 130,
       headerClass: AG_GRID_HEADER_CLASS,
       valueFormatter: (p) =>
         p.value ? new Date(p.value).toLocaleDateString("en-IN") : "",
@@ -83,6 +87,7 @@ export function CustomersTable() {
     {
       headerName: "Action",
       flex: 1,
+      minWidth: 70,
       headerClass: `${AG_GRID_HEADER_CLASS}`,
       cellRenderer: ActionCell,
       sortable: false,

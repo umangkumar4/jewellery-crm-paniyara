@@ -90,7 +90,7 @@ function EditRateDialog({ purity, onClose }: { purity: MetalPurity | null; onClo
       title={purity ? `Edit Rate - ${purity.metal} ${purity.purity}` : "Edit Rate"}
     >
       <form onSubmit={onSubmit} className="space-y-5" noValidate>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div>
             <Label htmlFor="edit-rate-value">Sell Rate per gram (₹)</Label>
             <Input

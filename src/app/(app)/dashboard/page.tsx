@@ -23,7 +23,7 @@ export default function DashboardPage() {
 
       <MetalRateCarousel />
 
-      <div className="flex justify-between items-center gap-4">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-2">
           <h2 className="font-display text-xl text-foreground">Today Stats</h2>
         </div>

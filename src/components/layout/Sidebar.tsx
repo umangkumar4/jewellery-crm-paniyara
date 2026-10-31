@@ -33,7 +33,15 @@ const modules: NavItem[] = [
   { label: "Settings", href: "/settings", icon: Settings },
 ];
 
-export function Sidebar({ collapsed }: { collapsed: boolean }) {
+export function Sidebar({
+  collapsed,
+  mobileOpen,
+  onCloseMobile,
+}: {
+  collapsed: boolean;
+  mobileOpen: boolean;
+  onCloseMobile: () => void;
+}) {
   const pathname = usePathname();
   const router = useRouter();
   const logout = useAuthStore((state) => state.logout);
@@ -44,12 +52,24 @@ export function Sidebar({ collapsed }: { collapsed: boolean }) {
   }
 
   return (
-    <aside
-      className={cn(
-        "flex h-screen flex-col bg-sidebar text-sidebar-foreground transition-[width] duration-200 print:hidden",
-        collapsed ? "w-20" : "w-64",
-      )}
-    >
+    <>
+      {/* Backdrop - only reachable below lg, where the sidebar is an
+          overlay drawer instead of a permanent flex column. */}
+      <div
+        onClick={onCloseMobile}
+        aria-hidden="true"
+        className={cn(
+          "fixed inset-0 z-30 bg-black/40 transition-opacity lg:hidden",
+          mobileOpen ? "opacity-100" : "pointer-events-none opacity-0",
+        )}
+      />
+      <aside
+        className={cn(
+          "fixed inset-y-0 left-0 z-40 flex h-screen w-64 flex-col bg-sidebar text-sidebar-foreground transition-transform duration-200 lg:static lg:translate-x-0 lg:transition-[width] print:hidden",
+          mobileOpen ? "translate-x-0" : "-translate-x-full",
+          collapsed ? "lg:w-20" : "lg:w-64",
+        )}
+      >
       <div className="flex items-center gap-3 px-5 py-5">
         <img
           src="/logo.png"
@@ -71,6 +91,7 @@ export function Sidebar({ collapsed }: { collapsed: boolean }) {
               <li key={item.href}>
                 <Link
                   href={item.href}
+                  onClick={onCloseMobile}
                   className={cn(
                     "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors",
                     active
@@ -104,6 +125,7 @@ export function Sidebar({ collapsed }: { collapsed: boolean }) {
           {!collapsed ? <span className="truncate">Logout</span> : null}
         </button>
       </div>
-    </aside>
+      </aside>
+    </>
   );
 }
