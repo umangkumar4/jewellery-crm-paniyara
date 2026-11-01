@@ -84,7 +84,7 @@ export interface InvoicePrintLabels {
 
 export const invoicePrintLabels: Record<PrintLang, InvoicePrintLabels> = {
   en: {
-    taxInvoice: "TAX INVOICE",
+    taxInvoice: "ESTIMATED INVOICE",
     langTag: "EN",
     billTo: "Bill To",
     name: "Name",
@@ -142,7 +142,7 @@ export const invoicePrintLabels: Record<PrintLang, InvoicePrintLabels> = {
     },
   },
   hi: {
-    taxInvoice: "कर चालान",
+    taxInvoice: "अनुमानित कर",
     langTag: "हिं",
     billTo: "बिल प्रति",
     name: "नाम",
