@@ -105,7 +105,11 @@ export function RefundSection({ bare = false }: RefundSectionProps = {}) {
 
       {!isComplete ? (
         <p className="mt-2 text-xs text-muted-foreground">
-          Mode and confirmation will be required before this sale can be finalized.
+          {refund.mode === null && !refund.confirmed
+            ? "Mode and confirmation will be required before this sale can be finalized."
+            : refund.mode === null
+              ? "Mode will be required before this sale can be finalized."
+              : "Confirmation will be required before this sale can be finalized."}
         </p>
       ) : null}
     </div>

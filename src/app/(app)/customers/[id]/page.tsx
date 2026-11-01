@@ -23,7 +23,7 @@ export default function CustomerDetailPage() {
   }
 
   return (
-    <div className="mx-auto max-w-5xl space-y-6">
+    <div className="mx-auto max-w-full space-y-6">
       <PageHeader
         title={customer ? customer.name : <Skeleton className="h-8 w-48" />}
         description={

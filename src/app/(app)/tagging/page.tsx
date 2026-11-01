@@ -24,24 +24,36 @@ export default function TaggingPage() {
   }
 
   return (
-    <div className="mx-2 max-w-full">
+    <div className="mx-2 max-w-full print:mx-0">
       <PageHeader
         className="print:hidden"
         title="New Tag"
         description="Create an article tag and print its barcode label."
       />
 
-      <div ref={previewRef} className="mt-6 grid gap-6 md:grid-cols-2 md:items-start">
-        <div>
-          <p className="mb-3 text-xs font-semibold tracking-wide text-muted-foreground uppercase print:hidden">
+      {/* print:mt-0 - without it this margin stacks with the panel's own
+          padding below and pushes the 100mm x 15mm @page content past 15mm
+          tall, splitting the single tag across multiple printed pages. */}
+      <div ref={previewRef} className="mt-6 print:mt-0 grid gap-6 md:grid-cols-2 md:items-start">
+        {/* print:hidden on the wrapper itself, not just its children -
+            without it this div still counts as a real (zero-height) grid
+            row at print time, and the grid's gap-6 still inserts a gap
+            before the Step 2 row, pushing the tag below the page's top
+            edge and onto a second page. */}
+        <div className="print:hidden">
+          <p className="mb-3 text-xs font-semibold tracking-wide text-muted-foreground uppercase">
             Step 1 · Tag Details
           </p>
-          <div className="panel p-6 print:hidden">
+          <div className="panel p-6">
             <TagForm onCreated={setPreviewTag} />
           </div>
         </div>
 
-        <div className="md:sticky md:top-6">
+        {/* print:static - position:sticky interacting with print pagination
+            is a known Chromium bug that fragments/duplicates content across
+            pages; this wrapper has no reason to stay sticky once printing,
+            so force it off rather than risk that. */}
+        <div className="md:sticky md:top-6 print:static">
           <p className="mb-3 text-xs font-semibold tracking-wide text-muted-foreground uppercase print:hidden">
             Step 2 · Label Preview
           </p>
