@@ -140,7 +140,7 @@
   --radius-4xl: var(--radius-4xl);
 
   --font-sans: var(--font-inter);
-  --font-display: var(--font-cormorant);
+  --font-display: var(--font-inter);
   --font-mono: var(--font-geist-mono);
 }
 
@@ -217,10 +217,12 @@
     border-color: #000 !important;
   }
 
-  /* The waist's dashed line is a screen-only aid (see TagLabelPreview.tsx) -
-     the physical roll stock is already die-cut narrower there, so printing
-     a line across it would be drawing on paper that doesn't match it. */
-  .tag-print .tag-waist * {
-    border: none !important;
+  /* The tail's dashed outline is a screen-only guide to the non-printable
+     fold/adhesive area (see TagLabelPreview.tsx) - the rule above forces
+     border-color on every .tag-print descendant with !important, which
+     would otherwise always beat a plain (non-!important) print:border-*
+     utility on this element regardless of source order. */
+  .tag-print .tag-blank {
+    border-color: transparent !important;
   }
 }

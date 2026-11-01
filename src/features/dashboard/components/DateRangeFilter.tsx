@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { format, parseISO, startOfMonth, subDays } from "date-fns";
-import { DateRangePicker, type DateRangeValue } from "@/components/ui/DateRangePicker";
+import { DateRangePicker, type DateRangePreset, type DateRangeValue } from "@/components/ui/DateRangePicker";
 
 export interface DateRange {
   from: string;
@@ -21,12 +21,26 @@ const PRESETS: { key: PresetKey; label: string }[] = [
 
 export const DEFAULT_PRESET: PresetKey = "7d";
 
-function toDateKey(date: Date): string {
+export function toDateKey(date: Date): string {
   return format(date, "yyyy-MM-dd");
 }
 
-function fromDateKey(key: string): Date {
+export function fromDateKey(key: string): Date {
   return parseISO(key);
+}
+
+// Shared preset list (Today/Yesterday/7d/30d/Month) in the {key, label,
+// range} shape DateRangePicker's `presets` prop expects - other callers
+// (invoice list filters) reuse this instead of re-deriving it.
+export function buildDateRangePresets(): DateRangePreset[] {
+  return PRESETS.map((preset) => ({
+    key: preset.key,
+    label: preset.label,
+    range: (): DateRangeValue => {
+      const r = rangeForPreset(preset.key);
+      return { from: fromDateKey(r.from), to: fromDateKey(r.to) };
+    },
+  }));
 }
 
 export function rangeForPreset(key: PresetKey): DateRange {
@@ -49,27 +63,20 @@ export function rangeForPreset(key: PresetKey): DateRange {
 
 export interface DateRangeFilterProps {
   onChange: (range: DateRange) => void;
+  // Which preset this filter opens with (and what its own "Clear" falls
+  // back to) - defaults to DEFAULT_PRESET so every existing caller keeps
+  // its current behavior unless it opts into a different one.
+  defaultPresetKey?: PresetKey;
 }
 
 // Uncontrolled: owns which range is currently selected, only reports the
 // resolved {from, to} upward. The page doesn't need to know which preset (if
 // any) produced it, just the range to feed into the KPI row and the chart.
-export function DateRangeFilter({ onChange }: DateRangeFilterProps) {
-  const defaultRange = rangeForPreset(DEFAULT_PRESET);
+export function DateRangeFilter({ onChange, defaultPresetKey = DEFAULT_PRESET }: DateRangeFilterProps) {
+  const defaultRange = rangeForPreset(defaultPresetKey);
   const [range, setRange] = useState<DateRange>(defaultRange);
 
-  const presets = useMemo(
-    () =>
-      PRESETS.map((preset) => ({
-        key: preset.key,
-        label: preset.label,
-        range: (): DateRangeValue => {
-          const r = rangeForPreset(preset.key);
-          return { from: fromDateKey(r.from), to: fromDateKey(r.to) };
-        },
-      })),
-    [],
-  );
+  const presets = useMemo(() => buildDateRangePresets(), []);
 
   function handleChange(next: DateRangeValue) {
     const nextRange: DateRange = { from: toDateKey(next.from), to: toDateKey(next.to) };
@@ -82,7 +89,7 @@ export function DateRangeFilter({ onChange }: DateRangeFilterProps) {
       value={{ from: fromDateKey(range.from), to: fromDateKey(range.to) }}
       onChange={handleChange}
       presets={presets}
-      defaultPresetKey={DEFAULT_PRESET}
+      defaultPresetKey={defaultPresetKey}
     />
   );
 }

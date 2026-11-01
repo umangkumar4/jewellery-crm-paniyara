@@ -7,6 +7,7 @@ import { AgGridReact } from "ag-grid-react";
 import type { ColDef, ICellRendererParams } from "ag-grid-community";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
+import { TableSkeleton } from "@/components/ui/table-skeleton";
 import { agGridTheme, AG_GRID_HEADER_CLASS, AG_GRID_DEFAULT_COL_DEF } from "@/lib/ag-grid";
 import { ApiError } from "@/lib/api-client";
 import { useCustomers } from "@/features/customers/hooks/useCustomers";
@@ -57,6 +58,7 @@ export function CustomersTable() {
       field: "name",
       headerName: "Name",
       flex: 1,
+      minWidth: 140,
       headerClass: AG_GRID_HEADER_CLASS,
       cellClass: "font-medium",
     },
@@ -64,11 +66,13 @@ export function CustomersTable() {
       field: "phone",
       headerName: "Phone",
       flex: 1,
+      minWidth: 130,
       headerClass: AG_GRID_HEADER_CLASS,
     },
     {
       headerName: "Email",
       flex: 1,
+      minWidth: 180,
       headerClass: AG_GRID_HEADER_CLASS,
       valueGetter: (p) => p.data?.email || "—",
     },
@@ -76,6 +80,7 @@ export function CustomersTable() {
       field: "created_at",
       headerName: "Member Since",
       flex: 1,
+      minWidth: 130,
       headerClass: AG_GRID_HEADER_CLASS,
       valueFormatter: (p) =>
         p.value ? new Date(p.value).toLocaleDateString("en-IN") : "",
@@ -83,6 +88,7 @@ export function CustomersTable() {
     {
       headerName: "Action",
       flex: 1,
+      minWidth: 70,
       headerClass: `${AG_GRID_HEADER_CLASS}`,
       cellRenderer: ActionCell,
       sortable: false,
@@ -107,7 +113,7 @@ export function CustomersTable() {
 
       <div className="mt-5">
         {isLoading && !data ? (
-          <div className="py-6 text-center text-sm text-muted-foreground">Loading…</div>
+          <TableSkeleton rows={6} />
         ) : isError ? (
           <div className="py-6 text-center text-sm text-destructive">
             {error instanceof ApiError ? error.message : "Failed to load customers."}

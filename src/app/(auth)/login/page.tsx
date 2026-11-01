@@ -18,7 +18,9 @@ export default function LoginPage() {
 
   return (
     <div className="paper-texture flex min-h-screen items-center justify-center bg-background p-6">
-      <div className="grid w-full max-w-5xl overflow-hidden rounded-3xl bg-card shadow-2xl md:grid-cols-2">
+      <div className="grid w-full max-w-5xl overflow-hidden rounded-3xl border border-border bg-card shadow-[0_30px_60px_-30px_oklch(0.3_0.06_162_/_0.25)] md:grid-cols-2">
+        {/* Dark ink-panel theme, same treatment as DashboardWelcomeBanner -
+            kept per explicit request to restore the dark brand panel. */}
         <div className="ink-panel relative flex flex-col justify-between p-10">
           <div>
             <div className="flex items-center gap-3">
@@ -35,19 +37,21 @@ export default function LoginPage() {
               </div>
             </div>
 
-            <p className="mt-10 text-sm italic text-sidebar-foreground/60">{shopConfig.heritageLineEn}</p>
-            <h1 className="font-display mt-1.5 text-4xl text-gold">{shopConfig.legalNameHi}</h1>
-            <p className="font-display mt-2 text-2xl text-sidebar-foreground/90">
-              {shopConfig.legalNameHiSub}
-            </p>
-
-            <p className="font-display mt-8 text-lg italic text-sidebar-foreground/90">
+            {/* Heritage line and legal name share the same font-display/
+                text-3xl/font-semibold treatment per explicit request,
+                differentiated by color (white vs gold) rather than size.
+                The Hindi restatement of the legal name was dropped - it
+                duplicated legalNameEn right below it. */}
+            <h1 className="font-display mt-9 text-3xl font-semibold leading-snug text-sidebar-foreground/90">
+              {shopConfig.heritageLineEn}
+            </h1>
+            <p className="font-display mt-1 text-3xl font-semibold leading-snug text-gold">
               {shopConfig.legalNameEn}
             </p>
-            <p className="mt-2 text-xs text-sidebar-foreground/60">
+            <p className="mt-2 max-w-sm text-sm text-sidebar-foreground/70">{shopConfig.tagline}</p>
+            <p className="mt-3 text-xs text-sidebar-foreground/50">
               {shopConfig.addressEn} &nbsp;·&nbsp; {shopConfig.phone}
             </p>
-            <p className="mt-4 max-w-sm text-sm text-sidebar-foreground/70">{shopConfig.tagline}</p>
 
             <div className="mt-8 space-y-3">
               <div className="flex items-center gap-3 rounded-lg border border-sidebar-border/60 bg-white/5 px-4 py-3">
@@ -79,8 +83,8 @@ export default function LoginPage() {
         </div>
 
         <div className="flex flex-col justify-center p-10">
-          <p className="text-xs font-semibold tracking-wide text-gold uppercase">Welcome Back</p>
-          <h2 className="font-display mt-1 text-4xl text-foreground">Login</h2>
+          <p className="text-xs font-semibold tracking-wide text-gold-foreground uppercase">Welcome Back</p>
+          <h2 className="font-display mt-1 text-4xl font-semibold text-foreground">Login</h2>
           <p className="mt-2 text-sm text-muted-foreground">
             Enter your credentials to access the billing dashboard
           </p>

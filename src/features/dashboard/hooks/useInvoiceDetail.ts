@@ -1,5 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api-client";
+// Same per-item shape the server's serializeOldJewelleryItemLine() produces
+// - reused here rather than redefined, so this type can never silently
+// drift from what GET /api/old-purchases/:id already uses it for.
+import type { OldPurchaseItemDetail } from "@/features/dashboard/hooks/useOldPurchaseDetail";
 
 export interface InvoiceItemDetail {
   sr_no: number;
@@ -16,6 +20,7 @@ export interface InvoiceItemDetail {
   making_charge: number;
   stone_charge: number;
   total: number;
+  buyer_code: string;
 }
 
 export interface InvoicePaymentDetail {
@@ -23,6 +28,23 @@ export interface InvoicePaymentDetail {
   mode: "cash" | "upi" | "card" | "bank_transfer";
   paid_at: string;
 }
+
+export interface InvoiceOldJewelleryExcess {
+  amount: number;
+  refund: {
+    amount: number;
+    mode: "cash" | "upi" | "bank_transfer";
+    reference: string | null;
+    remarks: string | null;
+    confirmed_at: string;
+  } | null;
+}
+
+// "none"/"partial"/"exact"/"excess" - see invoicesService.ts's
+// classifyExchangeSettlement() for the authoritative logic (computed once,
+// server-side, so this page and the print page can never classify the same
+// invoice differently).
+export type ExchangeSettlementType = "none" | "partial" | "exact" | "excess";
 
 export interface InvoiceDetail {
   id: string;
@@ -47,6 +69,24 @@ export interface InvoiceDetail {
   paid_amount: number;
   pending_amount: number;
   payment_status: "unpaid" | "partial" | "paid";
+  // Required/defaulted at the Mongoose level (0/null, not undefined) -
+  // always present, unlike the GST fields above. 0/null for every ordinary
+  // invoice with no old jewellery exchange.
+  exchange_applied: number;
+  linked_old_purchase_id: string | null;
+  linked_old_purchase_no: string | null;
+  // [] for every ordinary invoice with no old jewellery exchange - embedded
+  // server-side (invoicesService.ts's findOldJewelleryExchangeItems()) so
+  // the detail/print pages don't need a second request to
+  // GET /api/old-purchases/:id just to render this.
+  old_jewellery_items: OldPurchaseItemDetail[];
+  // null for every ordinary invoice and for every exchange that didn't
+  // exceed the bill - composed server-side from the linked
+  // OldJewelleryPurchase document (invoicesService.ts's
+  // findOldJewelleryExcessRefund()), same pattern as old_jewellery_items.
+  old_jewellery_excess: InvoiceOldJewelleryExcess | null;
+  // Always present - the server always computes and includes it.
+  exchange_settlement_type: ExchangeSettlementType;
   created_at: string;
 }
 

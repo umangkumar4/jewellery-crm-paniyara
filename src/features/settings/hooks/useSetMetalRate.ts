@@ -6,6 +6,7 @@ export interface SetMetalRateInput {
   metal: string;
   purity: string;
   rate_per_gram: number;
+  purchase_rate_per_gram: number;
 }
 
 export function useSetMetalRate() {

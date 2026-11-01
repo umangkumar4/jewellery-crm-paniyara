@@ -67,5 +67,10 @@ export const apiClient = {
     request<T>(path, { method: "PUT", body: data !== undefined ? JSON.stringify(data) : undefined }),
   patch: <T>(path: string, data?: unknown) =>
     request<T>(path, { method: "PATCH", body: data !== undefined ? JSON.stringify(data) : undefined }),
-  delete: <T>(path: string) => request<T>(path, { method: "DELETE" }),
+  // Optional body - most DELETE calls in this app send none (existing
+  // one-arg callers are unaffected, `data` defaults to undefined, same
+  // `body: undefined` as before), but some (e.g. deleting an invoice) now
+  // need to send a mandatory reason.
+  delete: <T>(path: string, data?: unknown) =>
+    request<T>(path, { method: "DELETE", body: data !== undefined ? JSON.stringify(data) : undefined }),
 };

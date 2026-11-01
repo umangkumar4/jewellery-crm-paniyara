@@ -102,7 +102,7 @@ export async function deletePurity(id: string) {
 export async function setRate(input: SetMetalRateInput) {
   return MetalPurityModel.findOneAndUpdate(
     { metal: input.metal, purity: input.purity },
-    { ratePerGram: input.rate_per_gram },
+    { ratePerGram: input.rate_per_gram, purchaseRatePerGram: input.purchase_rate_per_gram },
     { new: true },
   );
 }
@@ -113,6 +113,7 @@ export function serializeMetalPurity(doc: MetalPurityDocument) {
     metal: doc.metal,
     purity: doc.purity,
     rate_per_gram: doc.ratePerGram,
+    purchase_rate_per_gram: doc.purchaseRatePerGram,
     active: doc.active,
     updated_at: doc.updatedAt.toISOString(),
   };

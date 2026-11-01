@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useInvoicePrintData } from "@/features/dashboard/hooks/useInvoiceDetail";
+import { isValueOverridden, roundMoney } from "@/features/billing/lib/calculations";
 import { shopConfig } from "@/lib/shop-config";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/badge";
@@ -21,6 +22,16 @@ function formatInr(value: number | null | undefined): string {
   return `₹${value.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
+// Same explicit "− "/"+ " sign convention the Discount/CGST/SGST rows in
+// this file already use, applied to Round Off too - plain formatInr on a
+// negative number produces the literal "₹-0.14" (toLocaleString puts the
+// minus sign against the digits, formatInr just string-prefixes "₹" in
+// front of that), not the "− ₹0.14" / "+ ₹0.23" a printed GST invoice
+// should show.
+function formatRoundOff(value: number): string {
+  return `${value < 0 ? "−" : "+"} ${formatInr(Math.abs(value))}`;
+}
+
 function formatWt(value: number): string {
   return value.toLocaleString("en-IN", { minimumFractionDigits: 3, maximumFractionDigits: 3 });
 }
@@ -33,8 +44,8 @@ const STATUS_BADGE: Record<"unpaid" | "partial" | "paid", string> = {
   paid: "bg-emerald-ink/10 text-emerald-ink",
 };
 
-// A4 landscape (297mm) minus the @page margin (10mm each side) below.
-const PAGE_WIDTH = "277mm";
+// A4 portrait (210mm) minus the @page margin (8mm each side) below.
+const PAGE_WIDTH = "194mm";
 
 // Percentages of the table's own width, not the page - these are relative,
 // so they structurally can't exceed 100% the way the first mockup's fixed
@@ -46,39 +57,69 @@ const PAGE_WIDTH = "277mm";
 // tax-inclusive-total column: every item shows its stored pre-tax Amount
 // only, GST/CGST/SGST is a single invoice-level breakdown in the footer
 // (already fully stored), never computed per row.
+// Narrow-content columns (HSN, Purity, Pcs, Gross/Stone/Net Wt - short codes
+// and 3-decimal weights, never more than a few characters) trimmed down from
+// their landscape widths, freeing up percentage share for the columns that
+// actually hold longer content (Description, Rate, Making Charge, Stone
+// Charge, Amount) now that the table's total width dropped from 281mm
+// (landscape) to 194mm (portrait, see PAGE_WIDTH above).
 const COL_WIDTHS = {
   sr: "3%",
-  description: "15%",
-  hsn: "6%",
-  purity: "7%",
-  pcs: "5%",
-  grossWt: "8%",
-  stoneWt: "8%",
-  netWt: "8%",
-  rate: "10%",
-  making: "9%",
-  stoneCharge: "9%",
-  amount: "9%",
+  description: "16%",
+  metal: "7%",
+  hsn: "4%",
+  purity: "5%",
+  pcs: "3%",
+  grossWt: "6%",
+  stoneWt: "6%",
+  netWt: "6%",
+  rate: "12%",
+  making: "11%",
+  stoneCharge: "11%",
+  amount: "11%",
+};
+
+// Old Jewellery Exchange table - no HSN/Pcs/Making/Stone Charge (don't
+// apply to a buy-back, see docs/old-jewellery-exchange-plan.md's Step 6
+// scope decision), metal/purity are their own columns instead of folded
+// into Description, and dust/other-deduction weight are unique to this
+// table.
+const OLD_COL_WIDTHS = {
+  sr: "4%",
+  description: "16%",
+  metal: "9%",
+  purity: "9%",
+  grossWt: "9%",
+  stoneWt: "9%",
+  dustWt: "9%",
+  otherDeductionWt: "4%",
+  netWt: "9%",
+  rate: "11%",
+  value: "11%",
 };
 
 // No vertical column dividers - a single light row-separator per cell
 // (bottom edge only), not a boxed spreadsheet grid. The table already sits
 // inside the document's own outer border, so it doesn't need a second frame.
-const cellBase = "border-b border-[#e8e1d0] px-2 py-1.5 text-[10.5px]";
+const cellBase = "border-b border-[#e8e1d0] px-2 py-0.5 text-[10px]";
 const headBase =
-  "border-b-[1.5px] border-b-[#1f1a12] px-2 py-1.5 text-left text-[8.5px] font-semibold tracking-wide text-muted-foreground";
+  "border-b-[1.5px] border-b-[#1f1a12] px-2 py-0.5 text-left text-[8px] font-semibold tracking-wide text-muted-foreground";
 
 export interface PrintInvoiceProps {
   id: string;
 }
 
 // Self-contained: fetches, renders loading/error states, owns the EN/हिन्दी
-// toggle and Print button, and lays out the whole bordered A4-landscape
+// toggle and Print button, and lays out the whole bordered A4-portrait
 // document - any page can mount <PrintInvoice id={someId} /> and get a
 // complete, ready-to-print bill with nothing else required from the caller.
 export function PrintInvoice({ id }: PrintInvoiceProps) {
   const { data: invoice, isLoading, isError } = useInvoicePrintData(id);
   const [lang, setLang] = useState<PrintLang>("en");
+  // Print-time note - deliberately not persisted (no field on the invoice,
+  // no save call). Lives only in this component's state for the current
+  // print session, same lifetime as the `lang` toggle above.
+  const [note, setNote] = useState("");
 
   if (isLoading) {
     return <p className="p-8 text-sm text-muted-foreground">Loading…</p>;
@@ -90,7 +131,7 @@ export function PrintInvoice({ id }: PrintInvoiceProps) {
   const t = invoicePrintLabels[lang];
   const isHi = lang === "hi";
   const bodyFont = isHi ? "'Noto Sans Devanagari','Inter',sans-serif" : "'Inter',sans-serif";
-  const displayFont = isHi ? "'Noto Serif Devanagari',serif" : "'Cormorant Garamond',serif";
+  const displayFont = isHi ? "'Noto Serif Devanagari',serif" : "'Inter',sans-serif";
 
   // The invoice shows the shop's full registered name (proprietor + business
   // type combined), matching the physical shop board - legalNameHi/
@@ -115,8 +156,11 @@ export function PrintInvoice({ id }: PrintInvoiceProps) {
   // gst_amount is optional at the schema level (Invoice.model.ts) - guarded
   // with ?? 0 so a document missing it still produces a real number here
   // instead of NaN, same reasoning as formatInr's own null guard below.
-  const roundOff =
-    Math.round((invoice.grand_total - (taxableAmount + (invoice.gst_amount ?? 0))) * 100) / 100;
+  // roundMoney, not Math.round(x * 100) / 100 - that pattern is unsafe
+  // (confirmed concretely in calculations.ts's own comment: it silently
+  // rounds the wrong way whenever the scaled value lands just short of a
+  // .5 boundary due to floating-point representation error).
+  const roundOff = roundMoney(invoice.grand_total - (taxableAmount + (invoice.gst_amount ?? 0)));
 
   const grossWtTotal = invoice.items.reduce((sum, item) => sum + item.gross_wt_g, 0);
   const stoneWtTotal = invoice.items.reduce((sum, item) => sum + item.stone_wt_g, 0);
@@ -125,13 +169,35 @@ export function PrintInvoice({ id }: PrintInvoiceProps) {
   const stoneChargeTotal = invoice.items.reduce((sum, item) => sum + item.stone_charge, 0);
   const amountTotal = invoice.items.reduce((sum, item) => sum + item.total, 0);
 
+  // Settlement against the bill, not a repricing - grand_total itself never
+  // changes because of an exchange. exchange_applied (not the raw old
+  // jewellery total) is what's actually subtracted here, since it's
+  // already correctly capped at grand_total server-side
+  // (min(oldJewelleryTotal, grandTotal)) - using the raw total instead
+  // could go negative if the old jewellery was worth more than the bill
+  // (the excess/refund case, settled separately, not shown here).
+  // old_jewellery_items is embedded directly on the invoice response now
+  // (invoicesService.ts's findOldJewelleryExchangeItems()) - no second
+  // fetch to GET /api/old-purchases/:id needed just to render this table.
+  const hasExchange = invoice.exchange_applied > 0 && invoice.old_jewellery_items.length > 0;
+  const amountToPay = Math.max(0, invoice.grand_total - invoice.exchange_applied);
+  const oldGrossWtTotal = invoice.old_jewellery_items.reduce((sum, item) => sum + item.gross_wt_g, 0);
+  const oldStoneWtTotal = invoice.old_jewellery_items.reduce((sum, item) => sum + item.stone_wt_g, 0);
+  const oldDustWtTotal = invoice.old_jewellery_items.reduce((sum, item) => sum + item.dust_wt_g, 0);
+  const oldOtherDeductionWtTotal = invoice.old_jewellery_items.reduce(
+    (sum, item) => sum + item.other_deduction_wt_g,
+    0,
+  );
+  const oldNetWtTotal = invoice.old_jewellery_items.reduce((sum, item) => sum + item.net_wt_g, 0);
+  const oldValueTotal = invoice.old_jewellery_items.reduce((sum, item) => sum + item.final_value, 0);
+
   return (
     <>
       <link
         rel="stylesheet"
         href="https://fonts.googleapis.com/css2?family=Noto+Serif+Devanagari:wght@600;700&family=Noto+Sans+Devanagari:wght@400;500;600;700&display=swap"
       />
-      <style>{"@page { size: A4 landscape; margin: 10mm; }"}</style>
+      <style>{"@page { size: A4 portrait; margin: 8mm; }"}</style>
 
       <div className="flex justify-center bg-muted/40 py-6 print:bg-white print:p-0">
         <div style={{ width: PAGE_WIDTH }}>
@@ -166,28 +232,30 @@ export function PrintInvoice({ id }: PrintInvoiceProps) {
             className="flex flex-col border-[1.5px] border-[#1f1a12]"
           >
             {/* Header */}
-            <div className="relative border-b-2 border-[#1f1a12] px-7 py-5 text-center">
+            <div className="relative border-b-2 border-[#1f1a12] px-7 py-1.5 text-center">
               <img
                 src="/logo.png"
                 alt=""
-                className="absolute left-7 top-4 h-16 w-16 object-contain"
+                className="absolute left-7 top-1.5 h-11 w-11 object-contain"
               />
-              <div className="mb-1.5 text-[10px] font-semibold tracking-[0.28em]" style={{ color: "#9a7b2f" }}>
+              <div className="mb-0.5 text-[9px] font-semibold tracking-[0.28em]" style={{ color: "#9a7b2f" }}>
                 {t.taxInvoice}
               </div>
-              <div className="text-[10.5px] italic text-muted-foreground">{heritageLine}</div>
-              <div style={{ fontFamily: displayFont }} className="mt-0.5 text-[28px] font-bold leading-tight">
+              <div style={{ fontFamily: displayFont }} className="mt-0.5 text-[20px] font-bold leading-tight">
+                {heritageLine}
+              </div>
+              <div style={{ fontFamily: displayFont }} className="mt-0.5 text-[20px] font-bold leading-tight">
                 {shopNameBig}
               </div>
-              <div style={{ fontFamily: displayFont }} className="mt-0.5 text-[14px] text-muted-foreground">
+              <div style={{ fontFamily: displayFont }} className="mt-0.5 text-[12px] text-muted-foreground">
                 {shopNameSmall}
               </div>
-              <div className="mt-1.5 text-[11px] text-muted-foreground">
+              <div className="mt-0.5 text-[10px] text-muted-foreground">
                 {shopAddress} &nbsp;·&nbsp; {shopConfig.phone}
               </div>
-              <div className="mt-0.5 text-[11px] text-muted-foreground">GSTIN: {shopConfig.gstin}</div>
+              <div className="mt-0.5 text-[10px] text-muted-foreground">GSTIN: {shopConfig.gstin}</div>
               <div
-                className="absolute right-5 top-4 rounded border px-2 py-0.5 text-[9.5px] font-semibold tracking-wide"
+                className="absolute right-5 top-1.5 rounded border px-2 py-0.5 text-[9.5px] font-semibold tracking-wide"
                 style={{ borderColor: "#9a7b2f", color: "#9a7b2f" }}
               >
                 {t.langTag}
@@ -196,9 +264,9 @@ export function PrintInvoice({ id }: PrintInvoiceProps) {
 
             {/* Bill to / invoice meta */}
             <div className="grid grid-cols-[1.3fr_1fr] border-b-[1.5px] border-[#1f1a12]">
-              <div className="border-r-[1.5px] border-[#c9beac] px-7 py-3.5">
-                <div className="mb-2 text-[10.5px] font-bold">{t.billTo}</div>
-                <div className="grid grid-cols-[76px_1fr] gap-y-1.5 text-[11.5px]">
+              <div className="border-r-[1.5px] border-[#c9beac] px-7 py-1.5">
+                <div className="mb-0.5 text-[10.5px] font-bold">{t.billTo}</div>
+                <div className="grid grid-cols-[76px_1fr] gap-y-0.5 text-[11px]">
                   <div className="text-muted-foreground">{t.name}</div>
                   <div className="font-semibold">{invoice.customer.name}</div>
                   <div className="text-muted-foreground">{t.phone}</div>
@@ -211,9 +279,9 @@ export function PrintInvoice({ id }: PrintInvoiceProps) {
                   ) : null}
                 </div>
               </div>
-              <div className="px-7 py-3.5">
-                <div className="mb-2 text-[10.5px] font-bold">{t.invoiceDetails}</div>
-                <div className="grid grid-cols-[96px_1fr] gap-y-1.5 text-[11.5px]">
+              <div className="px-7 py-1.5">
+                <div className="mb-0.5 text-[10.5px] font-bold">{t.invoiceDetails}</div>
+                <div className="grid grid-cols-[96px_1fr] gap-y-0.5 text-[11px]">
                   <div className="text-muted-foreground">{t.invoiceNo}</div>
                   <div className="font-semibold">{invoice.invoice_no}</div>
                   <div className="text-muted-foreground">{t.invoiceDate}</div>
@@ -241,6 +309,7 @@ export function PrintInvoice({ id }: PrintInvoiceProps) {
                 <colgroup>
                   <col style={{ width: COL_WIDTHS.sr }} />
                   <col style={{ width: COL_WIDTHS.description }} />
+                  <col style={{ width: COL_WIDTHS.metal }} />
                   <col style={{ width: COL_WIDTHS.hsn }} />
                   <col style={{ width: COL_WIDTHS.purity }} />
                   <col style={{ width: COL_WIDTHS.pcs }} />
@@ -256,6 +325,7 @@ export function PrintInvoice({ id }: PrintInvoiceProps) {
                   <tr style={{ background: "#f1e9d8" }}>
                     <th className={headBase}>{t.tableHeaders.sr}</th>
                     <th className={headBase}>{t.tableHeaders.description}</th>
+                    <th className={headBase}>{t.tableHeaders.metal}</th>
                     <th className={headBase}>{t.tableHeaders.hsn}</th>
                     <th className={headBase}>{t.tableHeaders.purity}</th>
                     <th className={`${headBase} text-center`}>{t.tableHeaders.pcs}</th>
@@ -274,8 +344,11 @@ export function PrintInvoice({ id }: PrintInvoiceProps) {
                       <td className={cellBase}>{item.sr_no}</td>
                       <td className={cellBase}>
                         <div className="font-medium">{item.description}</div>
-                        <div className="text-[9.5px] text-muted-foreground">{item.metal}</div>
+                        {item.buyer_code ? (
+                          <div className="text-[9.5px] text-muted-foreground">{item.buyer_code}</div>
+                        ) : null}
                       </td>
+                      <td className={cellBase}>{item.metal}</td>
                       <td className={cellBase}>{item.hsn_code}</td>
                       <td className={cellBase}>{item.purity || "—"}</td>
                       <td className={`${cellBase} text-center`}>{item.pieces}</td>
@@ -291,7 +364,7 @@ export function PrintInvoice({ id }: PrintInvoiceProps) {
                     </tr>
                   ))}
                   <tr style={{ background: "#f1e9d8" }}>
-                    <td colSpan={5} className={`${cellBase} border-t-[1.5px] border-t-[#1f1a12] font-bold`}>
+                    <td colSpan={6} className={`${cellBase} border-t-[1.5px] border-t-[#1f1a12] font-bold`}>
                       {t.subTotal}
                     </td>
                     <td className={`${cellBase} border-t-[1.5px] border-t-[#1f1a12] text-right font-bold tabular-nums`}>
@@ -320,58 +393,80 @@ export function PrintInvoice({ id }: PrintInvoiceProps) {
               </table>
             </div>
 
-            <div className="flex-1" />
-
             {/* Payment summary + totals */}
             <div className="grid grid-cols-[1.3fr_1fr] border-t-[1.5px] border-[#1f1a12]">
-              <div className="flex flex-col justify-between border-r-[1.5px] border-[#c9beac] px-7 py-4">
+              <div className="flex flex-col justify-between border-r-[1.5px] border-[#c9beac] px-7 py-1.5">
                 <div>
-                  <div className="mb-2 text-[10.5px] font-bold">{t.paymentSummary}</div>
-                  <div className="grid grid-cols-[110px_1fr] gap-y-1.5 text-[11.5px]">
+                  <div className="mb-0.5 text-[10.5px] font-bold">{t.paymentSummary}</div>
+                  <div className="grid grid-cols-[110px_1fr] gap-y-0.5 text-[11px]">
                     <div className="text-muted-foreground">{t.paymentMode}</div>
                     <div className="font-semibold">{paymentModeText}</div>
-                    <div className="text-muted-foreground">{t.amountPaid}</div>
-                    <div className="font-semibold tabular-nums">{formatInr(invoice.paid_amount)}</div>
-                    <div className="text-muted-foreground">{t.balanceDue}</div>
-                    <div className="font-bold tabular-nums" style={{ color: "#8a3129" }}>
-                      {formatInr(invoice.pending_amount)}
-                    </div>
                   </div>
                 </div>
-                <div className="mt-2.5 text-[9.5px] italic text-muted-foreground">{t.termsNote}</div>
+                {/* Print-time note - screen-only textarea while editing (so
+                    the cashier can type it), swapped for plain text in the
+                    print output itself so the printed bill shows clean
+                    typography rather than a form-control box. Not persisted -
+                    see the `note` state comment above. Only takes up space in
+                    print when something was actually typed. */}
+                <div className="print:hidden my-1">
+                  <label htmlFor="print-note" className="mb-0.5 block text-[10.5px] font-bold">
+                    Notes
+                  </label>
+                  <textarea
+                    id="print-note"
+                    value={note}
+                    onChange={(e) => setNote(e.target.value)}
+                    placeholder="Add a note to print on this bill…"
+                    rows={2}
+                    className="w-full resize-none rounded-md border border-border bg-white px-2 py-1 text-[11px] text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  />
+                </div>
+                {note.trim() ? (
+                  <div className="hidden print:block my-1">
+                    <div className="mb-0.5 text-[10.5px] font-bold">Notes</div>
+                    <div className="whitespace-pre-wrap text-[11px]">{note}</div>
+                  </div>
+                ) : null}
+                <div className="mt-1 text-[9px] italic text-muted-foreground">{t.termsNote}</div>
               </div>
-              <div className="grid grid-cols-[1fr_auto] text-[11.5px]">
-                <div className="border-b border-[#c9beac] px-4 py-1.5 text-muted-foreground">{t.taxableAmount}</div>
-                <div className="border-b border-[#c9beac] px-4 py-1.5 text-right font-semibold tabular-nums">
-                  {formatInr(taxableAmount)}
+              {/* Discount moved above Taxable Amount - previously sat after
+                  CGST/SGST, so the taxable figure appeared before the line
+                  explaining why it's lower than Subtotal. */}
+              <div className="grid grid-cols-[1fr_auto] text-[11px]">
+                <div className="border-b border-[#c9beac] bg-[#fdf4df] px-4 py-0.5 text-muted-foreground">
+                  {t.discount}
                 </div>
-                <div className="border-b border-[#c9beac] px-4 py-1.5 text-muted-foreground">
-                  {t.cgst} ({invoice.cgst_percent ?? "—"}%)
-                </div>
-                <div className="border-b border-[#c9beac] px-4 py-1.5 text-right font-semibold tabular-nums">
-                  {formatInr(invoice.cgst_amount)}
-                </div>
-                <div className="border-b border-[#c9beac] px-4 py-1.5 text-muted-foreground">
-                  {t.sgst} ({invoice.sgst_percent ?? "—"}%)
-                </div>
-                <div className="border-b border-[#c9beac] px-4 py-1.5 text-right font-semibold tabular-nums">
-                  {formatInr(invoice.sgst_amount)}
-                </div>
-                <div className="border-b border-[#c9beac] px-4 py-1.5 text-muted-foreground">{t.discount}</div>
-                <div className="border-b border-[#c9beac] px-4 py-1.5 text-right font-semibold tabular-nums">
+                <div className="border-b border-[#c9beac] bg-[#fdf4df] px-4 py-0.5 text-right font-semibold tabular-nums">
                   − {formatInr(invoice.discount_amount)}
                 </div>
-                <div className="border-b-[1.5px] border-[#1f1a12] px-4 py-1.5 text-muted-foreground">
+                <div className="border-b border-[#c9beac] px-4 py-0.5 text-muted-foreground">{t.taxableAmount}</div>
+                <div className="border-b border-[#c9beac] px-4 py-0.5 text-right font-semibold tabular-nums">
+                  {formatInr(taxableAmount)}
+                </div>
+                <div className="border-b border-[#c9beac] px-4 py-0.5 text-muted-foreground">
+                  {t.cgst} ({invoice.cgst_percent ?? "—"}%)
+                </div>
+                <div className="border-b border-[#c9beac] px-4 py-0.5 text-right font-semibold tabular-nums">
+                  + {formatInr(invoice.cgst_amount)}
+                </div>
+                <div className="border-b border-[#c9beac] px-4 py-0.5 text-muted-foreground">
+                  {t.sgst} ({invoice.sgst_percent ?? "—"}%)
+                </div>
+                <div className="border-b border-[#c9beac] px-4 py-0.5 text-right font-semibold tabular-nums">
+                  + {formatInr(invoice.sgst_amount)}
+                </div>
+                <div className="border-b-[1.5px] border-[#1f1a12] px-4 py-0.5 text-muted-foreground">
                   {t.roundOff}
                 </div>
-                <div className="border-b-[1.5px] border-[#1f1a12] px-4 py-1.5 text-right font-semibold tabular-nums">
-                  {formatInr(roundOff)}
+                <div className="border-b-[1.5px] border-[#1f1a12] px-4 py-0.5 text-right font-semibold tabular-nums">
+                  {formatRoundOff(roundOff)}
                 </div>
-                <div className="px-4 py-2.5 text-[14px] font-bold" style={{ background: "#f1e9d8" }}>
+                <div className="px-4 py-1.5 text-[13px] font-bold" style={{ background: "#f1e9d8" }}>
                   {t.grandTotal}
                 </div>
                 <div
-                  className="px-4 py-2.5 text-right text-[14px] font-bold tabular-nums"
+                  className="px-4 py-1.5 text-right text-[13px] font-bold tabular-nums"
                   style={{ background: "#f1e9d8" }}
                 >
                   {formatInr(invoice.grand_total)}
@@ -379,12 +474,179 @@ export function PrintInvoice({ id }: PrintInvoiceProps) {
               </div>
             </div>
 
+            {/* Settlement - shown below Grand Total, which itself never
+                changes because of an exchange (this is a settlement line
+                against it, not a repricing). The Old Jewellery Exchange
+                table only renders when this invoice actually has one;
+                Amount Paid/Total Remaining always render, same as every
+                ordinary invoice already needs them. */}
+            <div className="border-t-[1.5px] border-[#1f1a12]">
+              {hasExchange ? (
+                <div className="mb-1">
+                  {/* <div className="mb-2 text-[10.5px] font-bold">{t.oldJewelleryExchange}</div> */}
+                  <table className="w-full table-fixed border-collapse">
+                    <colgroup>
+                      <col style={{ width: OLD_COL_WIDTHS.sr }} />
+                      <col style={{ width: OLD_COL_WIDTHS.description }} />
+                      <col style={{ width: OLD_COL_WIDTHS.metal }} />
+                      <col style={{ width: OLD_COL_WIDTHS.purity }} />
+                      <col style={{ width: OLD_COL_WIDTHS.grossWt }} />
+                      <col style={{ width: OLD_COL_WIDTHS.stoneWt }} />
+                      <col style={{ width: OLD_COL_WIDTHS.dustWt }} />
+                      <col style={{ width: OLD_COL_WIDTHS.otherDeductionWt }} />
+                      <col style={{ width: OLD_COL_WIDTHS.netWt }} />
+                      <col style={{ width: OLD_COL_WIDTHS.rate }} />
+                      <col style={{ width: OLD_COL_WIDTHS.value }} />
+                    </colgroup>
+                    <thead>
+                      <tr style={{ background: "#f1e9d8" }}>
+                        <th className={headBase}>{t.tableHeaders.sr}</th>
+                        <th className={headBase}>{t.tableHeaders.description}</th>
+                        <th className={headBase}>{t.tableHeaders.metal}</th>
+                        <th className={headBase}>{t.tableHeaders.purity}</th>
+                        <th className={`${headBase} text-right`}>{t.tableHeaders.grossWt}</th>
+                        <th className={`${headBase} text-right`}>{t.tableHeaders.stoneWt}</th>
+                        <th className={`${headBase} text-right`}>{t.tableHeaders.dustWt}</th>
+                        <th className={`${headBase} text-right`}>{t.tableHeaders.otherDeductionWt}</th>
+                        <th className={`${headBase} text-right`}>{t.tableHeaders.netWt}</th>
+                        <th className={`${headBase} text-right`}>{t.tableHeaders.ratePerGram}</th>
+                        <th className={`${headBase} text-right`}>{t.tableHeaders.value}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {invoice.old_jewellery_items.map((item) => (
+                        <tr key={item.sr_no}>
+                          <td className={cellBase}>{item.sr_no}</td>
+                          <td className={cellBase}>{item.description}</td>
+                          <td className={cellBase}>{item.metal}</td>
+                          <td className={cellBase}>{item.purity || "—"}</td>
+                          <td className={`${cellBase} text-right tabular-nums`}>{formatWt(item.gross_wt_g)}</td>
+                          <td className={`${cellBase} text-right tabular-nums`}>{formatWt(item.stone_wt_g)}</td>
+                          <td className={`${cellBase} text-right tabular-nums`}>{formatWt(item.dust_wt_g)}</td>
+                          <td className={`${cellBase} text-right tabular-nums`}>
+                            {formatWt(item.other_deduction_wt_g)}
+                          </td>
+                          <td className={`${cellBase} text-right tabular-nums`}>{formatWt(item.net_wt_g)}</td>
+                          <td className={`${cellBase} text-right tabular-nums`}>
+                            {formatInr(item.applied_rate_per_gram)}
+                          </td>
+                          <td className={`${cellBase} text-right font-semibold tabular-nums`}>
+                            {formatInr(item.final_value)}
+                            {isValueOverridden(item.final_value, item.calculated_value) ? " *" : ""}
+                          </td>
+                        </tr>
+                      ))}
+                      <tr style={{ background: "#f1e9d8" }}>
+                        <td colSpan={4} className={`${cellBase} border-t-[1.5px] border-t-[#1f1a12] font-bold`}>
+                          {t.subTotal}
+                        </td>
+                        <td className={`${cellBase} border-t-[1.5px] border-t-[#1f1a12] text-right font-bold tabular-nums`}>
+                          {formatWt(oldGrossWtTotal)}
+                        </td>
+                        <td className={`${cellBase} border-t-[1.5px] border-t-[#1f1a12] text-right font-bold tabular-nums`}>
+                          {formatWt(oldStoneWtTotal)}
+                        </td>
+                        <td className={`${cellBase} border-t-[1.5px] border-t-[#1f1a12] text-right font-bold tabular-nums`}>
+                          {formatWt(oldDustWtTotal)}
+                        </td>
+                        <td className={`${cellBase} border-t-[1.5px] border-t-[#1f1a12] text-right font-bold tabular-nums`}>
+                          {formatWt(oldOtherDeductionWtTotal)}
+                        </td>
+                        <td className={`${cellBase} border-t-[1.5px] border-t-[#1f1a12] text-right font-bold tabular-nums`}>
+                          {formatWt(oldNetWtTotal)}
+                        </td>
+                        <td className={`${cellBase} border-t-[1.5px] border-t-[#1f1a12]`}></td>
+                        <td className={`${cellBase} border-t-[1.5px] border-t-[#1f1a12] text-right font-bold tabular-nums`}>
+                          {formatInr(oldValueTotal)}
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                  <div className="ml-auto mt-0.5 grid grid-cols-[1fr_auto] text-[11px]" style={{ maxWidth: 360 }}>
+                    <div className="px-4 py-0.5 text-muted-foreground">{t.oldJewelleryTotal}</div>
+                    <div className="px-4 py-0.5 text-right font-semibold tabular-nums">
+                      {formatInr(oldValueTotal)}
+                    </div>
+                    <div className="px-4 py-1 text-[12px] font-bold" style={{ background: "#f1e9d8" }}>
+                      {t.amountToPay}
+                    </div>
+                    <div
+                      className="px-4 py-1 text-right text-[12px] font-bold tabular-nums"
+                      style={{ background: "#f1e9d8" }}
+                    >
+                      {formatInr(amountToPay)}
+                    </div>
+                  </div>
+                </div>
+              ) : null}
+
+              {/* Excess note sits beside Amount Paid/Total Remaining (same
+                  row) rather than stacked above it - stacking a full-width,
+                  two-line note between "Amount to Pay" and "Amount Paid"
+                  pushed the latter down and left a dead gap on the right
+                  where the (left-aligned) note had no content. Only when
+                  old jewellery exceeded the bill - plain-English (or Hindi)
+                  explanation for the customer, not a terse badge/label.
+                  remarks is deliberately never rendered here - internal shop
+                  notes, not customer-facing. reference only appears when
+                  present. */}
+              <div className="flex items-start justify-between">
+                {invoice.old_jewellery_excess ? (
+                  <div className="mt-1 max-w-[380px] px-2 text-[9px] leading-snug text-muted-foreground">
+                    <div>
+                      {t.excess.intro} ({formatInr(oldValueTotal)}) {t.excess.exceededBy}{" "}
+                      {formatInr(invoice.old_jewellery_excess.amount)}
+                      {t.excess.exceededBySuffix ? ` ${t.excess.exceededBySuffix}` : ""}.
+                    </div>
+                    {invoice.old_jewellery_excess.refund ? (
+                      <div>
+                        {t.excess.refundedVia}{" "}
+                        {paymentModeLabels[lang][invoice.old_jewellery_excess.refund.mode]}.
+                        {invoice.old_jewellery_excess.refund.reference
+                          ? ` (${t.excess.referenceLabel}: ${invoice.old_jewellery_excess.refund.reference})`
+                          : ""}
+                      </div>
+                    ) : null}
+                  </div>
+                ) : (
+                  <div />
+                )}
+                <div className="grid grid-cols-[1fr_auto] text-[11px]" style={{ maxWidth: 360 }}>
+                  <div className="px-4 py-0.5 text-muted-foreground">{t.amountPaid}</div>
+                  <div className="px-4 py-0.5 text-right font-semibold tabular-nums">
+                    {formatInr(invoice.paid_amount)}
+                  </div>
+                  <div className="px-4 py-1 text-[12px] font-bold" style={{ color: "#8a3129" }}>
+                    {t.totalRemaining}
+                  </div>
+                  <div
+                    className="px-4 py-1 text-right text-[12px] font-bold tabular-nums"
+                    style={{ color: "#8a3129" }}
+                  >
+                    {formatInr(invoice.pending_amount)}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Closing thank-you note - goodwill line, not a legal/terms
+                statement (that's termsNote in the Payment Summary column).
+                Centered and set in the heritage display font so it echoes
+                the header's heritage line rather than reading as another
+                data row. */}
+            <div
+              style={{ fontFamily: displayFont }}
+              className="border-t-[1.5px] border-[#1f1a12] px-7 py-1 text-center text-[9.5px] italic text-muted-foreground"
+            >
+              {t.welcomeNote}
+            </div>
+
             {/* Signatures */}
-            <div className="flex items-end justify-between border-t-[1.5px] border-[#1f1a12] px-7 py-4">
-              <div className="w-[200px] border-t border-[#9a9385] pt-1.5 text-[11px] text-muted-foreground">
+            <div className="flex items-end justify-between border-t-[1.5px] border-[#1f1a12] px-7 py-1.5">
+              <div className="w-[200px] border-t border-[#9a9385] pt-0.5 text-[10px] text-muted-foreground">
                 {t.customerSignature}
               </div>
-              <div className="w-[280px] border-t border-[#9a9385] pt-1.5 text-right text-[11px] text-muted-foreground">
+              <div className="w-[280px] border-t border-[#9a9385] pt-0.5 text-right text-[10px] text-muted-foreground">
                 {t.forShop} {shopConfig.legalNameEn}
               </div>
             </div>

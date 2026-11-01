@@ -21,6 +21,11 @@ export interface InvoiceItem {
   makingValue: number;
   stoneCharge: number;
   total: number;
+  // Free text, optional, never read by any pricing/weight calculation - a
+  // reference code the cashier can record to remember which buyer this
+  // item was lent/sold against, for later complaint lookup. Same
+  // "optional end-to-end, default empty string" shape as purity.
+  buyerCode: string;
 }
 
 export interface InvoicePayment {
@@ -58,6 +63,36 @@ export interface InvoiceDocument extends Document {
   paidAmount: number;
   pendingAmount: number;
   paymentStatus: PaymentStatus;
+  // Old jewellery exchange settlement - 0/null for every ordinary sale with
+  // no exchange attached, which is the overwhelming majority of invoices.
+  // grandTotal itself is never changed by an exchange (guiding principle 2,
+  // docs/old-jewellery-exchange-plan.md) - this is a settlement line
+  // against it, not a discount. linkedOldPurchaseNo is denormalized
+  // (alongside the ObjectId ref) so a print/detail read never needs a
+  // second query just to show the purchase reference.
+  exchangeApplied: number;
+  linkedOldPurchaseId: Types.ObjectId | null;
+  linkedOldPurchaseNo: string | null;
+  // Idempotency key for the exchange path only (see docs/old-jewellery-exchange-plan.md's
+  // Step 5 scoping decision) - genuinely absent (not set to null) for every
+  // ordinary sale, which doesn't set or check this at all. No schema
+  // `default` here on purpose: a sparse unique index only excludes
+  // documents where the field is truly MISSING, not documents where it's
+  // present with value null - a schema default of null (or explicitly
+  // writing null in a .create() call) would make every such invoice
+  // "present" in the index with the same value, and the second one would
+  // collide with a duplicate-key error. invoicesService.ts's createInvoice()
+  // only ever includes this key in the object it creates when there's a
+  // real value.
+  operationId: string | null;
+  // Soft delete, not a true removal - same isDeleted convention as
+  // OldJewelleryPurchase/OldJewelleryItem. deleteReason is mandatory
+  // whenever isDeleted is true (enforced at the service/schema layer, not
+  // here) so a deleted invoice's record always explains why, not just that
+  // it happened.
+  isDeleted: boolean;
+  deleteReason: string | null;
+  deletedAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -87,6 +122,7 @@ const invoiceItemSchema = new Schema<InvoiceItem>(
     makingValue: { type: Number, required: true, min: 0, default: 0 },
     stoneCharge: { type: Number, required: true, min: 0, default: 0 },
     total: { type: Number, required: true, min: 0 },
+    buyerCode: { type: String, default: "", trim: true },
   },
   { _id: false },
 );
@@ -129,9 +165,19 @@ const invoiceSchema = new Schema<InvoiceDocument>(
       default: "unpaid",
       index: true,
     },
+    exchangeApplied: { type: Number, required: true, min: 0, default: 0 },
+    linkedOldPurchaseId: { type: Schema.Types.ObjectId, ref: "OldJewelleryPurchase", default: null },
+    linkedOldPurchaseNo: { type: String, default: null },
+    // No `default: null` - see the interface field's comment above for why.
+    operationId: { type: String },
+    isDeleted: { type: Boolean, default: false, index: true },
+    deleteReason: { type: String, default: null },
+    deletedAt: { type: Date, default: null },
   },
   { timestamps: true },
 );
+
+invoiceSchema.index({ operationId: 1 }, { unique: true, sparse: true });
 
 invoiceSchema.index({ createdAt: -1 });
 

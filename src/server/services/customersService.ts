@@ -84,7 +84,7 @@ export async function getCustomerStats(customerId: string): Promise<CustomerStat
   }
 
   const [result] = await InvoiceModel.aggregate<CustomerStats>([
-    { $match: { customerId: new Types.ObjectId(customerId) } },
+    { $match: { customerId: new Types.ObjectId(customerId), isDeleted: { $ne: true } } },
     {
       $group: {
         _id: null,

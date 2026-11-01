@@ -8,6 +8,7 @@ import { Eye, EyeOff, Lock, User } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
+import { Loader } from "@/components/ui/Loader";
 import { ApiError } from "@/lib/api-client";
 import { loginSchema, type LoginInput } from "@/schemas/auth.schema";
 import { useLogin } from "@/features/auth/hooks/useAuth";
@@ -92,8 +93,15 @@ export function LoginForm() {
       {formError ? <p className="text-sm text-destructive">{formError}</p> : null}
 
       <Button type="submit" disabled={login.isPending} className="w-full uppercase">
-        {login.isPending ? "Logging in…" : "Login to Dashboard"}
-        <span aria-hidden>→</span>
+        {login.isPending ? (
+          <>
+            <Loader size="sm" className="text-gold-foreground" />
+          </>
+        ) : (
+          <>
+            Login
+          </>
+        )}
       </Button>
     </form>
   );

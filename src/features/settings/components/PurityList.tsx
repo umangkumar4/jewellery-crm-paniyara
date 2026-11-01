@@ -1,11 +1,12 @@
 "use client";
 
 import { useCallback, useMemo, useState } from "react";
-import { ArchiveRestore, Archive as ArchiveIcon, Check, Pencil, Trash2, X } from "lucide-react";
+import { Archive as ArchiveIcon, ArchiveRestore, Check, Pencil, Trash2, X } from "lucide-react";
 import { AgGridReact } from "ag-grid-react";
 import type { ColDef, ICellRendererParams, RowClassParams } from "ag-grid-community";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/Button";
+import { Dialog } from "@/components/ui/Dialog";
 import { Input } from "@/components/ui/Input";
 import { agGridTheme, AG_GRID_HEADER_CLASS, AG_GRID_DEFAULT_COL_DEF } from "@/lib/ag-grid";
 import { ApiError } from "@/lib/api-client";
@@ -31,7 +32,13 @@ function PurityCell({ data, renamingId, renameValue, setRenameValue, saveRename,
   if (renamingId !== data.id) return <span>{data.purity}</span>;
   return (
     <div className="flex items-center gap-2">
-      <Input autoFocus value={renameValue} onChange={(e) => setRenameValue(e.target.value)} className="h-9 w-28" />
+      <Input
+        autoFocus
+        value={renameValue}
+        onChange={(e) => setRenameValue(e.target.value)}
+        maxLength={20}
+        className="h-9 w-28"
+      />
       <button
         type="button"
         onClick={() => saveRename(data.id)}
@@ -76,7 +83,7 @@ function ActionsCell({
   if (!data) return null;
   const isRenaming = renamingId === data.id;
   return (
-    <div className="flex h-full items-center justify-end gap-2">
+    <div className="flex h-full items-center gap-2">
       {!isRenaming ? (
         <Button type="button" variant="outline" size="icon" onClick={() => startRename(data)} aria-label="Rename">
           <Pencil className="h-4 w-4" />
@@ -106,6 +113,8 @@ export function PurityList() {
 
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
+  const [deleteTarget, setDeleteTarget] = useState<MetalPurity | null>(null);
+  const [archiveTarget, setArchiveTarget] = useState<MetalPurity | null>(null);
 
   const startRename = useCallback((purity: MetalPurity) => {
     setRenamingId(purity.id);
@@ -129,7 +138,15 @@ export function PurityList() {
             cancelRename();
           },
           onError: (err) => {
-            toast.error(err instanceof ApiError ? err.message : "Failed to rename purity");
+            // err.message is the generic "Validation failed" string for a
+            // Zod rejection (e.g. the max-length check) - the actual reason
+            // lives in err.fields.purity instead. Falls back to err.message
+            // for every other error shape (e.g. PurityAlreadyExistsError's
+            // 409, which has no .fields and already carries a specific
+            // message there), same as AddPurityForm.tsx's own handling.
+            toast.error(
+              err instanceof ApiError ? (err.fields?.purity ?? err.message) : "Failed to rename purity",
+            );
           },
         },
       );
@@ -137,36 +154,53 @@ export function PurityList() {
     [renameValue, renamePurity, cancelRename],
   );
 
-  const toggleActive = useCallback(
-    (purity: MetalPurity) => {
-      setPurityActive.mutate(
-        { id: purity.id, active: !purity.active },
-        {
-          onSuccess: () => {
-            toast.success(purity.active ? "Purity archived" : "Purity restored");
-          },
-          onError: (err) => {
-            toast.error(err instanceof ApiError ? err.message : "Failed to update purity");
-          },
-        },
-      );
-    },
-    [setPurityActive],
-  );
+  // Opens the confirm dialog rather than archiving/restoring immediately -
+  // same pattern as remove/confirmDelete below. The actual mutation happens
+  // in confirmToggleActive, triggered from the dialog's Archive/Restore
+  // button.
+  const toggleActive = useCallback((purity: MetalPurity) => {
+    setArchiveTarget(purity);
+  }, []);
 
-  const remove = useCallback(
-    (purity: MetalPurity) => {
-      deletePurity.mutate(purity.id, {
+  const confirmToggleActive = useCallback(() => {
+    if (!archiveTarget) return;
+    const purity = archiveTarget;
+    setPurityActive.mutate(
+      { id: purity.id, active: !purity.active },
+      {
         onSuccess: () => {
-          toast.success("Purity deleted");
+          toast.success(purity.active ? "Purity archived" : "Purity restored");
+          setArchiveTarget(null);
         },
         onError: (err) => {
-          toast.error(err instanceof ApiError ? err.message : "Failed to delete purity");
+          toast.error(err instanceof ApiError ? err.message : "Failed to update purity");
+          setArchiveTarget(null);
         },
-      });
-    },
-    [deletePurity],
-  );
+      },
+    );
+  }, [archiveTarget, setPurityActive]);
+
+  // Opens the confirm dialog rather than deleting immediately - the actual
+  // mutation happens in confirmDelete, triggered from the dialog's Delete
+  // button.
+  const remove = useCallback((purity: MetalPurity) => {
+    setDeleteTarget(purity);
+  }, []);
+
+  const confirmDelete = useCallback(() => {
+    if (!deleteTarget) return;
+    const purity = deleteTarget;
+    deletePurity.mutate(purity.id, {
+      onSuccess: () => {
+        toast.success("Purity deleted");
+        setDeleteTarget(null);
+      },
+      onError: (err) => {
+        toast.error(err instanceof ApiError ? err.message : "Failed to delete purity");
+        setDeleteTarget(null);
+      },
+    });
+  }, [deleteTarget, deletePurity]);
 
   // cellRendererParams carries the inline-rename state/handlers through to
   // the cell renderers. The handler functions below are plain declarations
@@ -190,10 +224,11 @@ export function PurityList() {
 
   const columnDefs = useMemo<ColDef<MetalPurity>[]>(
     () => [
-      { field: "metal", headerName: "Metal", width: 110, headerClass: AG_GRID_HEADER_CLASS },
+      { field: "metal", headerName: "Metal", width: 110, flex: 1, headerClass: AG_GRID_HEADER_CLASS },
       {
         headerName: "Purity",
         width: 150,
+        flex: 1,
         headerClass: AG_GRID_HEADER_CLASS,
         cellRenderer: PurityCell,
         cellRendererParams: cellExtra,
@@ -201,6 +236,7 @@ export function PurityList() {
       {
         headerName: "Status",
         width: 120,
+        flex: 1,
         headerClass: AG_GRID_HEADER_CLASS,
         cellRenderer: StatusCell,
         valueGetter: (p) => p.data?.active,
@@ -208,6 +244,7 @@ export function PurityList() {
       {
         headerName: "Actions",
         width: 170,
+        flex: 1,
         headerClass: `${AG_GRID_HEADER_CLASS} text-right!`,
         cellRenderer: ActionsCell,
         cellRendererParams: cellExtra,
@@ -247,6 +284,82 @@ export function PurityList() {
           />
         )}
       </div>
+
+      <Dialog open={!!deleteTarget} onClose={() => setDeleteTarget(null)} title="Delete purity?">
+        <p className="text-sm text-muted-foreground">
+          Delete{" "}
+          <span className="font-medium text-foreground">
+            {deleteTarget?.metal} {deleteTarget?.purity}
+          </span>
+          ? This can&apos;t be undone.
+        </p>
+        <div className="mt-6 flex justify-end gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => setDeleteTarget(null)}
+            disabled={deletePurity.isPending}
+          >
+            Cancel
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            className="border-destructive text-destructive hover:bg-destructive/10"
+            disabled={deletePurity.isPending}
+            onClick={confirmDelete}
+          >
+            {deletePurity.isPending ? "Deleting…" : "Delete"}
+          </Button>
+        </div>
+      </Dialog>
+
+      <Dialog
+        open={!!archiveTarget}
+        onClose={() => setArchiveTarget(null)}
+        title={archiveTarget?.active ? "Archive purity?" : "Restore purity?"}
+      >
+        <p className="text-sm text-muted-foreground">
+          {archiveTarget?.active ? (
+            <>
+              Archiving{" "}
+              <span className="font-medium text-foreground">
+                {archiveTarget?.metal} {archiveTarget?.purity}
+              </span>{" "}
+              hides it from the purity dropdowns used when creating new tags or setting rates. Tags and bills
+              that already use it keep working as before - archiving doesn&apos;t delete anything or block
+              billing.
+            </>
+          ) : (
+            <>
+              Restoring{" "}
+              <span className="font-medium text-foreground">
+                {archiveTarget?.metal} {archiveTarget?.purity}
+              </span>{" "}
+              makes it selectable again in the purity dropdowns for new tags and rates.
+            </>
+          )}
+        </p>
+        <div className="mt-6 flex justify-end gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => setArchiveTarget(null)}
+            disabled={setPurityActive.isPending}
+          >
+            Cancel
+          </Button>
+          <Button type="button" disabled={setPurityActive.isPending} onClick={confirmToggleActive}>
+            {setPurityActive.isPending
+              ? archiveTarget?.active
+                ? "Archiving…"
+                : "Restoring…"
+              : archiveTarget?.active
+                ? "Archive"
+                : "Restore"}
+          </Button>
+        </div>
+      </Dialog>
     </div>
   );
 }

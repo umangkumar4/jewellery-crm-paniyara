@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { calculateItemTotal, type MakingMethod } from "@/features/billing/lib/calculations";
+import { calculateItemTotal, calculateOldJewelleryItemValuation, type MakingMethod } from "@/features/billing/lib/calculations";
 
 export interface BillingCustomer {
   name: string;
@@ -36,6 +36,41 @@ export interface BillingItem {
   makingValue: number;
   stoneCharge: number;
   total: number;
+  // Free text, optional, never read by withTotal/calculateItemTotal - a
+  // reference code the cashier can record to remember which buyer this
+  // item was lent/sold against. Optional so useAddTagItem.ts's existing
+  // addItem() call doesn't need to change just to omit it.
+  buyerCode?: string;
+}
+
+// A customer's old jewellery exchanged during this sale - settlement
+// against the bill (exchange-first, see docs/old-jewellery-exchange-plan.md),
+// never a discount on the new items above. Client-only draft shape, same
+// id/never-sent-raw convention as BillingItem.
+export interface OldJewelleryDraftItem {
+  id: string;
+  description: string;
+  metal: string;
+  purity: string;
+  grossWtG: number;
+  stoneWtG: number;
+  dustWtG: number;
+  otherDeductionWtG: number;
+  // Auto-derived only (Decision 15) - never typed directly, always
+  // max(0, gross - stone - dust - other), recomputed by withValuation below.
+  netWtG: number;
+  // Snapshot of MetalPurity.purchaseRatePerGram at the moment this purity
+  // was picked - null if that purity has no default purchase rate
+  // configured yet, in which case the admin types appliedRatePerGram by hand.
+  defaultRatePerGram: number | null;
+  appliedRatePerGram: number;
+  calculatedValue: number;
+  // Defaults to calculatedValue and re-syncs to it whenever a weight/rate
+  // field changes (same "auto-derive but still directly editable, overwritten
+  // again on the next relevant change" convention net weight itself already
+  // uses) - but is a fully independent, directly editable field in between.
+  finalValue: number;
+  overrideReason: string;
 }
 
 export type BillingPaymentMode = "cash" | "upi" | "card" | "bank_transfer";
@@ -44,6 +79,30 @@ export interface BillingPayment {
   amount: number;
   mode: BillingPaymentMode;
 }
+
+// Deliberately narrower than BillingPaymentMode (no "card") - both source
+// requirement docs consistently list only Cash/UPI/Bank Transfer for
+// refunds and withdrawals, never card. A shop doesn't pay a customer out
+// over a card network.
+export type RefundMode = "cash" | "upi" | "bank_transfer";
+
+// The refund amount is deliberately NOT a field here - per the confirmed
+// "exact match only" rule it's always exactly the exchange excess, so it's
+// read live from calculateExchangeApplied() wherever it's needed (e.g.
+// RefundSection.tsx) rather than copied into a second number that could
+// drift stale if old jewellery items change after this form is opened.
+// Only the genuinely free-form parts are draft state.
+export interface OldJewelleryRefundDraft {
+  mode: RefundMode | null;
+  reference: string;
+  remarks: string;
+  // "I confirm this refund has been paid to the customer outside the
+  // software" - the software only records a manual payout, never claims to
+  // execute or verify one itself.
+  confirmed: boolean;
+}
+
+const EMPTY_REFUND: OldJewelleryRefundDraft = { mode: null, reference: "", remarks: "", confirmed: false };
 
 const EMPTY_CUSTOMER: BillingCustomer = { name: "", phone: "", email: "", address: "" };
 
@@ -60,6 +119,11 @@ export type BillingItemErrors = Record<number, Record<string, string>>;
 interface BillingState {
   customer: BillingCustomer;
   items: BillingItem[];
+  oldJewelleryItems: OldJewelleryDraftItem[];
+  // Always a plain object, never null - RefundSection only renders while
+  // the exchange excess is > 0 anyway, so there's no need for a nullable
+  // wrapper to represent "not applicable."
+  refund: OldJewelleryRefundDraft;
   discountAmount: number;
   // Independently editable - not forced to a 50/50 split of one GST% field.
   cgstPercent: number;
@@ -73,6 +137,13 @@ interface BillingState {
   updateItem: (index: number, patch: Partial<Omit<BillingItem, "total" | "id">>) => void;
   removeItem: (index: number) => void;
   hasTag: (tagCode: string) => boolean;
+  // Takes the fully-filled item from AddOldJewelleryItemDialog - same
+  // "filled via a modal, then appended" convention as the main items grid's
+  // addItem()/ManualAddForm, not a blank row seeded for inline editing.
+  addOldJewelleryItem: (item: Omit<OldJewelleryDraftItem, "id" | "netWtG" | "calculatedValue">) => void;
+  updateOldJewelleryItem: (id: string, patch: Partial<Omit<OldJewelleryDraftItem, "id">>) => void;
+  removeOldJewelleryItem: (id: string) => void;
+  updateRefund: (patch: Partial<OldJewelleryRefundDraft>) => void;
   setDiscountAmount: (amount: number) => void;
   setCgstPercent: (percent: number) => void;
   setSgstPercent: (percent: number) => void;
@@ -88,6 +159,11 @@ interface BillingState {
 function withTotal(item: Omit<BillingItem, "total">): BillingItem {
   return {
     ...item,
+    // Always a real string, never undefined - useAddTagItem.ts's addItem()
+    // call doesn't pass this field at all, so without defaulting it here
+    // every tag-scanned row would start as buyerCode: undefined, which the
+    // grid's controlled <input> (ItemFieldCell) can't render consistently.
+    buyerCode: item.buyerCode ?? "",
     total: calculateItemTotal({
       netWtG: item.netWtG,
       ratePerGram: item.ratePerGram,
@@ -96,6 +172,25 @@ function withTotal(item: Omit<BillingItem, "total">): BillingItem {
       pieces: item.pieces,
     }),
   };
+}
+
+// netWtG/calculatedValue are always derived here, same "never trust a
+// passed-in total" rule as withTotal above - finalValue is deliberately
+// NOT touched here, since it's a directly-editable field, not a pure
+// formula output. Callers that change a weight/rate field are responsible
+// for also re-syncing finalValue in their own patch when that's the
+// intended behavior (see OldJewelleryExchangeSection.tsx) - this mirrors
+// exactly how ItemTable.tsx's handleFieldChange decides whether to also
+// patch makingCharge, kept at the call site rather than baked in here.
+function withValuation(item: Omit<OldJewelleryDraftItem, "netWtG" | "calculatedValue">): OldJewelleryDraftItem {
+  const { netWtG, calculatedValue } = calculateOldJewelleryItemValuation({
+    grossWtG: item.grossWtG,
+    stoneWtG: item.stoneWtG,
+    dustWtG: item.dustWtG,
+    otherDeductionWtG: item.otherDeductionWtG,
+    ratePerGram: item.appliedRatePerGram,
+  });
+  return { ...item, netWtG, calculatedValue };
 }
 
 // Validation errors are always cleared the moment anything they could apply
@@ -107,6 +202,8 @@ const NO_ERRORS = { fieldErrors: {}, itemErrors: {} };
 export const useBillingStore = create<BillingState>((set, get) => ({
   customer: EMPTY_CUSTOMER,
   items: [],
+  oldJewelleryItems: [],
+  refund: EMPTY_REFUND,
   discountAmount: 0,
   // Sums to the same 3% the old single gstPercent field defaulted to.
   cgstPercent: 1.5,
@@ -143,6 +240,34 @@ export const useBillingStore = create<BillingState>((set, get) => ({
   hasTag: (tagCode) =>
     get().items.some((item) => item.tagCode?.toUpperCase() === tagCode.toUpperCase()),
 
+  addOldJewelleryItem: (item) =>
+    set((state) => ({
+      oldJewelleryItems: [...state.oldJewelleryItems, withValuation({ ...item, id: crypto.randomUUID() })],
+      ...NO_ERRORS,
+    })),
+
+  updateOldJewelleryItem: (id, patch) =>
+    set((state) => ({
+      oldJewelleryItems: state.oldJewelleryItems.map((item) =>
+        item.id === id ? withValuation({ ...item, ...patch }) : item,
+      ),
+      ...NO_ERRORS,
+    })),
+
+  removeOldJewelleryItem: (id) =>
+    set((state) => ({
+      oldJewelleryItems: state.oldJewelleryItems.filter((item) => item.id !== id),
+      ...NO_ERRORS,
+    })),
+
+  // Deliberately NOT auto-cleared when the exchange excess drops to 0 (e.g.
+  // an old item is removed) - RefundSection simply stops rendering, and the
+  // leftover mode/reference/remarks sit inert and unused until excess
+  // returns, if it does. Adding reactive reset-on-excess-change logic here
+  // would be a new state-management bug surface guarding against a
+  // scenario that's already harmless - see docs/old-jewellery-exchange-plan.md.
+  updateRefund: (patch) => set((state) => ({ refund: { ...state.refund, ...patch } })),
+
   setDiscountAmount: (discountAmount) => set({ discountAmount, ...NO_ERRORS }),
   setCgstPercent: (cgstPercent) => set({ cgstPercent, ...NO_ERRORS }),
   setSgstPercent: (sgstPercent) => set({ sgstPercent, ...NO_ERRORS }),
@@ -153,6 +278,8 @@ export const useBillingStore = create<BillingState>((set, get) => ({
     set({
       customer: EMPTY_CUSTOMER,
       items: [],
+      oldJewelleryItems: [],
+      refund: EMPTY_REFUND,
       discountAmount: 0,
       cgstPercent: 1.5,
       sgstPercent: 1.5,

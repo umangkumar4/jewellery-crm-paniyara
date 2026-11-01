@@ -41,6 +41,10 @@ export async function createTag(input: CreateTagInput) {
     grossWtG: input.gross_wt_g,
     stoneWtG: input.stone_wt_g,
     netWtG: input.net_wt_g,
+    buyerCode: input.buyer_code ?? "",
+    stoneAmountMethod: input.stone_amount_method,
+    totalStoneAmount: input.total_stone_amount,
+    stoneAmount: input.stone_amount,
   });
 
   tag.purityId = purity;
@@ -79,6 +83,25 @@ export async function listTags({ page, limit, q, status }: ListTagsParams) {
   return { items, total };
 }
 
+// Atomic find+delete, gated to "tagged" status inside the same Mongo
+// operation - not a separate find-then-delete - so a tag can never be
+// deleted in the narrow window between being sold and this request
+// landing. Returns a discriminated result rather than throwing: the "not
+// found" vs "already sold" distinction mirrors GET /api/tags/[code]'s own
+// inline check (see that route), and avoids a second, differently-shaped
+// TagNotFoundError/TagAlreadySoldError colliding in name with the ones
+// invoicesService.ts already defines for a different domain.
+export async function deleteTagByCode(code: string) {
+  const normalizedCode = code.toUpperCase();
+  const deleted = await TagModel.findOneAndDelete({ code: normalizedCode, status: "tagged" });
+  if (deleted) return { deleted: true as const };
+
+  // Delete already definitively didn't happen above - this lookup is only
+  // to give the caller an accurate 404 vs 409, not a correctness step.
+  const existing = await TagModel.findOne({ code: normalizedCode }).select("_id").lean();
+  return { deleted: false as const, reason: existing ? ("sold" as const) : ("not_found" as const) };
+}
+
 export function serializeTag(tag: TagDocument) {
   const purity = tag.purityId;
   if (!purity || !(purity instanceof Object) || !("metal" in purity)) {
@@ -92,10 +115,16 @@ export function serializeTag(tag: TagDocument) {
     product_name: tag.productName,
     metal: populatedPurity.metal,
     purity: populatedPurity.purity,
+    purity_id: populatedPurity._id.toString(),
     gross_wt_g: tag.grossWtG,
     stone_wt_g: tag.stoneWtG,
     net_wt_g: tag.netWtG,
+    rate_per_gram: populatedPurity.ratePerGram,
     status: tag.status,
+    buyer_code: tag.buyerCode ?? "",
+    stone_amount_method: tag.stoneAmountMethod ?? "not_set",
+    total_stone_amount: tag.totalStoneAmount ?? 0,
+    stone_amount: tag.stoneAmount ?? 0,
     created_at: tag.createdAt.toISOString(),
   };
 }

@@ -1,4 +1,4 @@
-import type { BillingItem } from "@/store/useBillingStore";
+import type { BillingItem, OldJewelleryDraftItem } from "@/store/useBillingStore";
 
 /**
  * The same mandatory rule createInvoiceSchema enforces for description,
@@ -22,4 +22,16 @@ export function isItemValid(item: BillingItem): boolean {
     item.pieces > 0 &&
     Number.isInteger(item.pieces)
   );
+}
+
+/**
+ * Same role as isItemValid above, for old jewellery exchange rows - mirrors
+ * oldJewelleryItemInputSchema's mandatory fields (invoice.schema.ts):
+ * description, gross weight, and rate must be real positive values. Net
+ * weight isn't separately checked - it's auto-derived (Decision 15), so a
+ * legitimately all-deducted item could be 0, same reasoning stone_wt_g
+ * stays unchecked for new-jewellery items.
+ */
+export function isOldJewelleryItemValid(item: OldJewelleryDraftItem): boolean {
+  return item.description.trim().length > 0 && item.grossWtG > 0 && item.appliedRatePerGram > 0;
 }

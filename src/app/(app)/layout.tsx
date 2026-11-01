@@ -4,7 +4,7 @@ import { AppShell } from "@/components/layout/AppShell";
 
 export default function AppLayout({ children }: { children: ReactNode }) {
   return (
-    <AuthGate>
+    <AuthGate> 
       <AppShell>{children}</AppShell>
     </AuthGate>
   );

@@ -15,12 +15,21 @@ import { cn } from "@/lib/utils";
 import { METALS, type Metal } from "@/lib/metals";
 import { useMetalPurities } from "@/features/settings/hooks/useMetalPurities";
 import { NumberField } from "@/features/billing/components/NumberField";
+import { WeightField } from "@/components/ui/WeightField";
 import { ScanInput } from "@/features/billing/components/ScanInput";
 import { MakingChargeDialog } from "@/features/billing/components/MakingChargeDialog";
-import { sanitizeNumericInput, isValidNumericInput } from "@/features/billing/lib/numericInput";
+import { sanitizeNumericInput, isValidNumericInput, isValidWeightInput } from "@/features/billing/lib/numericInput";
 import { useNumericStoreField } from "@/features/billing/lib/useNumericStoreField";
-import { calculateMakingCharge, type MakingMethod } from "@/features/billing/lib/calculations";
+import { calculateItemTotal, calculateMakingCharge, type MakingMethod } from "@/features/billing/lib/calculations";
 import { useBillingStore, type BillingItem } from "@/store/useBillingStore";
+
+// Same 2dp convention every other money display in this app uses
+// (TotalsPanel, PrintInvoice, invoice detail page) - Making Charge and
+// line Total can both carry paise now that calculateItemTotal/
+// calculateMakingCharge no longer round to a whole rupee per line.
+function formatInr(value: number): string {
+  return `₹${value.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
 
 // Mirrors createInvoiceSchema's mandatory checks for description/gross
 // weight/net weight/rate per gram - computed live, straight from the item,
@@ -38,6 +47,11 @@ function getLiveItemErrors(item: BillingItem): Record<string, string> {
   if (!(item.pieces > 0) || !Number.isInteger(item.pieces)) {
     errors.pieces = "Pieces must be a whole number, at least 1";
   }
+  // Mirrors createInvoiceSchema's total: z.number().positive(...) - a line
+  // that contributes ₹0 to the bill is always incomplete or a mistake
+  // (unset rate, or a net weight so small the metal value rounds to ₹0),
+  // never an intentional free item - this app has no concept of one.
+  if (!(item.total > 0)) errors.total = "Total must be greater than 0";
   return errors;
 }
 
@@ -51,7 +65,8 @@ type EditableField =
   | "stoneWtG"
   | "netWtG"
   | "ratePerGram"
-  | "stoneCharge";
+  | "stoneCharge"
+  | "buyerCode";
 
 const METAL_OPTIONS = toOptions(METALS);
 
@@ -70,6 +85,12 @@ const NUMERIC_FIELDS = new Set<EditableField>([
   "stoneCharge",
 ]);
 
+// Subset of NUMERIC_FIELDS that are gram weights, not money/count - these
+// get the 3-decimal cap (isValidWeightInput) in ItemFieldCell below instead
+// of the unrestricted isValidNumericInput, same rule WeightField applies to
+// the standalone forms (ManualAddForm, TagForm, AddOldJewelleryItemDialog).
+const WEIGHT_FIELDS = new Set<EditableField>(["grossWtG", "stoneWtG", "netWtG"]);
+
 // Maps this component's camelCase field names to the Zod schema's
 // snake_case field names, so a validation issue's path (e.g. "rate_per_gram")
 // can be matched back to the right inline-editable cell.
@@ -84,6 +105,7 @@ const SCHEMA_FIELD_NAMES: Record<EditableField, string> = {
   netWtG: "net_wt_g",
   ratePerGram: "rate_per_gram",
   stoneCharge: "stone_charge",
+  buyerCode: "buyer_code",
 };
 
 const FIELD_LABELS: Record<string, string> = {
@@ -99,6 +121,7 @@ const FIELD_LABELS: Record<string, string> = {
   making_charge: "Making charge",
   stone_charge: "Stone charge",
   tag_code: "Tag code",
+  buyer_code: "Buyer Code",
   total: "Total",
   _item: "This item",
 };
@@ -149,7 +172,8 @@ function ItemFieldCell({ data, node, field, onFieldChange }: ICellRendererParams
           onFieldChange(rowIndex, field, raw);
           return;
         }
-        if (!isValidNumericInput(raw)) return;
+        const isValid = WEIGHT_FIELDS.has(field) ? isValidWeightInput(raw) : isValidNumericInput(raw);
+        if (!isValid) return;
         numericField.onValueChange(sanitizeNumericInput(raw));
       }}
       onBlur={() => {
@@ -164,6 +188,29 @@ function ItemFieldCell({ data, node, field, onFieldChange }: ICellRendererParams
       className={cn(
         "w-full min-w-0 rounded-md border border-transparent bg-transparent px-2 py-1 text-sm text-foreground hover:border-border focus-visible:border-input focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
         hasError && "border-destructive focus-visible:ring-destructive",
+      )}
+    />
+  );
+}
+
+// Locked, not an ItemFieldCell - net weight is always derived from gross -
+// stone (handleFieldChange below recomputes patch.netWtG whenever either
+// changes), never typed directly in the grid either. Keeps net structurally
+// consistent with gross/stone instead of letting someone type an
+// inconsistent, even physically impossible, value (net > gross) straight
+// onto a real invoice line - mirrors ManualAddForm's read-only net field.
+function NetWeightCell({ data }: ICellRendererParams<BillingItem>) {
+  if (!data) return null;
+  const hasError = !(data.netWtG > 0);
+  return (
+    <input
+      type="text"
+      readOnly
+      tabIndex={-1}
+      value={data.netWtG.toFixed(3)}
+      className={cn(
+        "w-full min-w-0 cursor-default rounded-md border border-transparent bg-transparent px-2 py-1 text-sm text-foreground",
+        hasError && "text-destructive",
       )}
     />
   );
@@ -202,7 +249,7 @@ function MakingChargeCell({ data, node, onOpen }: ICellRendererParams<BillingIte
       onClick={() => onOpen(rowIndex)}
       className="flex h-full w-full items-center justify-between gap-1.5 px-2 text-sm text-foreground hover:bg-muted/50"
     >
-      <span>₹{data.makingCharge.toLocaleString("en-IN")}</span>
+      <span>{formatInr(data.makingCharge)}</span>
       {badge ? (
         <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
           {badge}
@@ -246,6 +293,7 @@ function ManualAddForm({ onDone }: { onDone: () => void }) {
   const [makingCharge, setMakingCharge] = useState(0);
   const [showMakingDialog, setShowMakingDialog] = useState(false);
   const [stoneCharge, setStoneCharge] = useState("0");
+  const [buyerCode, setBuyerCode] = useState("");
 
   const { data: purities } = useMetalPurities({ metal });
   const hasPurities = !!purities && purities.length > 0;
@@ -310,7 +358,19 @@ function ManualAddForm({ onDone }: { onDone: () => void }) {
   const hasNetWt = Number(netWtG) > 0;
   const hasRate = Number(ratePerGram) > 0;
   const hasPieces = Number(pieces) > 0 && Number.isInteger(Number(pieces));
-  const canAdd = hasDescription && hasGrossWt && hasNetWt && hasRate && hasPieces;
+  // Mirrors createInvoiceSchema's total: z.number().positive(...) - computed
+  // the same way withTotal() in useBillingStore.ts computes the real stored
+  // total, so this preview can never drift from what addItem() below would
+  // actually produce.
+  const previewTotal = calculateItemTotal({
+    netWtG: Number(netWtG) || 0,
+    ratePerGram: Number(ratePerGram) || 0,
+    makingCharge,
+    stoneCharge: Number(stoneCharge) || 0,
+    pieces: Number(pieces) || 0,
+  });
+  const hasTotal = previewTotal > 0;
+  const canAdd = hasDescription && hasGrossWt && hasNetWt && hasRate && hasPieces && hasTotal;
 
   const handleAdd = () => {
     if (!canAdd) return;
@@ -329,6 +389,7 @@ function ManualAddForm({ onDone }: { onDone: () => void }) {
       makingMethod,
       makingValue,
       stoneCharge: Number(stoneCharge) || 0,
+      buyerCode: buyerCode.trim(),
     });
     onDone();
   };
@@ -336,10 +397,7 @@ function ManualAddForm({ onDone }: { onDone: () => void }) {
   return (
     // Wider than Dialog's default max-w-lg - this form's 4-column grid of
     // labeled numeric fields needs more room than a typical modal's content.
-    // dimBackground={false} per explicit request - keeps the billing page
-    // visible behind this one dialog (TagBrowseDialog's overlay is
-    // untouched, this wasn't asked to change there).
-    <Dialog open onClose={onDone} title="Add Item" className="max-w-2xl" dimBackground={false}>
+    <Dialog open onClose={onDone} title="Add Item" className="max-w-2xl">
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <div className="col-span-2 sm:col-span-2">
           <Label htmlFor="manual-description">Description *</Label>
@@ -354,6 +412,16 @@ function ManualAddForm({ onDone }: { onDone: () => void }) {
           <Label htmlFor="manual-pieces">Pieces *</Label>
           <NumberField id="manual-pieces" value={pieces} onValueChange={setPieces} />
           {!hasPieces ? <p className="mt-1.5 text-xs text-destructive">Pieces must be a whole number, at least 1</p> : null}
+        </div>
+        <div>
+          <Label htmlFor="manual-buyer-code">Buyer Code</Label>
+          <Input
+            id="manual-buyer-code"
+            value={buyerCode}
+            onChange={(e) => setBuyerCode(e.target.value)}
+            maxLength={30}
+            placeholder="Optional"
+          />
         </div>
 
         <div>
@@ -406,16 +474,22 @@ function ManualAddForm({ onDone }: { onDone: () => void }) {
 
         <div>
           <Label htmlFor="manual-gross">Gross Wt (g) *</Label>
-          <NumberField id="manual-gross" value={grossWtG} onValueChange={setGrossWtG} />
+          <WeightField id="manual-gross" value={grossWtG} onValueChange={setGrossWtG} />
           {!hasGrossWt ? <p className="mt-1.5 text-xs text-destructive">Gross weight is required</p> : null}
         </div>
         <div>
           <Label htmlFor="manual-stone-wt">Stone Wt (g)</Label>
-          <NumberField id="manual-stone-wt" value={stoneWtG} onValueChange={setStoneWtG} />
+          <WeightField id="manual-stone-wt" value={stoneWtG} onValueChange={setStoneWtG} />
         </div>
         <div>
           <Label htmlFor="manual-net">Net Wt (g) *</Label>
-          <NumberField id="manual-net" value={netWtG} onValueChange={setNetWtG} />
+          {/* Read-only, same reasoning as TagForm.tsx's net field - always
+              derived from gross - stone (the useState-diff block above),
+              never typed directly. Letting it be freely overridden let a
+              line ship with an inconsistent, even physically impossible,
+              net weight (e.g. bigger than gross) straight onto an invoice. */}
+          <Input id="manual-net" readOnly value={netWtG} />
+          <p className="mt-1.5 text-xs text-muted-foreground">Auto-calculated: gross − stone weight.</p>
           {!hasNetWt ? <p className="mt-1.5 text-xs text-destructive">Net weight is required</p> : null}
         </div>
         <div />
@@ -428,7 +502,7 @@ function ManualAddForm({ onDone }: { onDone: () => void }) {
             onClick={() => setShowMakingDialog(true)}
             className="flex h-12 w-full items-center justify-between rounded-lg border border-input bg-card px-4 text-sm text-foreground hover:bg-muted/50"
           >
-            <span>₹{makingCharge.toLocaleString("en-IN")}</span>
+            <span>{formatInr(makingCharge)}</span>
             {MAKING_METHOD_BADGE[makingMethod] ? (
               <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
                 {MAKING_METHOD_BADGE[makingMethod]}
@@ -441,6 +515,12 @@ function ManualAddForm({ onDone }: { onDone: () => void }) {
           <NumberField id="manual-stone-charge" value={stoneCharge} onValueChange={setStoneCharge} />
         </div>
       </div>
+
+      {hasDescription && hasGrossWt && hasNetWt && hasRate && hasPieces && !hasTotal ? (
+        <p className="mt-4 text-xs text-destructive">
+          This item&apos;s total comes to ₹0 - check the net weight and rate before adding it.
+        </p>
+      ) : null}
 
       <div className="mt-4 flex justify-end gap-2">
         <Button type="button" variant="outline" onClick={onDone}>
@@ -559,6 +639,7 @@ export function ItemTable({ onBrowseTags }: { onBrowseTags: () => void }) {
         headerClass: AG_GRID_HEADER_CLASS,
         valueGetter: (p) => p.data?.tagCode ?? "—",
       },
+      editable("buyerCode", "Buyer Code", 140),
       { field: "metal", headerName: "Metal", width: 110, headerClass: AG_GRID_HEADER_CLASS },
       { field: "purity", headerName: "Purity", width: 100, headerClass: AG_GRID_HEADER_CLASS },
       {
@@ -570,7 +651,12 @@ export function ItemTable({ onBrowseTags }: { onBrowseTags: () => void }) {
       },
       editable("grossWtG", "Gross Wt (g) *", 140),
       editable("stoneWtG", "Stone Wt (g)", 130),
-      editable("netWtG", "Net Wt (g) *", 130),
+      {
+        headerName: "Net Wt (g) *",
+        width: 130,
+        headerClass: AG_GRID_HEADER_CLASS,
+        cellRenderer: NetWeightCell,
+      },
       editable("ratePerGram", "Rate/g *", 150),
       {
         headerName: "Making Charge",
@@ -585,8 +671,8 @@ export function ItemTable({ onBrowseTags }: { onBrowseTags: () => void }) {
         headerName: "Total",
         width: 170,
         headerClass: AG_GRID_HEADER_CLASS,
-        cellClass: "font-semibold! text-foreground!",
-        valueFormatter: (p) => (p.value != null ? `₹${p.value.toLocaleString("en-IN")}` : ""),
+        cellClass: (p) => cn("font-semibold!", p.data && p.data.total > 0 ? "text-foreground!" : "text-destructive!"),
+        valueFormatter: (p) => (p.value != null ? formatInr(p.value) : ""),
       },
       {
         headerName: "Action",
@@ -632,7 +718,7 @@ export function ItemTable({ onBrowseTags }: { onBrowseTags: () => void }) {
         <div className="min-w-[220px] flex-1 lg:max-w-sm">
           <ScanInput />
         </div>
-        <div className="flex shrink-0 gap-2">
+        <div className="flex shrink-0 gap-2 lg:ml-auto">
           <Button type="button" variant="outline" size="md" onClick={onBrowseTags}>
             <Search className="h-4 w-4" /> Browse Tags
           </Button>
