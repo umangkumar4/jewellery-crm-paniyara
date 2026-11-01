@@ -16,7 +16,7 @@ export const shopConfig = {
 heritageLineEn: "Shri Khaderuram Jewellers",
   tagline:
     "Traditional Elegance Meets Modern Billing, Gold Rate Analytics & Stock Management.",
-  gstin: "09ABCDE1234F1Z5",
+  gstin: "09BRVPN8684G1ZP",
   addressEn: "Paniyara, Maharajganj, Uttar Pradesh",
   addressHi: "पनियरा – महाराजगंज",
   phone: "+91 70717 21819, +91 76518 68365",

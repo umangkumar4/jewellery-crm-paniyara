@@ -30,7 +30,13 @@ function formatStoneAmount(value: number): string {
 function BarcodeZone({ tag }: { tag: Tag }) {
   return (
     <div
-      className="flex shrink-0 flex-col items-center justify-center gap-[0.8mm] rounded-[1mm] border border-[#1f1a12] bg-[#fbf8f1] p-[1.5mm] break-inside-avoid"
+      // print:border-0 - the zone outline is only a screen-side guide for
+      // telling the two faces apart in the editor; on real tag stock it's
+      // unwanted ink the printer would otherwise lay down as a solid black
+      // rounded box (globals.css forces border-color black for .tag-print
+      // descendants at print time, so without this the border still shows
+      // up on the physical label even though it was never meant to print).
+      className="flex shrink-0 flex-col items-center justify-center gap-[0.8mm] rounded-[1mm] border border-[#1f1a12] print:border-0 bg-[#fbf8f1] p-[1.5mm] break-inside-avoid"
       style={{ width: `${BARCODE_ZONE_WIDTH_MM}mm`, height: "15mm" }}
     >
       <p className="w-full truncate text-center font-mono text-[6pt] leading-none font-semibold text-[#1f1a12]">
@@ -48,7 +54,8 @@ function BarcodeZone({ tag }: { tag: Tag }) {
 function DetailsZone({ tag }: { tag: Tag }) {
   return (
     <div
-      className="flex shrink-0 flex-col justify-center gap-[0.8mm] rounded-[1mm] border border-[#1f1a12] bg-[#fbf8f1] p-[1.5mm] break-inside-avoid"
+      // print:border-0 - see BarcodeZone's comment, same unwanted-ink issue.
+      className="flex shrink-0 flex-col justify-center gap-[0.8mm] rounded-[1mm] border border-[#1f1a12] print:border-0 bg-[#fbf8f1] p-[1.5mm] break-inside-avoid"
       style={{ width: `${DETAILS_ZONE_WIDTH_MM}mm`, height: "15mm" }}
     >
       <div className="flex flex-col gap-[0.5mm] font-mono text-[5.5pt] leading-none font-semibold text-[#1f1a12]">
@@ -138,15 +145,15 @@ export function TagLabelPreview({ tag }: { tag: Tag | null }) {
         <div className="flex" style={{ width: "100mm", height: "15mm" }}>
           <div
             className="h-[15mm] shrink-0 rounded-[1mm] border-2 border-dashed border-muted-foreground/30"
-            style={{ width: `${TAIL_WIDTH_MM}mm` }}
-          />
-          <div
-            className="h-[15mm] shrink-0 rounded-[1mm] border-2 border-dashed border-muted-foreground/30"
             style={{ width: `${BARCODE_ZONE_WIDTH_MM}mm` }}
           />
           <div
             className="h-[15mm] shrink-0 rounded-[1mm] border-2 border-dashed border-muted-foreground/30"
             style={{ width: `${DETAILS_ZONE_WIDTH_MM}mm` }}
+          />
+          <div
+            className="h-[15mm] shrink-0 rounded-[1mm] border-2 border-dashed border-muted-foreground/30"
+            style={{ width: `${TAIL_WIDTH_MM}mm` }}
           />
         </div>
         <div className="flex flex-col items-center gap-2">
@@ -179,26 +186,34 @@ export function TagLabelPreview({ tag }: { tag: Tag | null }) {
         <ZoomedFaces tag={tag} />
       </div>
 
-      {/* 100mm x 15mm tag: TAIL_WIDTH_MM of non-printable blank tail, then
-          the 60mm printable area as two adjacent 30mm zones (barcode,
-          then details) that become the tag's two faces once folded at
-          their shared edge. The dashed outline on the tail is an
+      {/* 100mm x 15mm tag: the 60mm printable area as two adjacent 30mm
+          zones (barcode, then details) that become the tag's two faces
+          once folded at their shared edge, followed by TAIL_WIDTH_MM of
+          non-printable blank tail at the far end (used to tie/attach the
+          tag to the piece). The dashed outline on the tail is an
           on-screen-only guide (stripped at print time - see the
           .tag-blank rule in globals.css) - the physical paper needs no
           ink there at all.
           True size on screen and on paper (see docs/tag-redesign-plan.md). */}
-      {/* break-inside-avoid: without it, Chrome's print pagination will
-          slice this row across two pages the instant rendered height is
-          even a hair over 15mm (sub-pixel rounding, border widths, etc),
-          instead of either fitting it or pushing the whole thing to the
-          next page intact. */}
-      <div className="tag-print flex break-inside-avoid" style={{ width: "100mm", height: "15mm" }}>
+      {/* print:fixed + inset-0: break-inside-avoid alone wasn't enough -
+          Chrome was still splitting this row a fraction of a mm past the
+          page boundary, because *something* in the ancestor chain (panel
+          border/padding/line-height rounding, etc) was adding a sliver of
+          height we kept failing to fully zero out one property at a time.
+          Taking the row out of normal flow entirely and anchoring it to
+          the page's own top-left corner sidesteps that whole class of bug:
+          nothing an ancestor contributes can push this box around anymore,
+          since it no longer has a position in that flow at all. */}
+      <div
+        className="tag-print print:fixed print:inset-0 print:m-0 flex break-inside-avoid"
+        style={{ width: "100mm", height: "15mm" }}
+      >
+        <BarcodeZone tag={tag} />
+        <DetailsZone tag={tag} />
         <div
           className="tag-blank h-[15mm] shrink-0 rounded-[1mm] border-2 border-dashed border-[#c9beac]"
           style={{ width: `${TAIL_WIDTH_MM}mm` }}
         />
-        <BarcodeZone tag={tag} />
-        <DetailsZone tag={tag} />
       </div>
 
       <Button type="button" onClick={() => window.print()} className="print:hidden">

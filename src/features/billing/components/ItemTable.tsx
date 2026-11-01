@@ -229,19 +229,33 @@ function PiecesCell(props: ICellRendererParams<BillingItem> & EditCellExtra) {
   return <ItemFieldCell {...props} />;
 }
 
+// Same reasoning as PiecesCell above - a tag-linked row's gross/stone
+// weight is a snapshot of the tag's own recorded physical weight
+// (useAddTagItem.ts), not cashier-entered data. Locked read-only for
+// tag-linked rows; manual rows stay fully editable via ItemFieldCell.
+function GrossWeightCell(props: ICellRendererParams<BillingItem> & EditCellExtra) {
+  if (props.data?.tagCode) {
+    return <span className="block px-2 py-1 text-sm text-muted-foreground">{props.data.grossWtG.toFixed(3)}</span>;
+  }
+  return <ItemFieldCell {...props} />;
+}
+
+function StoneWeightCell(props: ICellRendererParams<BillingItem> & EditCellExtra) {
+  if (props.data?.tagCode) {
+    return <span className="block px-2 py-1 text-sm text-muted-foreground">{props.data.stoneWtG.toFixed(3)}</span>;
+  }
+  return <ItemFieldCell {...props} />;
+}
+
 interface MakingChargeCellExtra {
   onOpen: (rowIndex: number) => void;
 }
 
 // Locked, not an ItemFieldCell - making charge is never typed directly
 // anymore, only set via MakingChargeDialog (opened by clicking this cell).
-// Shows the computed ₹ figure plus a small badge naming the method behind
-// it, so "₹12,500" next to "₹/g" reads as "this is a formula result", not
-// an arbitrary flat number.
 function MakingChargeCell({ data, node, onOpen }: ICellRendererParams<BillingItem> & MakingChargeCellExtra) {
   const rowIndex = node.rowIndex;
   if (!data || rowIndex == null) return null;
-  const badge = MAKING_METHOD_BADGE[data.makingMethod];
 
   return (
     <button
@@ -250,11 +264,6 @@ function MakingChargeCell({ data, node, onOpen }: ICellRendererParams<BillingIte
       className="flex h-full w-full items-center justify-between gap-1.5 px-2 text-sm text-foreground hover:bg-muted/50"
     >
       <span>{formatInr(data.makingCharge)}</span>
-      {badge ? (
-        <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
-          {badge}
-        </span>
-      ) : null}
     </button>
   );
 }
@@ -649,8 +658,20 @@ export function ItemTable({ onBrowseTags }: { onBrowseTags: () => void }) {
         cellRenderer: PiecesCell,
         cellRendererParams: { field: "pieces", onFieldChange: handleFieldChange } satisfies EditCellExtra,
       },
-      editable("grossWtG", "Gross Wt (g) *", 140),
-      editable("stoneWtG", "Stone Wt (g)", 130),
+      {
+        headerName: "Gross Wt (g) *",
+        width: 140,
+        headerClass: AG_GRID_HEADER_CLASS,
+        cellRenderer: GrossWeightCell,
+        cellRendererParams: { field: "grossWtG", onFieldChange: handleFieldChange } satisfies EditCellExtra,
+      },
+      {
+        headerName: "Stone Wt (g)",
+        width: 130,
+        headerClass: AG_GRID_HEADER_CLASS,
+        cellRenderer: StoneWeightCell,
+        cellRendererParams: { field: "stoneWtG", onFieldChange: handleFieldChange } satisfies EditCellExtra,
+      },
       {
         headerName: "Net Wt (g) *",
         width: 130,
