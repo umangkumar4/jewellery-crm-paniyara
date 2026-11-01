@@ -357,7 +357,11 @@ export default function BillingPage() {
             </p>
           ) : hasExcess && !isRefundComplete ? (
             <p className="mt-4 text-sm text-destructive">
-              Choose a refund mode and confirm the payment above before this sale can be finalized.
+              {refund.mode === null && !refund.confirmed
+                ? "Choose a refund mode and confirm the payment above before this sale can be finalized."
+                : refund.mode === null
+                  ? "Choose a refund mode above before this sale can be finalized."
+                  : "Confirm the payment above before this sale can be finalized."}
             </p>
           ) : null}
 

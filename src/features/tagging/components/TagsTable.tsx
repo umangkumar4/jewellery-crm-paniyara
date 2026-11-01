@@ -154,10 +154,18 @@ const columnDefs = useMemo<ColDef<Tag>[]>(
       // "—" for a tag whose Stone Amount was never set (see
       // StoneAmountDialog.tsx) - distinct from an explicitly applied ₹0, so
       // the table reflects the same distinction the stored data now makes.
-      valueGetter: (p) =>
-        !p.data || p.data.stone_amount_method === "not_set"
-          ? "—"
-          : `₹${p.data.stone_amount.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+      // per_gram shows the actual rate entered (total_stone_amount) with a
+      // "/g" suffix - showing stone_amount (the computed total) with "/g"
+      // would mislabel a total as a rate, same bug fixed in
+      // TagLabelPreview.tsx. fixed shows the total with an "(F)" marker.
+      valueGetter: (p) => {
+        if (!p.data || p.data.stone_amount_method === "not_set") return "—";
+        const fmt = (v: number) =>
+          `₹${v.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+        return p.data.stone_amount_method === "per_gram"
+          ? `${fmt(p.data.total_stone_amount)}/g`
+          : `${fmt(p.data.stone_amount)} (F)`;
+      },
     },
     {
       field: "buyer_code",
