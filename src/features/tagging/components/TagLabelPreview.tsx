@@ -1,9 +1,15 @@
 "use client";
 
+import { useRef, useState } from "react";
 import { Printer, Tag as TagIcon } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/Button";
 import { Barcode } from "@/features/tagging/components/Barcode";
 import type { Tag } from "@/features/tagging/hooks/useCreateTag";
+import { LabelPrinterError } from "@/features/tagging/lib/labelPrinter";
+import { readPrinterSettings } from "@/features/tagging/lib/printerSettings";
+import { printRawLabel } from "@/features/tagging/lib/qzClient";
+import { buildTagLabelTspl, TagLabelError } from "@/features/tagging/lib/tspl";
 
 // Real 100mm x 15mm jewellery tag roll spec: printable area runs 55-70mm,
 // the rest is the non-printable tail (adhesive/fold portion), 30-45mm.
@@ -135,6 +141,58 @@ function ZoomedFaces({ tag }: { tag: Tag }) {
   );
 }
 
+// Prints straight to the label printer through QZ Tray. Browser printing is
+// only offered after that fails, never opened automatically, so a failure can't
+// waste a label on a print nobody asked for. "Sent" rather than "printed" in the
+// success message: QZ Tray confirms the job was handed over, not that a label
+// came out (a printer that's switched off can still accept a queued job).
+function PrintActions({ tag }: { tag: Tag }) {
+  const [printing, setPrinting] = useState(false);
+  const [printError, setPrintError] = useState<string | null>(null);
+  // The button's disabled state only applies after a re-render, so a very fast
+  // second click could still get through and waste a second label.
+  const printInFlight = useRef(false);
+
+  async function handlePrint() {
+    if (printInFlight.current) return;
+    printInFlight.current = true;
+    setPrinting(true);
+    setPrintError(null);
+    try {
+      // Read at print time, so a change saved on this PC applies to the next label.
+      const settings = readPrinterSettings(window.localStorage);
+      await printRawLabel(buildTagLabelTspl(tag, settings), settings.printerName);
+      toast.success(`Label for ${tag.code} sent to the printer`);
+    } catch (error) {
+      setPrintError(
+        error instanceof LabelPrinterError || error instanceof TagLabelError
+          ? error.message
+          : "The label couldn't be sent to the printer.",
+      );
+    } finally {
+      printInFlight.current = false;
+      setPrinting(false);
+    }
+  }
+
+  return (
+    <div className="flex flex-col items-center gap-3 print:hidden">
+      <Button type="button" onClick={handlePrint} disabled={printing}>
+        <Printer className="h-4 w-4" />
+        {printing ? "Printing..." : "Print Label"}
+      </Button>
+      {printError && (
+        <div role="alert" className="flex max-w-md flex-col items-center gap-3 text-center">
+          <p className="text-sm text-destructive">{printError}</p>
+          <Button type="button" variant="outline" onClick={() => window.print()}>
+            Print with browser instead
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function TagLabelPreview({ tag }: { tag: Tag | null }) {
   if (!tag) {
     return (
@@ -216,10 +274,8 @@ export function TagLabelPreview({ tag }: { tag: Tag | null }) {
         />
       </div>
 
-      <Button type="button" onClick={() => window.print()} className="print:hidden">
-        <Printer className="h-4 w-4" />
-        Print Label
-      </Button>
+      {/* key - a different tag starts clean, not showing the last tag's error. */}
+      <PrintActions key={tag.id} tag={tag} />
     </div>
   );
 }

@@ -12,7 +12,11 @@ export const createTagSchema = z
       .string()
       .trim()
       .min(1, "Product name is required")
-      .max(120, "Product name must be at most 120 characters"),
+      .max(120, "Product name must be at most 120 characters")
+      // The label printer's built-in fonts only cover printable ASCII, so
+      // anything else (Hindi, ₹, accents) would print blank or garbled. Caught
+      // here at save time rather than when the physical label comes out wrong.
+      .regex(/^[\x20-\x7E]+$/, "Use English letters, numbers and basic symbols only"),
     purity_id: z
       .string()
       .trim()

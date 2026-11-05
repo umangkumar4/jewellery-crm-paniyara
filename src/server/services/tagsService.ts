@@ -1,26 +1,34 @@
-import { customAlphabet } from "nanoid";
 import type { QueryFilter } from "mongoose";
 import { TagModel, type TagDocument, type TagStatus } from "@/models/Tag.model";
+import { TagCounterModel } from "@/models/TagCounter.model";
 import { MetalPurityModel, type MetalPurityDocument } from "@/models/MetalPurity.model";
 import { PurityNotFoundError } from "@/server/services/metalPuritiesService";
 import type { CreateTagInput } from "@/schemas/tag.schema";
+import { formatTagCode, MAX_TAG_SEQUENCE } from "@/lib/tag-code";
 
-const generateCodeSuffix = customAlphabet("ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789", 8);
+const TAG_COUNTER_ID = "tag";
 
 export class TagCodeGenerationError extends Error {
   constructor() {
-    super("Could not generate a unique tag code, please try again");
+    super("Tag code limit reached, no new tags can be created");
     this.name = "TagCodeGenerationError";
   }
 }
 
-async function generateUniqueTagCode(): Promise<string> {
-  for (let attempt = 0; attempt < 5; attempt++) {
-    const code = `TAG-${generateCodeSuffix()}`;
-    const existing = await TagModel.findOne({ code }).select("_id").lean();
-    if (!existing) return code;
+// Same atomic $inc as getNextInvoiceNumber() in invoicesService.ts, so two
+// staff creating tags at once can never get the same number. No session here
+// because createTag isn't a transaction: a failed create just skips a number,
+// which is harmless for tags, and a deleted tag's number is never reused.
+async function getNextTagCode(): Promise<string> {
+  const counter = await TagCounterModel.findByIdAndUpdate(
+    TAG_COUNTER_ID,
+    { $inc: { lastNumber: 1 } },
+    { new: true, upsert: true },
+  );
+  if (counter.lastNumber > MAX_TAG_SEQUENCE) {
+    throw new TagCodeGenerationError();
   }
-  throw new TagCodeGenerationError();
+  return formatTagCode(counter.lastNumber);
 }
 
 export async function createTag(input: CreateTagInput) {
@@ -32,7 +40,7 @@ export async function createTag(input: CreateTagInput) {
     throw new PurityNotFoundError();
   }
 
-  const code = await generateUniqueTagCode();
+  const code = await getNextTagCode();
 
   const tag = await TagModel.create({
     code,

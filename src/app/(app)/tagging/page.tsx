@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 import { TagForm } from "@/features/tagging/components/TagForm";
 import { TagLabelPreview } from "@/features/tagging/components/TagLabelPreview";
+import { PrinterSettingsDialog } from "@/features/tagging/components/PrinterSettingsDialog";
 import { TagsTable } from "@/features/tagging/components/TagsTable";
 import type { Tag } from "@/features/tagging/hooks/useCreateTag";
 import { PageHeader } from "@/components/layout/PageHeader";
@@ -54,9 +55,12 @@ export default function TaggingPage() {
             pages; this wrapper has no reason to stay sticky once printing,
             so force it off rather than risk that. */}
         <div className="md:sticky md:top-6 print:static">
-          <p className="mb-3 text-xs font-semibold tracking-wide text-muted-foreground uppercase print:hidden">
-            Step 2 · Label Preview
-          </p>
+          <div className="mb-3 flex items-center justify-between gap-3 print:hidden">
+            <p className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
+              Step 2 · Label Preview
+            </p>
+            <PrinterSettingsDialog />
+          </div>
           <TagLabelPreview tag={previewTag} />
         </div>
       </div>
