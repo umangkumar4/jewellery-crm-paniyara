@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Plus, Search, Trash2 } from "lucide-react";
 import { AgGridReact } from "ag-grid-react";
 import type { ColDef, ICellRendererParams, RowClassParams } from "ag-grid-community";
@@ -19,7 +19,6 @@ import { WeightField } from "@/components/ui/WeightField";
 import { ScanInput } from "@/features/billing/components/ScanInput";
 import { MakingChargeDialog } from "@/features/billing/components/MakingChargeDialog";
 import { sanitizeNumericInput, isValidNumericInput, isValidWeightInput } from "@/features/billing/lib/numericInput";
-import { useNumericStoreField } from "@/features/billing/lib/useNumericStoreField";
 import { calculateItemTotal, calculateMakingCharge, type MakingMethod } from "@/features/billing/lib/calculations";
 import { useBillingStore, type BillingItem } from "@/store/useBillingStore";
 
@@ -146,11 +145,24 @@ function ItemFieldCell({ data, node, field, onFieldChange }: ICellRendererParams
   const numeric = NUMERIC_FIELDS.has(field);
   const value = data ? data[field] : "";
 
-  // Called unconditionally (Rules of Hooks) - for text cells it's inert,
-  // fed a constant 0 and its output never used.
-  const numericField = useNumericStoreField(typeof value === "number" ? value : 0, (n) => {
-    if (rowIndex != null) onFieldChange(rowIndex, field, String(n));
-  });
+  const storeText = String(value);
+
+  // Deliberately uncontrolled while being typed in, unlike every other input
+  // in this app. A redraw of this grid can take longer than the gap between
+  // very fast keystrokes, and a controlled input shows its old value until
+  // that redraw lands, so the next key is applied to stale text ("2.75" came
+  // out as 25, silently changing the bill). Leaving the text to the browser
+  // means a slow redraw can't touch it. The store still gets every change, so
+  // totals stay live, and this cell only follows the store while not focused.
+  const inputRef = useRef<HTMLInputElement>(null);
+  const lastValidText = useRef(storeText);
+
+  useEffect(() => {
+    const input = inputRef.current;
+    if (!input || document.activeElement === input) return;
+    input.value = storeText;
+    lastValidText.current = storeText;
+  }, [storeText]);
 
   if (!data || rowIndex == null) return null;
 
@@ -159,30 +171,39 @@ function ItemFieldCell({ data, node, field, onFieldChange }: ICellRendererParams
 
   return (
     <input
+      ref={inputRef}
       // type="text" + inputMode="decimal", not type="number" - see
       // numericInput.ts for why: a real, screenshot-confirmed bug where
       // React can leave a literal "011" stuck on screen for a number input
       // even though the underlying value is correctly 11.
       type="text"
       inputMode={numeric ? "decimal" : undefined}
-      value={numeric ? numericField.value : (value as string)}
+      defaultValue={storeText}
       onChange={(e) => {
-        const raw = e.target.value;
+        const input = e.target;
+        const raw = input.value;
         if (!numeric) {
           onFieldChange(rowIndex, field, raw);
           return;
         }
         const isValid = WEIGHT_FIELDS.has(field) ? isValidWeightInput(raw) : isValidNumericInput(raw);
-        if (!isValid) return;
-        numericField.onValueChange(sanitizeNumericInput(raw));
+        if (!isValid) {
+          input.value = lastValidText.current;
+          return;
+        }
+        const text = sanitizeNumericInput(raw);
+        if (text !== raw) input.value = text;
+        lastValidText.current = text;
+        onFieldChange(rowIndex, field, text);
       }}
-      onBlur={() => {
+      onBlur={(e) => {
         if (!numeric) return;
-        // Normalize the buffer to canonical form: "" -> "0" (previous
-        // behavior, preserved), "15." -> "15", "15.50" -> "15.5".
-        const canonical = String(Number(numericField.value) || 0);
-        if (canonical !== numericField.value) {
-          numericField.onValueChange(canonical);
+        // Normalize to canonical form: "" -> "0", "15." -> "15", "15.50" -> "15.5".
+        const canonical = String(Number(e.target.value) || 0);
+        if (canonical !== e.target.value) {
+          e.target.value = canonical;
+          lastValidText.current = canonical;
+          onFieldChange(rowIndex, field, canonical);
         }
       }}
       className={cn(

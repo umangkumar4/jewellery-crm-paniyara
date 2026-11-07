@@ -6,6 +6,11 @@ const envSchema = z.object({
   JWT_SECRET: z.string().min(16, "JWT_SECRET must be at least 16 characters"),
   JWT_EXPIRES_IN: z.string().default("7d"),
   SETUP_SECRET: z.string().min(1, "SETUP_SECRET is required"),
+  // Optional on purpose: this check stops the whole app when it fails, and
+  // silent label printing isn't worth taking billing down for. Without them,
+  // QZ Tray just asks staff to click Allow (see qzSigningService.ts).
+  QZ_CERTIFICATE: z.string().optional(),
+  QZ_PRIVATE_KEY: z.string().optional(),
 });
 
 function loadEnv() {
